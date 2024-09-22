@@ -52,12 +52,18 @@ broken_peaks_freq, broken_peaks_amp = perform_fft(broken_degrees, broken_area, '
 plt.tight_layout()
 plt.show()
 
-# Analyze peak frequencies and amplitudes
-print("Intact Tool Peaks (Frequency, Amplitude):", list(zip(intact_peaks_freq, intact_peaks_amp)))
-print("Broken Tool Peaks (Frequency, Amplitude):", list(zip(broken_peaks_freq, broken_peaks_amp)))
+# Function to convert np.float64 to regular float and format for display
+def format_peaks(freqs, amps):
+    formatted_peaks = [(float(freq), float(amp)) for freq, amp in zip(freqs, amps)]  # Convert to Python float
+    return formatted_peaks
+
+# Clean up the output for display
+print("Intact Tool Peaks (Frequency, Amplitude):", format_peaks(intact_peaks_freq, intact_peaks_amp))
+print("Broken Tool Peaks (Frequency, Amplitude):", format_peaks(broken_peaks_freq, broken_peaks_amp))
+
 
 # Simple classification based on number of peaks or amplitude
-if len(broken_peaks_freq) > len(intact_peaks_freq) or np.max(broken_peaks_amp) > np.max(intact_peaks_amp) * 1.5:
+if len(broken_peaks_freq) > len(intact_peaks_freq) or np.max(broken_peaks_amp) > np.max(intact_peaks_amp) * 1.2:
     print("Tool is likely broken.")
 else:
     print("Tool is likely intact.")
