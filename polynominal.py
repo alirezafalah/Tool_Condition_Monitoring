@@ -16,7 +16,7 @@ broken_degrees = broken_data['Degree'].values.reshape(-1, 1)
 broken_area = broken_data['Sum of Pixels'].values
 
 # Polynomial Regression
-degree_of_polynomial = 7  # You can adjust this based on performance
+degree_of_polynomial = 9  # You can adjust this based on performance
 
 # Polynomial features for intact tool
 poly = PolynomialFeatures(degree=degree_of_polynomial)
