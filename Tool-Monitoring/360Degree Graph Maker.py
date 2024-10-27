@@ -3,8 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Load CSV files for broken and intact tools
-intact_data = pd.read_csv(r'data\table(intact).csv')  # Replace with your file path
-broken_data = pd.read_csv(r'data\table(broken) (1).csv')  # Replace with your file path
+intact_data = pd.read_csv('../data/new_tool_pattern_from_broken.csv')  # Relative path to 'data' folder
+broken_data = pd.read_csv('../data/table(broken).csv')  # Relative path to 'data' folder
 
 # Assuming the CSV files have columns 'Degree' and 'Area'
 intact_degrees = intact_data['Degree'].values

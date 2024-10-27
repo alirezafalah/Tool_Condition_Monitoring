@@ -4,14 +4,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-file_path = r"C:\Users\alrfa\OneDrive\Desktop\Ph.D\Paper2_Possible_Methods\data\intact.csv"
+file_path = r"C:\Users\alrfa\OneDrive\Desktop\Ph.D\Paper2_Possible_Methods\data\broken.csv"
 intact_tool_data = pd.read_csv(file_path)
 
 def circular_shift(data, shift_degrees):
     shifted_data = np.roll(data, shift_degrees)
     return shifted_data
 
-shift_degrees = 50  # Adjust this value to shift the data
+shift_degrees = 20  # Adjust this value to shift the data
 
 # Store original values for plotting
 original_pixels = intact_tool_data['Sum of Pixels'].values.copy()
