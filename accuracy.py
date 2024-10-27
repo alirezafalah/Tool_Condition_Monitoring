@@ -83,10 +83,6 @@ def shift_data_to_breaking_point(data_path):
         # Plot the fitted curve
         plt.plot(segment_degrees, fitted_pixels, color=color, linestyle='--', label=f'Fitted Curve Segment {i+1}')
         
-        # Calculate residual error (sum of squared residuals)
-        residual = np.sum((segment_pixels - fitted_pixels) ** 2)
-        residual_errors.append(residual)
-        
     plt.title("Shifted Data Starting at First Breaking Point with Fitted Curves")
     plt.xlabel("Degree")
     plt.ylabel("Sum of Pixels")
@@ -94,65 +90,8 @@ def shift_data_to_breaking_point(data_path):
     plt.legend()
     plt.show()
     
-    # Print residual errors for each segment
-    for i, residual in enumerate(residual_errors):
-        print(f"Residual Error for Segment {i+1}: {residual:.4f}")
-    
-    # Compare the fitted curves
-    compare_fitted_curves(segment_coeffs, segment_fitted_curves, segment_degrees_list)
-    
-    return shifted_data, adjusted_pattern_boundaries, residual_errors
+    return shifted_data, adjusted_pattern_boundaries
 
-def compare_fitted_curves(segment_coeffs, segment_fitted_curves, segment_degrees_list):
-    num_segments = len(segment_coeffs)
-    
-    # Initialize lists to store comparison metrics
-    coeff_differences = []
-    mse_values = []
-    correlation_coefficients = []
-    
-    # Define a common normalized degree range
-    normalized_degrees = np.linspace(0, 1, 100)
-    
-    # For each segment, evaluate the fitted curve over the normalized degrees
-    normalized_fitted_curves = []
-    
-    for i in range(num_segments):
-        segment_degrees = segment_degrees_list[i]
-        min_degree = segment_degrees.min()
-        max_degree = segment_degrees.max()
-        # Normalize the degrees to [0, 1]
-        segment_degrees_normalized = (segment_degrees - min_degree) / (max_degree - min_degree)
-        # Evaluate the fitted polynomial over the normalized degrees
-        poly_fit = np.poly1d(segment_coeffs[i])
-        # Interpolate the fitted curve to the common normalized degrees
-        fitted_curve_normalized = poly_fit(segment_degrees_normalized)
-        fitted_curve_common = np.interp(normalized_degrees, segment_degrees_normalized, fitted_curve_normalized)
-        normalized_fitted_curves.append(fitted_curve_common)
-    
-    # Now compare each segment's normalized fitted curve to the reference
-    reference_curve = normalized_fitted_curves[0]
-    
-    for i in range(1, num_segments):
-        # Coefficient difference
-        coeff_diff = np.abs(segment_coeffs[0] - segment_coeffs[i])
-        coeff_differences.append(coeff_diff)
-        
-        # Mean Squared Error
-        mse = np.mean((reference_curve - normalized_fitted_curves[i]) ** 2)
-        mse_values.append(mse)
-        
-        # Correlation Coefficient
-        corr_coef, _ = pearsonr(reference_curve, normalized_fitted_curves[i])
-        correlation_coefficients.append(corr_coef)
-        
-        # Print comparison results
-        print(f"\nComparison between Segment 1 and Segment {i+1}:")
-        print(f"Coefficient Differences: {coeff_diff}")
-        print(f"MSE between fitted curves: {mse:.4f}")
-        print(f"Correlation Coefficient: {corr_coef:.4f}")
-        
-    # Optionally, you can store or return these comparison metrics for further analysis
 
 # Run the function
 shift_data_to_breaking_point("data/table(intact).csv")
