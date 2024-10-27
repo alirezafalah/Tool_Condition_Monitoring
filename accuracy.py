@@ -50,6 +50,7 @@ def shift_data_to_breaking_point(data_path):
     colors = ['green', 'red', 'blue', 'purple', 'yellow', 'cyan', 'magenta', 'orange']
     residual_errors = []
     
+    # Loop to fit polynomial curves for each segment
     for i, (start, end) in enumerate(adjusted_pattern_boundaries):
         color = colors[i % len(colors)]
         
@@ -70,7 +71,6 @@ def shift_data_to_breaking_point(data_path):
         plt.fill_between(segment_degrees, segment_pixels.min(), segment_pixels.max(), color=color, alpha=0.1)
         
         # Fit a polynomial curve to the segment
-        # You can adjust the polynomial degree as needed
         poly_degree = 3
         coeffs = np.polyfit(segment_degrees, segment_pixels, deg=poly_degree)
         poly_fit = np.poly1d(coeffs)
@@ -82,6 +82,29 @@ def shift_data_to_breaking_point(data_path):
         
         # Plot the fitted curve
         plt.plot(segment_degrees, fitted_pixels, color=color, linestyle='--', label=f'Fitted Curve Segment {i+1}')
+    
+    # Use the first segment as the reference for error calculation
+    reference_curve = segment_fitted_curves[0]
+    ref_coeffs = segment_coeffs[0]
+    
+    # Calculate the 2-norm error and percentage error for each segment
+    for i in range(1, len(segment_fitted_curves)):
+        # Compute the error as the difference from the reference curve
+        error_vector = segment_fitted_curves[i] - reference_curve[:len(segment_fitted_curves[i])]
+        
+        # Calculate the 2-norm of the error
+        error_norm = np.linalg.norm(error_vector, ord=2)
+        
+        # Calculate the 2-norm of the reference curve
+        reference_norm = np.linalg.norm(reference_curve[:len(segment_fitted_curves[i])], ord=2)
+        
+        # Calculate the percentage error relative to the reference curve
+        percentage_error = (error_norm / reference_norm) * 100
+        
+        # Print out the results
+        print(f"Segment {i+1} vs Reference Segment:")
+        print(f"  2-Norm Error: {error_norm:.4f}")
+        print(f"  Percentage Error: {percentage_error:.2f}%")
         
     plt.title("Shifted Data Starting at First Breaking Point with Fitted Curves")
     plt.xlabel("Degree")
@@ -91,7 +114,6 @@ def shift_data_to_breaking_point(data_path):
     plt.show()
     
     return shifted_data, adjusted_pattern_boundaries
-
 
 # Run the function
 shift_data_to_breaking_point("data/table(intact).csv")
