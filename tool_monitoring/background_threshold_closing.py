@@ -19,7 +19,7 @@ def median_background(bg_dir):
     return median_img
 
 
-def subtract_from_median(tool_dir, median_bg, output_dir, thresh_value=25, kernel_size=5):
+def subtract_from_median(tool_dir, median_bg, output_dir, thresh_value, kernel_size):
     tool_frames = sorted(os.listdir(tool_dir))
 
     # Define the kernel for the closing operation

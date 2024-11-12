@@ -3,8 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Load CSV files for broken and intact tools
-intact_data = pd.read_csv('../data/new_tool_pattern_from_broken.csv')  # Relative path to 'data' folder
-broken_data = pd.read_csv('../data/table(broken).csv')  # Relative path to 'data' folder
+intact_data = pd.read_csv(r'data\drill_intact.csv')  # Relative path to 'data' folder
+broken_data = pd.read_csv(r'data\drill_broken.csv')  # Relative path to 'data' folder
 
 # Assuming the CSV files have columns 'Degree' and 'Area'
 intact_degrees = intact_data['Degree'].values
@@ -22,7 +22,8 @@ plt.title('Intact Tool Pattern')
 plt.xlabel('Degrees')
 plt.ylabel('Area')
 plt.grid(True)
-plt.ylim(min(intact_area) - 1000, max(intact_area) + 1000)  # Adjust y-axis limits for zoomed-out view
+plt.ylim(min(intact_area) - 500, max(intact_area) + 500)  # Adjust y-axis limits for zoomed-out view
+plt.xticks(np.arange(0, max(intact_degrees)+10, 10))
 
 # Plot for the broken tool
 plt.subplot(1, 2, 2)
@@ -31,7 +32,7 @@ plt.title('Broken Tool Pattern')
 plt.xlabel('Degrees')
 plt.ylabel('Area')
 plt.grid(True)
-plt.ylim(min(broken_area) - 1000, max(broken_area) + 1000)  # Adjust y-axis limits for zoomed-out view
+plt.ylim(min(broken_area) - 500, max(broken_area) + 500)  # Adjust y-axis limits for zoomed-out view
 
 # Show the plots
 plt.tight_layout()
