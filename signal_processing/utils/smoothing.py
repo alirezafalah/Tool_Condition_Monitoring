@@ -50,8 +50,8 @@ def savgol_peak_finder(data_path):
     pixels = tool_data['Sum of Pixels'].values
     
     # Parameters for Savitzky-Golay filter
-    window_length = 31  # Window length for smoothing (must be an odd number)
-    polyorder = 2       # Degree of polynomial for smoothing
+    window_length = 111  # Window length for smoothing (must be an odd number)
+    polyorder = 5       # Degree of polynomial for smoothing
     
     # Wrap the data by extending on both sides
     extended_pixels = np.concatenate((pixels[-window_length//2:], pixels, pixels[:window_length//2]))
@@ -72,6 +72,10 @@ def savgol_peak_finder(data_path):
     plt.grid(True)
     plt.legend()
     plt.show()
+
+
+    peaks = find_peaks(smoothed_pixels, distance=30)
+    print(peaks)
 
 # Example usage:
 # savgol_peak_finder('data/tool_data.csv')

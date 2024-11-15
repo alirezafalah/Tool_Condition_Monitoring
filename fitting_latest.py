@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
     # Polynomial fitting for drill (2 segments)
     print("\nDrill Polynomial Coefficients:")
-    drill_coefficients = polynomial_fitting(df_drill, num_segments=2, degree=2)
+    drill_coefficients = polynomial_fitting(df_drill, num_segments=2, degree=5)
 
     # Print coefficients for inspection
     print("\nChamfer Coefficients:", chamfer_coefficients)
