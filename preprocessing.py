@@ -10,6 +10,9 @@ df_intact["Sum of Pixels"] = (df_intact["Sum of Pixels"] - df_intact["Sum of Pix
     df_intact["Sum of Pixels"].max() - df_intact["Sum of Pixels"].min()
 )
 
+# Save scaled data
+df_intact.to_csv("processed_data/scaled_intact.csv", index=False)
+
 # Plot scaled data for intact tool
 plt.figure(figsize=(8, 6))
 plt.plot(df_intact["Degree"], df_intact["Sum of Pixels"], marker="o", linestyle="-")
@@ -28,9 +31,12 @@ df_intact_shifted = df_intact_shifted.reset_index(drop=True)
 df_intact_shifted["Degree"] = df_intact_shifted["Degree"] - df_intact_shifted.iloc[0]["Degree"]
 df_intact_shifted.loc[df_intact_shifted["Degree"] < 0, "Degree"] += 360
 
+# Save shifted data
+df_intact_shifted.to_csv("processed_data/shifted_intact.csv", index=False)
+
 # Plot shifted data
 plt.figure(figsize=(8, 6))
-plt.scatter(df_intact_shifted["Degree"], df_intact_shifted["Sum of Pixels"], color="blue", label="Original data")
+plt.scatter(df_intact_shifted["Degree"], df_intact_shifted["Sum of Pixels"], color="blue", label="Processed data")
 plt.xlabel("Degree")
 plt.ylabel("Sum of Pixels")
 plt.title("Chamfer - minimum shifted to 0 degree")
@@ -38,21 +44,21 @@ plt.legend()
 plt.grid(True)
 plt.show()
 
-# Step 3: Splitting shifted data into quadrants
-df_intact_quadrant1 = df_intact_shifted.iloc[:90]
-df_intact_quadrant2 = df_intact_shifted.iloc[90:180]
-df_intact_quadrant3 = df_intact_shifted.iloc[180:270]
-df_intact_quadrant4 = df_intact_shifted.iloc[270:]
+# Step 3: Splitting shifted data into adjustable segments
+num_segments = 4  # Adjust this value to the desired number of segments
+segment_size = len(df_intact_shifted) // num_segments
 
-# Plot data divided into quadrants
+# Save and plot data divided into segments
 plt.figure(figsize=(8, 6))
-plt.scatter(df_intact_quadrant1["Degree"], df_intact_quadrant1["Sum of Pixels"], color="blue", label="Quadrant 1")
-plt.scatter(df_intact_quadrant2["Degree"], df_intact_quadrant2["Sum of Pixels"], color="green", label="Quadrant 2")
-plt.scatter(df_intact_quadrant3["Degree"], df_intact_quadrant3["Sum of Pixels"], color="red", label="Quadrant 3")
-plt.scatter(df_intact_quadrant4["Degree"], df_intact_quadrant4["Sum of Pixels"], color="purple", label="Quadrant 4")
+colors = ["blue", "green", "red", "purple", "orange", "cyan"]  # Add more colors if needed
+for i in range(num_segments):
+    segment = df_intact_shifted.iloc[i * segment_size: (i + 1) * segment_size]
+    segment.to_csv(f"processed_data/segment_{i+1}.csv", index=False)  # Save each segment
+    plt.scatter(segment["Degree"], segment["Sum of Pixels"], color=colors[i % len(colors)], label=f"Segment {i+1}")
+
 plt.xlabel("Degree")
 plt.ylabel("Sum of Pixels")
-plt.title("Chamfer - Data divided into quadrants")
+plt.title(f"Chamfer - Divided by number of segments")
 plt.legend()
 plt.grid(True)
 plt.show()
