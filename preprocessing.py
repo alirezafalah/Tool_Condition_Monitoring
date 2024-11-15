@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Load the dataset for intact tool
-df_intact = pd.read_csv(r"data\table(intact).csv")  # Replace with actual path
+df_intact = pd.read_csv(r"data\drill_intact.csv")  # Replace with actual path
 
 # Step 1: Scaling for intact tool data
 df_intact["Sum of Pixels"] = (df_intact["Sum of Pixels"] - df_intact["Sum of Pixels"].min()) / (
@@ -11,7 +11,7 @@ df_intact["Sum of Pixels"] = (df_intact["Sum of Pixels"] - df_intact["Sum of Pix
 )
 
 # Save scaled data
-df_intact.to_csv("processed_data/scaled_intact.csv", index=False)
+# df_intact.to_csv("processed_data/scaled_intact.csv", index=False)
 
 # Plot scaled data for intact tool
 plt.figure(figsize=(8, 6))
@@ -32,7 +32,7 @@ df_intact_shifted["Degree"] = df_intact_shifted["Degree"] - df_intact_shifted.il
 df_intact_shifted.loc[df_intact_shifted["Degree"] < 0, "Degree"] += 360
 
 # Save shifted data
-df_intact_shifted.to_csv("processed_data/shifted_intact.csv", index=False)
+df_intact_shifted.to_csv("processed_data/drill_processed.csv", index=False)
 
 # Plot shifted data
 plt.figure(figsize=(8, 6))
@@ -53,7 +53,7 @@ plt.figure(figsize=(8, 6))
 colors = ["blue", "green", "red", "purple", "orange", "cyan"]  # Add more colors if needed
 for i in range(num_segments):
     segment = df_intact_shifted.iloc[i * segment_size: (i + 1) * segment_size]
-    segment.to_csv(f"processed_data/segment_{i+1}.csv", index=False)  # Save each segment
+    # segment.to_csv(f"processed_data/segment_{i+1}.csv", index=False)  # Save each segment
     plt.scatter(segment["Degree"], segment["Sum of Pixels"], color=colors[i % len(colors)], label=f"Segment {i+1}")
 
 plt.xlabel("Degree")
