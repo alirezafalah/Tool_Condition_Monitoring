@@ -6,7 +6,7 @@ from sklearn.linear_model import LinearRegression
 
 def polynomial_fitting(df, num_segments, degree, visualize=True):
     """
-    Perform polynomial regression on a dataset divided into adjustable segments.
+    Perform polynomial regression on a dataset with each segment shifted to start from 0 degrees.
 
     Parameters:
     - df: Input DataFrame with 'Degree' and 'Sum of Pixels' columns.
@@ -16,20 +16,28 @@ def polynomial_fitting(df, num_segments, degree, visualize=True):
     
     Returns:
     - coefficients: List of coefficients for each segment's polynomial fit.
+    - shifted_segments: List of DataFrames, each representing a shifted segment.
     """
     segment_size = len(df) // num_segments
     coefficients = []
+    shifted_segments = []
     colors = ['green', 'blue', 'purple', 'orange', 'cyan', 'red']  # For different segments
 
     plt.figure(figsize=(16, 12))
-    plt.scatter(df["Degree"], df["Sum of Pixels"], color="blue", label="Original data")
 
     for i in range(num_segments):
-        segment = df.iloc[i * segment_size: (i + 1) * segment_size]
-        X_segment = segment[['Degree']].values
-        Y_segment = segment['Sum of Pixels'].values
+        # Extract segment
+        segment = df.iloc[i * segment_size: (i + 1) * segment_size].copy()
+
+        # Shift the degree axis to start at 0
+        segment["Degree"] = segment["Degree"] - segment["Degree"].iloc[0]
+
+        # Store the shifted segment
+        shifted_segments.append(segment)
 
         # Polynomial features transformation
+        X_segment = segment[['Degree']].values
+        Y_segment = segment['Sum of Pixels'].values
         poly = PolynomialFeatures(degree=degree)
         X_poly = poly.fit_transform(X_segment)
 
@@ -45,26 +53,19 @@ def polynomial_fitting(df, num_segments, degree, visualize=True):
 
         # Plot segment polynomial fit
         plt.plot(segment['Degree'], Y_pred, color=colors[i % len(colors)], 
-                 label=f'Segment {i + 1}: {degree}-degree Polynomial Fit')
+                 label=f'Shifted Segment {i + 1}: {degree}-degree Polynomial Fit')
+        plt.scatter(segment['Degree'], segment['Sum of Pixels'], color=colors[i % len(colors)], alpha=0.6)
 
-    # Add vertical segment separators
-    for i in range(1, num_segments):
-        plt.axvline(x=i * (360 / num_segments), color='green', linestyle='--')
-    plt.axvline(x=360, color='green', linestyle='--')
-    plt.xticks([i * (360 / num_segments) for i in range(num_segments + 1)],
-               [str(int(i * (360 / num_segments))) for i in range(num_segments + 1)], color='green')
-
-    plt.xlabel('Degree')
+    plt.xlabel('Shifted Degree (per segment)')
     plt.ylabel('Sum of Pixels')
-    plt.title(f'Polynomial regression with {num_segments} Segments')
+    plt.title(f'Polynomial regression with {num_segments} Shifted Segments')
     plt.legend()
     plt.grid(True)
 
     if visualize:
         plt.show()
 
-    return coefficients
-
+    return coefficients, shifted_segments
 
 # Example Usage:
 if __name__ == "__main__":
