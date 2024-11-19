@@ -19,7 +19,7 @@ def polynomial_fitting(df, num_segments, degree, visualize=True):
     """
     segment_size = len(df) // num_segments
     coefficients = []
-    colors = ['red', 'green', 'blue', 'purple', 'orange', 'cyan']  # For different segments
+    colors = ['green', 'blue', 'purple', 'orange', 'cyan', 'red']  # For different segments
 
     plt.figure(figsize=(16, 12))
     plt.scatter(df["Degree"], df["Sum of Pixels"], color="blue", label="Original data")
@@ -41,7 +41,7 @@ def polynomial_fitting(df, num_segments, degree, visualize=True):
         Y_pred = model.predict(X_poly)
 
         # Append coefficients
-        coefficients.append(model.coef_)
+        coefficients.append([model.intercept_, *model.coef_[1:]])
 
         # Plot segment polynomial fit
         plt.plot(segment['Degree'], Y_pred, color=colors[i % len(colors)], 
@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
     # Polynomial fitting for drill (2 segments)
     print("\nDrill Polynomial Coefficients:")
-    drill_coefficients = polynomial_fitting(df_drill, num_segments=2, degree=5)
+    drill_coefficients = polynomial_fitting(df_drill, num_segments=2, degree=2)
 
     # Print coefficients for inspection
     print("\nChamfer Coefficients:", chamfer_coefficients)
