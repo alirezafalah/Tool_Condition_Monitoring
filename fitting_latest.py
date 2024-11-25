@@ -3,26 +3,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
 
-def polynomial_fitting(df, num_segments, degree, visualize=True):
+def polynomial_fitting_iterative(df, num_segments, max_degree, visualize=True):
     """
-    Perform polynomial regression on a dataset with each segment shifted to start from 0 degrees.
-    Computes R2 for each segment.
+    Perform polynomial regression iteratively for degrees 2 to max_degree for each segment
+    and determine the degree with the highest R2.
 
     Parameters:
     - df: Input DataFrame with 'Degree' and 'Sum of Pixels' columns.
     - num_segments: Number of segments to divide the data into.
-    - degree: Degree of the polynomial regression.
+    - max_degree: Maximum polynomial degree to test.
     - visualize: Boolean to control whether to show plots.
 
     Returns:
-    - coefficients_r2: List of tuples (coefficients, R2) for each segment.
+    - best_fits: List of dictionaries for each segment with the best degree, coefficients, and R2.
     - shifted_segments: List of DataFrames, each representing a shifted segment.
     """
-    from sklearn.metrics import r2_score
-
     segment_size = len(df) // num_segments
-    coefficients_r2 = []
+    best_fits = []
     shifted_segments = []
     colors = ['green', 'blue', 'purple', 'orange', 'cyan', 'red']  # For different segments
 
@@ -38,38 +37,59 @@ def polynomial_fitting(df, num_segments, degree, visualize=True):
         # Store the shifted segment
         shifted_segments.append(segment)
 
-        # Polynomial features transformation
+        # Data for the current segment
         X_segment = segment[['Degree']].values
         Y_segment = segment['Sum of Pixels'].values
-        poly = PolynomialFeatures(degree=degree)
-        X_poly = poly.fit_transform(X_segment)
 
-        # Linear regression model fitting
-        model = LinearRegression()
-        model.fit(X_poly, Y_segment)
+        # Variables to track the best polynomial fit
+        best_r2 = float('-inf')
+        best_degree = None
+        best_coefficients = None
+        best_predictions = None
 
-        # Predictions and R2 calculation
-        Y_pred = model.predict(X_poly)
-        r2 = r2_score(Y_segment, Y_pred)
+        # Iterate over polynomial degrees
+        for degree in range(2, max_degree + 1):
+            poly = PolynomialFeatures(degree=degree)
+            X_poly = poly.fit_transform(X_segment)
 
-        # Append coefficients and R2
-        coefficients_r2.append(([model.intercept_, *model.coef_[1:]], r2))
+            # Linear regression model fitting
+            model = LinearRegression()
+            model.fit(X_poly, Y_segment)
 
-        # Plot segment polynomial fit
-        plt.plot(segment['Degree'], Y_pred, color=colors[i % len(colors)], 
-                 label=f'Shifted Segment {i + 1}: {degree}-degree Polynomial Fit (R2={r2:.3f})')
+            # Predictions and R2 calculation
+            Y_pred = model.predict(X_poly)
+            r2 = r2_score(Y_segment, Y_pred)
+
+            # Check if this is the best R2 so far
+            if r2 > best_r2:
+                best_r2 = r2
+                best_degree = degree
+                best_coefficients = [model.intercept_, *model.coef_[1:]]
+                best_predictions = Y_pred
+
+        # Append best fit for the current segment
+        best_fits.append({
+            "segment": i + 1,
+            "best_degree": best_degree,
+            "best_r2": best_r2,
+            "coefficients": best_coefficients
+        })
+
+        # Plot the best polynomial fit for the segment
+        plt.plot(segment['Degree'], best_predictions, color=colors[i % len(colors)],
+                 label=f'Segment {i + 1}: Best Degree {best_degree} (R2={best_r2:.3f})')
         plt.scatter(segment['Degree'], segment['Sum of Pixels'], color=colors[i % len(colors)], alpha=0.6)
 
     plt.xlabel('Shifted Degree (per segment)')
     plt.ylabel('Sum of Pixels')
-    plt.title(f'Polynomial regression with {num_segments} Shifted Segments')
+    plt.title(f'Best Polynomial Regression Fit (2 to {max_degree} Degree) for {num_segments} Segments')
     plt.legend()
     plt.grid(True)
 
     if visualize:
         plt.show()
 
-    return coefficients_r2, shifted_segments
+    return best_fits, shifted_segments
 
 
 # Example Usage:
@@ -78,14 +98,14 @@ if __name__ == "__main__":
     df_chamfer = pd.read_csv(r"processed_data/chamfer_processed.csv")
     df_drill = pd.read_csv(r"processed_data/drill_processed.csv")
 
-    # Polynomial fitting for chamfer (4 segments)
-    print("Chamfer Polynomial Coefficients:")
-    chamfer_coefficients = polynomial_fitting(df_chamfer, num_segments=4, degree=2)
+    # Polynomial fitting for chamfer (4 segments, degrees 2 to 5)
+    print("Chamfer Best Fits:")
+    chamfer_best_fits, _ = polynomial_fitting_iterative(df_chamfer, num_segments=4, max_degree=10)
 
-    # Polynomial fitting for drill (2 segments)
-    print("\nDrill Polynomial Coefficients:")
-    drill_coefficients = polynomial_fitting(df_drill, num_segments=2, degree=2)
+    # Polynomial fitting for drill (2 segments, degrees 2 to 5)
+    print("\nDrill Best Fits:")
+    drill_best_fits, _ = polynomial_fitting_iterative(df_drill, num_segments=2, max_degree=10)
 
-    # Print coefficients for inspection
-    print("\nChamfer Coefficients:", chamfer_coefficients)
-    print("\nDrill Coefficients:", drill_coefficients)
+    # Print results for inspection
+    print("\nChamfer Best Fits:", chamfer_best_fits)
+    print("\nDrill Best Fits:", drill_best_fits)
