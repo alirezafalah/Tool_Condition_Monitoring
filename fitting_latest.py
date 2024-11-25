@@ -7,19 +7,22 @@ from sklearn.linear_model import LinearRegression
 def polynomial_fitting(df, num_segments, degree, visualize=True):
     """
     Perform polynomial regression on a dataset with each segment shifted to start from 0 degrees.
+    Computes R2 for each segment.
 
     Parameters:
     - df: Input DataFrame with 'Degree' and 'Sum of Pixels' columns.
     - num_segments: Number of segments to divide the data into.
     - degree: Degree of the polynomial regression.
     - visualize: Boolean to control whether to show plots.
-    
+
     Returns:
-    - coefficients: List of coefficients for each segment's polynomial fit.
+    - coefficients_r2: List of tuples (coefficients, R2) for each segment.
     - shifted_segments: List of DataFrames, each representing a shifted segment.
     """
+    from sklearn.metrics import r2_score
+
     segment_size = len(df) // num_segments
-    coefficients = []
+    coefficients_r2 = []
     shifted_segments = []
     colors = ['green', 'blue', 'purple', 'orange', 'cyan', 'red']  # For different segments
 
@@ -45,15 +48,16 @@ def polynomial_fitting(df, num_segments, degree, visualize=True):
         model = LinearRegression()
         model.fit(X_poly, Y_segment)
 
-        # Predictions
+        # Predictions and R2 calculation
         Y_pred = model.predict(X_poly)
+        r2 = r2_score(Y_segment, Y_pred)
 
-        # Append coefficients
-        coefficients.append([model.intercept_, *model.coef_[1:]])
+        # Append coefficients and R2
+        coefficients_r2.append(([model.intercept_, *model.coef_[1:]], r2))
 
         # Plot segment polynomial fit
         plt.plot(segment['Degree'], Y_pred, color=colors[i % len(colors)], 
-                 label=f'Shifted Segment {i + 1}: {degree}-degree Polynomial Fit')
+                 label=f'Shifted Segment {i + 1}: {degree}-degree Polynomial Fit (R2={r2:.3f})')
         plt.scatter(segment['Degree'], segment['Sum of Pixels'], color=colors[i % len(colors)], alpha=0.6)
 
     plt.xlabel('Shifted Degree (per segment)')
@@ -65,7 +69,8 @@ def polynomial_fitting(df, num_segments, degree, visualize=True):
     if visualize:
         plt.show()
 
-    return coefficients, shifted_segments
+    return coefficients_r2, shifted_segments
+
 
 # Example Usage:
 if __name__ == "__main__":
