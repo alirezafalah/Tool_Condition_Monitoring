@@ -7,12 +7,12 @@ import numpy as np
 from scipy.signal import find_peaks, savgol_filter
 
 # File path for the intact tool data
-file_path = r"data\table(intact).csv"
+file_path = r"data\drill_broken.csv"
 
 def savgol_peak_finder(data_path):
     tool_data = pd.read_csv(data_path)
     # Apply Savitzky-Golay filter to smooth the data
-    window_length = 11  # Window length for smoothing (must be an odd number)
+    window_length = 111  # Window length for smoothing (must be an odd number)
     polyorder = 2       # Degree of polynomial for smoothing
     smoothed_pixels = savgol_filter(tool_data['Sum of Pixels'], window_length=window_length, polyorder=polyorder)
 
@@ -36,7 +36,7 @@ def savgol_peak_finder(data_path):
 
     # Set prominence greater than the largest difference to avoid detecting local peaks
     prominence = max_difference + 1  # Ensure prominence is larger than the largest difference
-    distance = 45                    # Minimum horizontal distance between peaks
+    distance = 30                    # Minimum horizontal distance between peaks
     significant_peaks, _ = find_peaks(smoothed_pixels, prominence=prominence, distance=distance)
 
     peak_degrees = tool_data['Degree'].iloc[significant_peaks].values
