@@ -14,6 +14,12 @@ df_drill = pd.read_csv(r'processed_data\chamfer_processed.csv')  # Use raw strin
 def sinusoidal(x, A, B, C, D):
     return A * np.sin(B * np.radians(x) + C) + D
 
+# Function to calculate R²
+def calculate_r2(y_true, y_pred):
+    ss_res = np.sum((y_true - y_pred) ** 2)
+    ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+    return 1 - (ss_res / ss_tot)
+
 # Split the data into segments
 num_segments = 4  # Adjust based on your data
 segment_size = len(df_drill) // num_segments
@@ -42,36 +48,57 @@ for i, segment in enumerate(segments):
     try:
         # Curve fitting
         popt, pcov = curve_fit(sinusoidal, x_data, y_data, p0=initial_guess)
+        
+        # Calculate fitted values
+        y_fit = sinusoidal(x_data, *popt)
+        
+        # Calculate R²
+        r2 = calculate_r2(y_data, y_fit)
     except RuntimeError as e:
         print(f"Segment {i + 1}: Curve fitting failed. {e}")
         popt = [np.nan, np.nan, np.nan, np.nan]
+        r2 = np.nan
 
-    # Store the fitted parameters
+    # Store the fitted parameters and R²
     results.append({
         'Segment': i + 1,
         'Amplitude (A)': popt[0],
         'Frequency (B)': popt[1],
         'Phase Shift (C)': popt[2],
-        'Vertical Offset (D)': popt[3]
+        'Vertical Offset (D)': popt[3],
+        'R²': r2
     })
 
-    # Plot the data points
+    # Plot the data points and fitted curve
     color = next(color_cycle)
-    plt.scatter(x_data, y_data, color=color, label=f'Segment {i + 1} Data', alpha=0.6)
-
-    # Plot the fitted curve if fitting was successful
+    plt.scatter(x_data, y_data, color=color, alpha=0.6)
+    
     if not np.isnan(popt).any():
         x_fit = np.linspace(x_data.min(), x_data.max(), 500)
-        y_fit = sinusoidal(x_fit, *popt)
-        plt.plot(x_fit, y_fit, color=color, linestyle='--', label=f'Segment {i + 1} Fit')
+        y_fit_plot = sinusoidal(x_fit, *popt)
+        plt.plot(x_fit, y_fit_plot, color=color, linestyle='--')
+        
+        # Add to legend with R²
+        plt.plot([], [], color=color, linestyle='--', label=f'Segment {i + 1} Fit (R²={r2:.3f})')
+        plt.plot([], [], color=color, marker='o', linestyle='', label=f'Segment {i + 1} Data')
+    else:
+        # If fitting failed, only plot data
+        plt.plot([], [], color=color, marker='o', linestyle='', label=f'Segment {i + 1} Data (Fit Failed)')
 
 # Customize the plot
-plt.title('Sinusoidal Fit for All Segments (Degree Shifted to Start at 0 for all segments)')
+plt.title('Sinusoidal Fit for All Segments (Degree Shifted to Start at 0)')
 plt.xlabel('Shifted Degree')
 plt.ylabel('Sum of Pixels')
-plt.legend()
 plt.grid(True)
 plt.tight_layout()
+
+# Create custom legend to avoid duplicate entries
+handles, labels = plt.gca().get_legend_handles_labels()
+# Remove duplicate labels
+from collections import OrderedDict
+by_label = OrderedDict(zip(labels, handles))
+plt.legend(by_label.values(), by_label.keys(), loc='best')
+
 plt.show()
 
 # Create a DataFrame for the results
