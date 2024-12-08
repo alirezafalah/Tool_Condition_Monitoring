@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Load the dataset for intact tool
-df_intact = pd.read_csv(r"data\drill_intact.csv")  # Replace with actual path
+df_intact = pd.read_csv(r"data\drill_broken.csv")  # Replace with actual path
 
 # Step 1: Scaling for intact tool data
 df_intact["Sum of Pixels"] = (df_intact["Sum of Pixels"] - df_intact["Sum of Pixels"].min()) / (
@@ -32,7 +32,7 @@ df_intact_shifted["Degree"] = df_intact_shifted["Degree"] - df_intact_shifted.il
 df_intact_shifted.loc[df_intact_shifted["Degree"] < 0, "Degree"] += 360
 
 # Save shifted data
-df_intact_shifted.to_csv("processed_data/drill_processed.csv", index=False)
+df_intact_shifted.to_csv("processed_data/drill_broken_processed.csv", index=False)
 
 # Plot shifted data
 plt.figure(figsize=(8, 6))
