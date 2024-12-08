@@ -2,12 +2,13 @@ import pandas as pd
 import numpy as np
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
+import itertools
 
 # Define colors for different segments
 colors = ['green', 'blue', 'purple', 'orange', 'cyan', 'red']
 
 # Load your data
-df_drill = pd.read_csv(r'processed_data\chamfer_processed.csv')  # Use raw string to handle backslashes
+df_drill = pd.read_csv(r'processed_data\chamfer_processed.csv')  # Use raw string for Windows paths
 
 # Define the sinusoidal function
 def sinusoidal(x, A, B, C, D):
@@ -24,9 +25,16 @@ results = []
 # Initialize the plot for all segments
 plt.figure(figsize=(12, 8))
 
+# Create a color cycle to handle more segments than predefined colors
+color_cycle = itertools.cycle(colors)
+
 for i, segment in enumerate(segments):
-    x_data = segment['Degree'].values
-    y_data = segment['Sum of Pixels'].values
+    # Shift 'Degree' to start at 0 for each segment
+    segment_shifted = segment.copy()
+    segment_shifted["Degree"] = segment_shifted["Degree"] - segment_shifted["Degree"].iloc[0]
+    
+    x_data = segment_shifted['Degree'].values
+    y_data = segment_shifted['Sum of Pixels'].values
 
     # Initial guess for parameters: A, B (frequency), C (phase shift), D (vertical offset)
     initial_guess = [1, 2, 0, 0.5]
@@ -48,17 +56,18 @@ for i, segment in enumerate(segments):
     })
 
     # Plot the data points
-    plt.scatter(x_data, y_data, color=colors[i % len(colors)], label=f'Segment {i + 1} Data', alpha=0.6)
+    color = next(color_cycle)
+    plt.scatter(x_data, y_data, color=color, label=f'Segment {i + 1} Data', alpha=0.6)
 
     # Plot the fitted curve if fitting was successful
     if not np.isnan(popt).any():
         x_fit = np.linspace(x_data.min(), x_data.max(), 500)
         y_fit = sinusoidal(x_fit, *popt)
-        plt.plot(x_fit, y_fit, color=colors[i % len(colors)], linestyle='--', label=f'Segment {i + 1} Fit')
+        plt.plot(x_fit, y_fit, color=color, linestyle='--', label=f'Segment {i + 1} Fit')
 
 # Customize the plot
-plt.title('Sinusoidal Fit for All Segments')
-plt.xlabel('Degree')
+plt.title('Sinusoidal Fit for All Segments (Degree Shifted to Start at 0 for all segments)')
+plt.xlabel('Shifted Degree')
 plt.ylabel('Sum of Pixels')
 plt.legend()
 plt.grid(True)
@@ -71,3 +80,6 @@ results_df = pd.DataFrame(results)
 # Display the coefficients table
 print("\nSinusoidal Fit Coefficients for Each Segment:")
 print(results_df.to_string(index=False))
+
+# Optionally, save the coefficients table to a CSV file
+# results_df.to_csv('sinusoidal_fit_coefficients.csv', index=False)
