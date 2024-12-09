@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 import itertools
 
 # Define colors for different segments
-colors = ['green', 'blue', 'purple', 'orange', 'cyan', 'red']
+colors = ["blue", "green", "purple", "orange", "cyan"]
 
 # Load your data
-df_drill = pd.read_csv(r'processed_data\chamfer_processed.csv')  # Use raw string for Windows paths
+df_drill = pd.read_csv(r'processed_data\chamfer_fractured_processed.csv')  # Use raw string for Windows paths
 
 # Define the sinusoidal function
 def sinusoidal(x, A, B, C, D):
@@ -43,7 +43,12 @@ for i, segment in enumerate(segments):
     y_data = segment_shifted['Sum of Pixels'].values
 
     # Initial guess for parameters: A, B (frequency), C (phase shift), D (vertical offset)
-    initial_guess = [1, 2, 0, 0.5]
+    initial_guess = [
+        np.ptp(y_data) / 2,  # Amplitude guess
+        2 * np.pi / (x_data[-1] - x_data[0]),  # Frequency guess
+        0,  # Phase shift guess
+        np.mean(y_data)  # Vertical offset guess
+    ]
 
     try:
         # Curve fitting
@@ -58,6 +63,14 @@ for i, segment in enumerate(segments):
         print(f"Segment {i + 1}: Curve fitting failed. {e}")
         popt = [np.nan, np.nan, np.nan, np.nan]
         r2 = np.nan
+    # except RuntimeError:
+    #     # Fallback parameters when fitting fails
+    #     A = np.ptp(y_data) / 2  # Half the range
+    #     B = 2 * np.pi / (x_data[-1] - x_data[0]) if len(x_data) > 1 else 1  # Frequency guess
+    #     C = 0  # Phase shift fallback
+    #     D = np.mean(y_data)  # Mean as vertical offset
+    #     popt = [A, B, C, D]
+    #     r2 = 0.0  # No fit, so R² is zero
 
     # Store the fitted parameters and R²
     results.append({
