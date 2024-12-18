@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, minimize
 import matplotlib.pyplot as plt
 import itertools
 
@@ -8,7 +8,7 @@ import itertools
 colors = ["blue", "green", "purple", "orange", "cyan"]
 
 # Load your data
-df_drill = pd.read_csv(r'processed_data\chamfer_fractured_processed.csv')  # Use raw string for Windows paths
+df_drill = pd.read_csv(r'processed_data\drill_fractured_processed.csv')
 
 # Define the sinusoidal function
 def sinusoidal(x, A, B, C, D):
@@ -20,10 +20,21 @@ def calculate_r2(y_true, y_pred):
     ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
     return 1 - (ss_res / ss_tot)
 
+# Fallback: Minimize negative R2 if curve_fit fails
+def optimize_fallback(x, y, initial_guess):
+    def loss(params):
+        y_pred = sinusoidal(x, *params)
+        return -calculate_r2(y, y_pred)  # Negative R2 to minimize
+
+    bounds = [(0, None), (0, None), (-np.pi, np.pi), (-np.inf, np.inf)]
+    result = minimize(loss, initial_guess, bounds=bounds)
+    return result.x if result.success else [np.nan, np.nan, np.nan, np.nan]
+
 # Split the data into segments
-num_segments = 4  # Adjust based on your data
+num_segments = 2
 segment_size = len(df_drill) // num_segments
-segments = [df_drill.iloc[i * segment_size: (i + 1) * segment_size].reset_index(drop=True) for i in range(num_segments)]
+segments = [df_drill.iloc[i * segment_size: (i + 1) * segment_size].reset_index(drop=True)
+            for i in range(num_segments)]
 
 # Initialize a list to store results
 results = []
@@ -35,91 +46,44 @@ plt.figure(figsize=(12, 8))
 color_cycle = itertools.cycle(colors)
 
 for i, segment in enumerate(segments):
-    # Shift 'Degree' to start at 0 for each segment
     segment_shifted = segment.copy()
     segment_shifted["Degree"] = segment_shifted["Degree"] - segment_shifted["Degree"].iloc[0]
     
     x_data = segment_shifted['Degree'].values
     y_data = segment_shifted['Sum of Pixels'].values
 
-    # Initial guess for parameters: A, B (frequency), C (phase shift), D (vertical offset)
-    initial_guess = [
-        np.ptp(y_data) / 2,  # Amplitude guess
-        2 * np.pi / (x_data[-1] - x_data[0]),  # Frequency guess
-        0,  # Phase shift guess
-        np.mean(y_data)  # Vertical offset guess
-    ]
+    # Initial guess
+    initial_guess = [np.ptp(y_data) / 2, 2 * np.pi / (x_data[-1] - x_data[0]), 0, np.mean(y_data)]
 
     try:
-        # Curve fitting
-        popt, pcov = curve_fit(sinusoidal, x_data, y_data, p0=initial_guess)
-        
-        # Calculate fitted values
-        y_fit = sinusoidal(x_data, *popt)
-        
-        # Calculate R²
-        r2 = calculate_r2(y_data, y_fit)
-    except RuntimeError as e:
-        print(f"Segment {i + 1}: Curve fitting failed. {e}")
-        popt = [np.nan, np.nan, np.nan, np.nan]
-        r2 = np.nan
-    # except RuntimeError:
-    #     # Fallback parameters when fitting fails
-    #     A = np.ptp(y_data) / 2  # Half the range
-    #     B = 2 * np.pi / (x_data[-1] - x_data[0]) if len(x_data) > 1 else 1  # Frequency guess
-    #     C = 0  # Phase shift fallback
-    #     D = np.mean(y_data)  # Mean as vertical offset
-    #     popt = [A, B, C, D]
-    #     r2 = 0.0  # No fit, so R² is zero
+        # Attempt fitting with curve_fit
+        popt, _ = curve_fit(sinusoidal, x_data, y_data, p0=initial_guess, method="trf")
+        r2 = calculate_r2(y_data, sinusoidal(x_data, *popt))
+    except RuntimeError:
+        # Fallback optimization
+        popt = optimize_fallback(x_data, y_data, initial_guess)
+        r2 = calculate_r2(y_data, sinusoidal(x_data, *popt)) if not np.isnan(popt).any() else 0.0
 
-    # Store the fitted parameters and R²
-    results.append({
-        'Segment': i + 1,
-        'Amplitude (A)': popt[0],
-        'Frequency (B)': popt[1],
-        'Phase Shift (C)': popt[2],
-        'Vertical Offset (D)': popt[3],
-        'R²': r2
-    })
+    results.append({'Segment': i + 1, 'Amplitude (A)': popt[0], 'Frequency (B)': popt[1],
+                    'Phase Shift (C)': popt[2], 'Vertical Offset (D)': popt[3], 'R²': r2})
 
-    # Plot the data points and fitted curve
+    # Plot the data and fitted curve
     color = next(color_cycle)
     plt.scatter(x_data, y_data, color=color, alpha=0.6)
-    
-    if not np.isnan(popt).any():
-        x_fit = np.linspace(x_data.min(), x_data.max(), 500)
-        y_fit_plot = sinusoidal(x_fit, *popt)
-        plt.plot(x_fit, y_fit_plot, color=color, linestyle='--')
-        
-        # Add to legend with R²
-        plt.plot([], [], color=color, linestyle='--', label=f'Segment {i + 1} Fit (R²={r2:.3f})')
-        plt.plot([], [], color=color, marker='o', linestyle='', label=f'Segment {i + 1} Data')
-    else:
-        # If fitting failed, only plot data
-        plt.plot([], [], color=color, marker='o', linestyle='', label=f'Segment {i + 1} Data (Fit Failed)')
+    x_fit = np.linspace(x_data.min(), x_data.max(), 500)
+    y_fit = sinusoidal(x_fit, *popt)
+    plt.plot(x_fit, y_fit, color=color, linestyle='--',
+             label=f'Segment {i+1} Fit (R²={r2:.3f})')
 
 # Customize the plot
-plt.title('Sinusoidal Fit for All Segments (Degree Shifted to Start at 0)')
+plt.title('Robust Sinusoidal Fit for All Segments')
 plt.xlabel('Shifted Degree')
 plt.ylabel('Sum of Pixels')
+plt.legend()
 plt.grid(True)
 plt.tight_layout()
-
-# Create custom legend to avoid duplicate entries
-handles, labels = plt.gca().get_legend_handles_labels()
-# Remove duplicate labels
-from collections import OrderedDict
-by_label = OrderedDict(zip(labels, handles))
-plt.legend(by_label.values(), by_label.keys(), loc='best')
-
 plt.show()
 
 # Create a DataFrame for the results
 results_df = pd.DataFrame(results)
-
-# Display the coefficients table
-print("\nSinusoidal Fit Coefficients for Each Segment:")
 print(results_df.to_string(index=False))
-
-# Optionally, save the coefficients table to a CSV file
-# results_df.to_csv('sinusoidal_fit_coefficients.csv', index=False)
