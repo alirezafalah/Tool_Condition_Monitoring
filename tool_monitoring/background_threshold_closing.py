@@ -35,7 +35,7 @@ def subtract_from_median(tool_dir, median_bg, output_dir, thresh_value, kernel_s
         grayscale_diff = cv2.cvtColor(difference, cv2.COLOR_BGR2GRAY)
 
         # Apply thresholding
-        _, threshed = cv2.threshold(grayscale_diff, thresh_value, 255, cv2.THRESH_BINARY)
+        _, threshed = cv2.threshold(grayscale_diff, thresh_value, 255, cv2.THRESH_BINARY) 
 
         # Apply the closing operation
         closed_img = cv2.morphologyEx(threshed, cv2.MORPH_CLOSE, kernel)
@@ -46,9 +46,9 @@ def subtract_from_median(tool_dir, median_bg, output_dir, thresh_value, kernel_s
 
 
 # Directories
-tool_dir = r"C:\Users\alrfa\OneDrive\Desktop\data\2\frames\tool"
-bg_dir = r"C:\Users\alrfa\OneDrive\Desktop\data\2\frames\background"
-output_dir = r"C:\Users\alrfa\OneDrive\Desktop\data\2\frames\last_try\tresholding\kernel-15"
+tool_dir = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\FLUTEMILL-E4-001\TOOL"
+bg_dir = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\FLUTEMILL-E4-001\BG"
+output_dir = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\FLUTEMILL-E4-001\SUBSTRACT"
 
 # Ensure the output directory exists
 if not os.path.exists(output_dir):

@@ -13,7 +13,7 @@ def analyze_tool_images(image_dir, output_csv, offset=50):
         for filename in sorted(os.listdir(image_dir)):
             if filename.endswith(".png") or filename.endswith(".jpg"):
                 # Extract degree from filename (assuming format toolXXX where XXX is the degree)
-                degree = int(filename[4:7])  # Assumes naming format toolXXX (e.g., tool001)
+                degree = int(filename[2:5])  # Assumes naming format toolXXX (e.g., tool001)
                 image_path = os.path.join(image_dir, filename)
                 image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
                 
@@ -38,8 +38,8 @@ def analyze_tool_images(image_dir, output_csv, offset=50):
                 print(f"Processed {filename}: Degree {degree}, Sum of Pixels {white_pixel_count}")
 
 # User parameters
-image_directory = r"data/subtract(intact)"  # Update this path to where the images are stored
-output_csv_file = r"data/drill_intact.csv"  # Update this path for the output CSV
+image_directory = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\FLUTEMILL-E4-001\SUBSTRACT"  # Update this path to where the images are stored
+output_csv_file = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\FLUTEMILL-E4-001\table.csv"  # Update this path for the output CSV
 offset_pixels = 50  # Adjustable offset for row above the bottom-most white pixel
 
 # Run analysis
