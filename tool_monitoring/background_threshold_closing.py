@@ -46,9 +46,9 @@ def subtract_from_median(tool_dir, median_bg, output_dir, thresh_value, kernel_s
 
 
 # Directories
-tool_dir = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\FLUTEMILL-E4-001\TOOL"
-bg_dir = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\FLUTEMILL-E4-001\BG"
-output_dir = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\FLUTEMILL-E4-001\SUBSTRACT"
+tool_dir = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\ENDMILL-E4-008\TOOL"
+bg_dir = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\ENDMILL-E4-008\BG"
+output_dir = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\ENDMILL-E4-008\SUBSTRACT"
 
 # Ensure the output directory exists
 if not os.path.exists(output_dir):
@@ -59,4 +59,4 @@ median_bg = median_background(bg_dir)
 
 # Subtract tool frames from the median background
 # Note: You can adjust the 'thresh_value' and 'kernel_size' arguments to tune the process.
-subtract_from_median(tool_dir, median_bg, output_dir, thresh_value=25, kernel_size=15)
+subtract_from_median(tool_dir, median_bg, output_dir, thresh_value=55, kernel_size=35)

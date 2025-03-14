@@ -53,8 +53,8 @@ def circular_moving_average(file_path, window_size=15, output_file=None):
 # Example usage for a single file
 if __name__ == "__main__":
     # Example file path (replace with your actual file)
-    input_file = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\DRILL-E2-001\table.csv"
-    output_file = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\DRILL-E2-001\table_processed.csv"
+    input_file = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\ENDMILL-E4-007\table.csv"
+    output_file = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\ENDMILL-E4-007\table_processed.csv"
     
     # Apply moving average with window size 15 and assign the result
     result_df = circular_moving_average(input_file, window_size=15, output_file=output_file)

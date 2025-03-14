@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage import exposure, filters, restoration, morphology
 from scipy import ndimage
+from pathlib import Path
 
 # Path to the directory containing tool images
 tool_dir = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\ENDMILL-E6-001\TOOL"
@@ -16,6 +17,101 @@ print(f"Output directory: {comparision_dir}")
 # Create a directory for plots in the comparision folder
 plots_dir = os.path.join(comparision_dir, "plots")
 os.makedirs(plots_dir, exist_ok=True)
+
+# Define the region of interest (ROI) for cropping
+roi_x1, roi_y1, roi_x2, roi_y2 = 180, 580, 300, 732
+
+def load_image(image_path):
+    """Load an image from the given path."""
+    img = cv2.imread(image_path)
+    if img is None:
+        raise ValueError(f"Could not load image from {image_path}")
+    # Convert BGR to RGB for better visualization
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+def crop_to_roi(image):
+    """Crop the image to the specified region of interest."""
+    return image[roi_y1:roi_y2, roi_x1:roi_x2]
+
+def save_visualization(original, results, titles, filename):
+    """
+    Save a figure with original image and processed results without white space.
+    
+    Args:
+        original: Original image
+        results: List of processed images
+        titles: List of titles for each processed image
+        filename: Output filename
+    """
+    # Crop images to ROI
+    original_cropped = crop_to_roi(original)
+    results_cropped = [crop_to_roi(img) for img in results]
+    
+    n_images = len(results_cropped) + 1
+    fig, axes = plt.subplots(1, n_images, figsize=(n_images * 3, 3))
+    
+    # If there's only one image to display, axes won't be an array
+    if n_images == 2:
+        axes = [axes[0], axes[1]]
+    
+    axes[0].imshow(original_cropped)
+    axes[0].set_title("Original")
+    axes[0].axis('off')
+    
+    for i, (result, title) in enumerate(zip(results_cropped, titles)):
+        axes[i+1].imshow(result)
+        axes[i+1].set_title(title)
+        axes[i+1].axis('off')
+        
+    # Remove white space between subplots
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.tight_layout(pad=0)
+    
+    # Save to comparision_dir
+    plt.savefig(os.path.join(comparision_dir, filename), dpi=300, bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+def save_all_visualization(original, results, titles, filename):
+    """Save a figure with original and all processed images without white space."""
+    # Crop images to ROI
+    original_cropped = crop_to_roi(original)
+    results_cropped = [crop_to_roi(img) for img in results]
+    
+    n_cols = 4  # Number of columns
+    n_rows = (len(results_cropped) + 1 + n_cols - 1) // n_cols  # Ceiling division
+    
+    fig = plt.figure(figsize=(n_cols * 3, n_rows * 3))
+    
+    # Plot original image
+    plt.subplot(n_rows, n_cols, 1)
+    plt.imshow(original_cropped)
+    plt.title("Original")
+    plt.axis('off')
+    
+    # Plot all result images
+    for i, (result, title) in enumerate(zip(results_cropped, titles)):
+        plt.subplot(n_rows, n_cols, i + 2)
+        plt.imshow(result)
+        plt.title(title)
+        plt.axis('off')
+    
+    # Remove white space between subplots
+    plt.subplots_adjust(wspace=0, hspace=0)
+    plt.tight_layout(pad=0)
+    
+    # Save to comparision_dir
+    plt.savefig(os.path.join(comparision_dir, filename), dpi=300, bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+def save_image(img, filename):
+    """Save an image to the comparision directory."""
+    # Crop to ROI
+    img_cropped = crop_to_roi(img)
+    
+    # Convert RGB to BGR for OpenCV
+    if len(img_cropped.shape) == 3 and img_cropped.shape[2] == 3:
+        img_cropped = cv2.cvtColor(img_cropped, cv2.COLOR_RGB2BGR)
+    cv2.imwrite(os.path.join(comparision_dir, filename), img_cropped)
 
 # Method 1: Basic Sharpening using Unsharp Mask
 def unsharp_masking(image, kernel_size=(5, 5), sigma=1.0, amount=1.0, threshold=0):
@@ -286,8 +382,61 @@ def focus_enhancement(image, kernel_size=5, sharp_amount=2.0):
     
     return enhanced_rgb
 
+def create_comparison_visualizations():
+    """Create visual comparisons of all enhancement methods for a sample image."""
+    # Path to the first image (tool001.jpg)
+    image_path = os.path.join(tool_dir, "tool001.jpg")
+    
+    # Load the image
+    original = load_image(image_path)
+    
+    # Define all methods with their names and parameters
+    methods = [
+        (unsharp_masking, "Unsharp Masking", {}),
+        (apply_clahe, "CLAHE", {}),
+        (wiener_deconvolution, "Wiener Deconvolution", {}),
+        (bilateral_filter, "Bilateral Filter", {}),
+        (guided_filter, "Guided Filter", {}),
+        (laplacian_sharpening, "Laplacian Sharpening", {}),
+        (high_pass_filter, "High-pass Filter", {}),
+        (normalize_and_enhance, "Normalize & Enhance", {}),
+        (multi_scale_sharpening, "Multi-scale Sharpening", {}),
+        (prepare_for_background_removal, "Background Removal Prep", {}),
+        (edge_enhanced_preprocessing, "Edge Enhanced", {}),
+        (kmeans_segmentation, "K-means Segmentation", {}),
+        (adaptive_threshold_preprocessing, "Adaptive Threshold", {}),
+        (watershed_segmentation, "Watershed Segmentation", {}),
+        (focus_enhancement, "Focus Enhancement", {})
+    ]
+    
+    # Process each method and save individual results
+    for method_func, method_name, params in methods:
+        print(f"Applying {method_name} for visualization...")
+        result = method_func(original, **params)
+        save_image(result, f"tool001_{method_name.replace(' ', '_').lower()}.jpg")
+        
+        # Save side-by-side comparison
+        save_visualization(original, [result], [method_name], 
+                          f"tool001_{method_name.replace(' ', '_').lower()}_comparison.jpg")
+    
+    # Process and save all methods together for comparison
+    print("Generating combined visualization...")
+    results = []
+    titles = []
+    for method_func, method_name, params in methods:
+        results.append(method_func(original, **params))
+        titles.append(method_name)
+    
+    # Create figure with all methods
+    save_all_visualization(original, results, titles, "tool001_all_methods_comparison.jpg")
+    
+    print("All comparison visualizations have been saved.")
+
 def analyze_enhancement_methods():
     """Apply background subtraction to processed images and plot the results."""
+    
+    # First create visual comparisons to see what each method does
+    create_comparison_visualizations()
     
     # Paths for the analysis
     base_dir = os.path.dirname(os.path.dirname(tool_dir))
@@ -496,4 +645,5 @@ def analyze_enhancement_methods():
     print(f"Background subtraction and analysis completed. Results saved to {comparision_dir}")
 
 if __name__ == "__main__":
+    # Create visualizations and run analysis
     analyze_enhancement_methods() 

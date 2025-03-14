@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Load CSV files for broken and intact tools
-intact_data = pd.read_csv(r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\ENDMILL-E6-001\table.csv")  # Relative path to 'data' folder
+intact_data = pd.read_csv(r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\ENDMILL-E4-007\table.csv")  # Relative path to 'data' folder
 # broken_data = pd.read_csv(r'../data/table(broken).csv')  # Relative path to 'data' folder
 
 # Assuming the CSV files have columns 'Degree' and 'Area'
@@ -13,15 +13,15 @@ intact_area = intact_data['Sum of Pixels'].values
 # broken_area = broken_data['Sum of Pixels'].values
 
 # Define consistent y-axis limits
-y_min, y_max = 2800, 4100
+y_min, y_max = 3500, 8500
 
 # Plot the original patterns (area vs. degrees)
 plt.figure(figsize=(12, 6))
 
 # Plot for the intact tool
 # plt.subplot(1, 2, 1)
-plt.plot(intact_degrees, intact_area, label='Intact Tool', color='blue')
-plt.title('Intact Tool Pattern')
+plt.plot(intact_degrees, intact_area, label='Tool', color='blue')
+plt.title('Tool Pattern')
 plt.xlabel('Degrees')
 plt.ylabel('Area')
 plt.grid(True)
