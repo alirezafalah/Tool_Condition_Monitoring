@@ -41,9 +41,9 @@ def improved_subtraction(tool_dir, median_bg, output_dir, thresh_value=25, kerne
         cv2.imwrite(output_path, final_img)
 
 # Directories
-background_dir = "path_to_background_directory"
-tool_dir = "path_to_tool_directory"
-output_dir = "path_to_output_directory"
+background_dir = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\ENDMILL-E6-001\BG"
+tool_dir = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\ENDMILL-E6-001\TOOL"
+output_dir = r"C:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Thesis Data\3\ENDMILL-E6-001\SUBSTRACT"
 
 # Ensure the output directory exists
 if not os.path.exists(output_dir):

@@ -7,7 +7,7 @@ import numpy as np
 from scipy.signal import find_peaks, savgol_filter
 
 # File path for the intact tool data
-file_path = r"data\drill_broken.csv"
+file_path = r"processed_data\chamfer_fractured_processed.csv"
 
 def savgol_peak_finder(data_path):
     tool_data = pd.read_csv(data_path)
@@ -15,9 +15,6 @@ def savgol_peak_finder(data_path):
     window_length = 111  # Window length for smoothing (must be an odd number)
     polyorder = 2       # Degree of polynomial for smoothing
     smoothed_pixels = savgol_filter(tool_data['Sum of Pixels'], window_length=window_length, polyorder=polyorder)
-
-    # Invert the smoothed signal
-    inverted_smoothed_pixels = -smoothed_pixels
 
     # Plot both original and smoothed data
     plt.figure(figsize=(10,6))
@@ -30,14 +27,9 @@ def savgol_peak_finder(data_path):
     plt.legend()
     plt.show()
 
-    # Find the largest vertical difference between consecutive points to set the prominence
-    differences = np.abs(np.diff(smoothed_pixels))
-    max_difference = np.max(differences)
 
-    # Set prominence greater than the largest difference to avoid detecting local peaks
-    prominence = max_difference + 1  # Ensure prominence is larger than the largest difference
-    distance = 30                    # Minimum horizontal distance between peaks
-    significant_peaks, _ = find_peaks(smoothed_pixels, prominence=prominence, distance=distance)
+    distance = 30 # Minimum horizontal distance between peaks
+    significant_peaks, _ = find_peaks(smoothed_pixels, distance=distance)
 
     peak_degrees = tool_data['Degree'].iloc[significant_peaks].values
     peak_values = smoothed_pixels[significant_peaks]
@@ -73,15 +65,17 @@ def savgol_peak_finder(data_path):
 
     # Define patterns based on the minima, with wrap-around case
     pattern_boundaries = []
-    for i in range(len(minima)):
-        if i < len(minima) - 1:
-            start = minima[i]
-            end = minima[i + 1]
+    for i in range(len(significant_peaks)):
+        if i < len(significant_peaks) - 1:
+            start = significant_peaks[i]
+            end = significant_peaks[i + 1]
         else:
-            # Last segment wraps around to the first minimum
-            start = minima[i]
-            end = minima[0]
+            # wrap-around case
+            start = significant_peaks[i]
+            end = significant_peaks[0]
+
         pattern_boundaries.append((start, end))
+
 
     # Plot the smoothed data with significant peaks and boundaries
     plt.figure(figsize=(10,6))
@@ -109,3 +103,8 @@ def savgol_peak_finder(data_path):
     print(pattern_boundaries_df)
 
     return smoothed_pixels, pattern_boundaries
+
+# ...existing code...
+
+if __name__ == "__main__":
+    savgol_peak_finder(file_path)
