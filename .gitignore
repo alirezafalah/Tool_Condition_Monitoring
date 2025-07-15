@@ -1,0 +1,68 @@
+# .gitignore for Python Projects
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# Virtual Environments
+venv/
+env/
+.venv/
+.env/
+*/venv/
+*/env/
+*/.venv/
+*/.env/
+
+# Build, distribution, and packaging
+build/
+dist/
+*.egg-info/
+*.egg
+wheels/
+pip-wheel-metadata/
+develop-eggs/
+parts/
+sdist/
+var/
+
+# OS-generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE / Editor specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test & Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+
+# Secrets and environment variables
+# Always be careful with sensitive data.
+# It's better to commit a template file (e.g., .env.example)
+# instead of the actual .env file.
+.env
+*.env
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints
+
