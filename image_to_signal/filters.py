@@ -1,6 +1,6 @@
 from PIL import Image, ImageFilter
 
-def apply_median_blur(tiff_path, kernel_size=15):
+def apply_median_blur(tiff_path, kernel_size):
     """
     Applies a median blur to a TIFF image and returns the result as an object.
     
@@ -17,9 +17,19 @@ def apply_median_blur(tiff_path, kernel_size=15):
             blurred_img = img.filter(ImageFilter.MedianFilter(size=kernel_size))
             print(f"Successfully applied median blur with kernel size {kernel_size}.")
             return blurred_img
+        return None
     except FileNotFoundError:
         print(f"Error: Input file not found at '{tiff_path}'")
         return None
     except Exception as e:
         print(f"An error occurred during blurring: {e}")
+        return None
+    
+
+def convert_to_hsv(image_object):
+    """Converts a PIL Image object to the HSV color space."""
+    try:
+        return image_object.convert('HSV')
+    except Exception as e:
+        print(f"An error occurred during HSV conversion: {e}")
         return None

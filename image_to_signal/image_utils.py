@@ -34,9 +34,12 @@ def display_images(images_with_titles):
                 img = img_data
             else:
                 raise TypeError("Image data must be a file path or a PIL Image object.")
+            
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
 
             ax.imshow(img)
-            ax.set_title(title, fontsize=14)
+            ax.set_title(title, fontsize=24)
             ax.axis('off') # Hide the x and y axes
 
         plt.tight_layout() # Adjusts spacing between plots
