@@ -49,7 +49,7 @@ def display_images(images_with_titles):
         print(f"An error occurred while displaying images: {e}")
 
 
-def convert_tiff_to_jpeg(tiff_path, quality=95):
+def convert_tiff_to_jpeg(tiff_path, quality=100):
     """
     Convert a TIFF image to JPEG format with the same filename.
     
@@ -73,5 +73,25 @@ def convert_tiff_to_jpeg(tiff_path, quality=95):
     except Exception as e:
         print(f"Error converting image: {e}")
 
-
+def get_hsv_color_range(image_path):
+    """Analyzes an image and prints the min/max HSV values."""
+    try:
+        img = Image.open(image_path)
+        hsv_img = img.convert('HSV')
+        
+        # Convert to numpy array for easy analysis
+        hsv_array = np.array(hsv_img)
+        
+        # Separate the channels
+        h, s, v = hsv_array[:,:,0], hsv_array[:,:,1], hsv_array[:,:,2]
+        
+        print(f"Analysis for: {image_path}")
+        print("--- HSV Channel Ranges (0-255) ---")
+        print(f"Hue (H): Min={h.min()}, Max={h.max()}")
+        print(f"Saturation (S): Min={s.min()}, Max={s.max()}")
+        print(f"Value (V): Min={v.min()}, Max={v.max()}")
+        print("------------------------------------")
+        
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
