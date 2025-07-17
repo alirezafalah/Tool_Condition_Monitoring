@@ -33,6 +33,7 @@ develop-eggs/
 parts/
 sdist/
 var/
+data/
 
 # OS-generated files
 .DS_Store
