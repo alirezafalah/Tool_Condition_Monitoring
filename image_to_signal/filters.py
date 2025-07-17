@@ -27,7 +27,6 @@ def apply_median_blur(tiff_path, kernel_size=13):
         print(f"An error occurred during blurring: {e}")
         return None
     
-
 def convert_to_hsv(image_object):
     """Converts a PIL Image object to the HSV color space."""
     try:
@@ -44,6 +43,44 @@ def convert_to_lab(image_object):
         print(f"An error occurred during LAB conversion: {e}")
         return None
 
+def fill_holes(binary_mask_object):
+    """
+    Fills holes in a binary mask using the flood fill algorithm.
+    
+    Args:
+        binary_mask_object (PIL.Image.Image): A binary (black and white) mask.
+
+    Returns:
+        PIL.Image.Image: The mask with holes filled.
+    """
+    try:
+        # Convert PIL image to OpenCV format
+        mask = np.array(binary_mask_object.convert('L'))
+        
+        # Create a copy for flood filling
+        mask_floodfill = mask.copy()
+        
+        # We need a border for floodFill to work correctly
+        h, w = mask.shape[:2]
+        # Create a new mask with a 2-pixel border
+        bordered_mask = np.zeros((h + 2, w + 2), np.uint8)
+        
+        # Flood fill from the top-left corner (an external point)
+        cv2.floodFill(mask_floodfill, bordered_mask, (0, 0), 255);
+        
+        # Invert the flood-filled image
+        mask_floodfill_inv = cv2.bitwise_not(mask_floodfill)
+        
+        # Combine the original mask with the inverted flood-filled image
+        # This fills the holes
+        filled_mask = (mask | mask_floodfill_inv)
+        
+        return Image.fromarray(filled_mask)
+
+    except Exception as e:
+        print(f"An error occurred during hole filling: {e}")
+        return None
+    
 
 # ==============================================================================
 # ==================== HSV MASKS - COLOR RANGE SEGMENTATION ====================
@@ -101,3 +138,98 @@ def create_lab_ab_mask(lab_image_object, ab_max):
     except Exception as e:
         print(f"An error occurred in create_lab_ab_mask: {e}")
         return None
+    
+
+# ==============================================================================
+# ==================== END OF COLOR SPACES ====================
+# ==============================================================================
+
+
+# ==============================================================================
+# ==================== MORPHOLOGICAL OPERATIONS ====================
+
+def morph_closing(binary_mask_object, kernel_size=5):
+    """
+    Applies a morphological closing operation to a binary mask.
+    
+    Args:
+        binary_mask_object (PIL.Image.Image): A binary mask.
+        kernel_size (int): The size of the kernel for the operation.
+
+    Returns:
+        PIL.Image.Image: The mask after the closing operation.
+    """
+    try:
+        mask = np.array(binary_mask_object.convert('L'))
+        
+        # Create the kernel for the morphological operation
+        kernel = np.ones((kernel_size, kernel_size), np.uint8)
+        
+        # Apply the closing operation
+        closing = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        
+        return Image.fromarray(closing)
+
+    except Exception as e:
+        print(f"An error occurred during morphological closing: {e}")
+        return None
+    
+def morph_opening(binary_mask_object, kernel_size=5):
+    """
+    Applies a morphological opening operation to a binary mask.
+    
+    Args:
+        binary_mask_object (PIL.Image.Image): A binary mask.
+        kernel_size (int): The size of the kernel for the operation.
+
+    Returns:
+        PIL.Image.Image: The mask after the opening operation.
+    """
+    try:
+        mask = np.array(binary_mask_object.convert('L'))
+        
+        # Create the kernel for the morphological operation
+        kernel = np.ones((kernel_size, kernel_size), np.uint8)
+        
+        # Apply the opening operation
+        opening = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+        
+        return Image.fromarray(opening)
+
+    except Exception as e:
+        print(f"An error occurred during morphological opening: {e}")
+        return None
+
+
+# ==============================================================================
+# ==================== KEEP LARGEST CONTOUR ====================
+    
+def keep_largest_contour(binary_mask_object):
+    """
+    Finds all contours in a binary mask and returns a new mask
+    containing only the one with the largest area.
+    """
+    try:
+        mask = np.array(binary_mask_object.convert('L'))
+        
+        # Find contours
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if contours:
+            # Find the largest contour by area
+            largest_contour = max(contours, key=cv2.contourArea)
+            
+            # Create a new blank mask to draw the largest contour on
+            new_mask = np.zeros_like(mask)
+            cv2.drawContours(new_mask, [largest_contour], -1, (255), thickness=cv2.FILLED)
+            
+            return Image.fromarray(new_mask)
+        else:
+            # Return the original mask if no contours are found
+            return binary_mask_object
+            
+    except Exception as e:
+        print(f"An error occurred while finding the largest contour: {e}")
+        return None
+    
+    
