@@ -1,6 +1,6 @@
 from PIL import Image, ImageFilter
 
-def apply_median_blur(tiff_path, kernel_size):
+def apply_median_blur(tiff_path, kernel_size=13):
     """
     Applies a median blur to a TIFF image and returns the result as an object.
     

@@ -1,19 +1,28 @@
-from image_utils import display_images
-from filters import apply_median_blur
-from PIL import Image
+from PIL import Image, ImageFilter
+# Assuming your functions are in these files
+from image_utils import display_images, convert_tiff_to_jpeg
+from filters import apply_median_blur, convert_to_hsv
 
 if __name__ == "__main__":
-    input_file = 'attached_chip.tiff'
+    input_file = 'good_tool.tiff'
+    kernel_size = 13
 
-    # 1. Open the original image to get its object
-    original_image_object = Image.open(input_file)
+    # --- SETUP ---
+    original_image = Image.open(input_file)
     
-    # 2. Apply the median blur and get the blurred image object
-    blurred_image_object = apply_median_blur(input_file, kernel_size=5)
+    # --- PATH A: Blur -> Convert to HSV ---
+    blurred_image = apply_median_blur(input_file, kernel_size=kernel_size)
+    path_a_result = convert_to_hsv(blurred_image)
 
-    # 3. Display both images side-by-side if the blur was successful
-    if original_image_object and blurred_image_object:
+    # --- PATH B: Convert to HSV -> Blur ---
+    hsv_image = convert_to_hsv(original_image)
+    path_b_result = hsv_image.filter(ImageFilter.MedianFilter(size=kernel_size))
+
+
+    # --- VISUALIZE ---
+    print("Showing Comparison: (Blur -> HSV) vs. (HSV -> Blur)...")
+    if path_a_result and path_b_result:
         display_images([
-            (original_image_object, 'Original Image'),
-            (blurred_image_object, 'Median Blur (k=15)')
+            (path_a_result, 'Path A: Blur -> HSV'),
+            (path_b_result, 'Path B: HSV -> Blur')
         ])
