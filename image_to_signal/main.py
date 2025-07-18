@@ -49,7 +49,7 @@ def main():
     """
     # --- Configuration ---
     INPUT_DIR = 'data/tool014gain10paperBG'  # Directory with your ~400 images
-    OUTPUT_CSV = 'tool_area_vs_angle.csv'
+    OUTPUT_CSV = 'data/tool_area_vs_angle.csv'
     
     # --- Processing Parameters ---
     # These are the values we found through testing

@@ -1,3 +1,7 @@
+# THIS IS the same as the main.py file, but since bluring images takes a long time, 
+# I have created a separate script to if needed first blur the images, 
+# then the rest of the process will not take that long.
+
 import os
 from PIL import Image
 from tqdm import tqdm
