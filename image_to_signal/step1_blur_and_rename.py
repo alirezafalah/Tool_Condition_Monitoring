@@ -26,7 +26,7 @@ def run(config):
     # Check if the first file seems to be already renamed to avoid re-running
     if '_degrees.tiff' not in image_files[0]:
         print("Renaming raw files to include their rotation angle...")
-        angle_step = 360.0 / config['images_for_360_deg']
+        angle_step = 366.0 / config['images_for_366_deg']
         renamed_files = []
         for i, filename in enumerate(tqdm(image_files, desc="Renaming Raw Files")):
             current_angle = i * angle_step

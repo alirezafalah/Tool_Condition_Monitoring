@@ -17,11 +17,11 @@ RUN_STEP_3_ANALYZE_AND_PLOT = True
 
 CONFIG = {
     # --- Directory Paths ---
-    'RAW_DIR': 'data/tool014gain10paperBG',
-    'BLURRED_DIR': 'data/tool014gain10paperBG_blurred',
-    'FINAL_MASKS_DIR': 'data/final_masks',
-    'ROI_CSV_PATH': 'data/roi_area_vs_angle.csv',
-    'ROI_PLOT_PATH': 'data/roi_area_vs_angle_plot.png',
+    'RAW_DIR': 'data/tool001gain10',
+    'BLURRED_DIR': 'data/tool001gain10_blurred',
+    'FINAL_MASKS_DIR': 'data/tool001gain10_final_masks',
+    'ROI_CSV_PATH': 'data/tool001gain10_area_vs_angle.csv',
+    'ROI_PLOT_PATH': 'data/tool001gain10_area_vs_angle_plot.png',
 
     # --- Image Processing Parameters ---
     'blur_kernel': 13,
@@ -32,9 +32,9 @@ CONFIG = {
     'closing_kernel': 5,
 
     # --- Data Analysis Parameters ---
-    'images_for_360_deg': 409 * (59 / 60),
+    'images_for_366_deg': 374, # Because we used 5 Rev/min and we recorded for 12.2 seconds, therefore we have 366 degrees for each tool.
     'roi_height': 500,
-    'outlier_std_dev_factor': 2.0,
+    'outlier_std_dev_factor': 1.0,
 }
 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---

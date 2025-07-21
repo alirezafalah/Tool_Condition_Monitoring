@@ -73,6 +73,7 @@ def run(config):
     ax.set_ylabel('Projected Area in ROI (Pixel Count)', fontsize=14)
     ax.grid(True)
     ax.set_xlim(0, 360)
+    ax.set_xticks(np.arange(0, 361, 30))
     plt.tight_layout()
     
     plot_path = config['ROI_PLOT_PATH']
