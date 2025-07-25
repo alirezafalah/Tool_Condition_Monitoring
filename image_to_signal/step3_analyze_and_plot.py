@@ -5,6 +5,7 @@ import pandas as pd
 from PIL import Image
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from scipy.ndimage import convolve1d # For the wrap-around moving average
 
 def find_roi_and_calculate_area(mask_np, roi_height):
     white_pixel_coords = np.where(mask_np == 255)
@@ -50,28 +51,49 @@ def run(config):
         
     df = pd.DataFrame(results)
     
-    # --- 2. Save Data to CSV ---
+    # --- 2. Apply Wrap-Around Moving Average (Optional) ---
+    target_column = 'ROI Area (Pixels)' # Default column to use
+    if config.get('APPLY_MOVING_AVERAGE', False):
+        window_size = config.get('MOVING_AVERAGE_WINDOW', 5)
+        print(f"Applying wrap-around moving average with window size {window_size}...")
+        
+        # Use convolution with 'wrap' mode for an efficient circular moving average
+        weights = np.ones(window_size) / window_size
+        smoothed_data = convolve1d(df['ROI Area (Pixels)'], weights=weights, mode='wrap')
+        
+        # Add the smoothed data as a new column and set it as the target for plotting
+        df['Smoothed ROI Area'] = smoothed_data
+        target_column = 'Smoothed ROI Area'
+
+    # --- 3. Save Data to CSV ---
     csv_path = config['ROI_CSV_PATH']
     csv_dir = os.path.dirname(csv_path)
     if csv_dir: os.makedirs(csv_dir, exist_ok=True)
     df.to_csv(csv_path, index=False)
     print(f"ROI data saved to '{csv_path}'")
 
-    # --- 3. Filter Outliers ---
-    mean = df['ROI Area (Pixels)'].mean()
-    std = df['ROI Area (Pixels)'].std()
+    # --- 4. Filter Outliers ---
+    mean = df[target_column].mean()
+    std = df[target_column].std()
     factor = config['outlier_std_dev_factor']
-    inliers = df[(df['ROI Area (Pixels)'] >= mean - factor * std) & (df['ROI Area (Pixels)'] <= mean + factor * std)]
-    print(f"Removed {len(df) - len(inliers)} outliers.")
+    inliers = df[(df[target_column] >= mean - factor * std) & (df[target_column] <= mean + factor * std)]
+    print(f"Removed {len(df) - len(inliers)} outliers from '{target_column}'.")
 
-    # --- 4. Plot Data ---
+    # --- 5. Plot Data ---
     plt.style.use('seaborn-v0_8-whitegrid')
     fig, ax = plt.subplots(figsize=(12, 7))
-    ax.plot(inliers['Angle (Degrees)'], inliers['ROI Area (Pixels)'], marker='.', linestyle='-', markersize=4)
+    
+    # Plot raw data as scattered points if smoothing was applied
+    if target_column == 'Smoothed ROI Area':
+        ax.scatter(inliers['Angle (Degrees)'], inliers['ROI Area (Pixels)'], color='lightgray', s=10, label='Raw Data')
+
+    ax.plot(inliers['Angle (Degrees)'], inliers[target_column], marker='.', linestyle='-', markersize=4, label='Processed Data')
     ax.set_title('Tool ROI Area vs. Rotation Angle', fontsize=18, fontweight='bold')
     ax.set_xlabel('Angle (Degrees)', fontsize=14)
     ax.set_ylabel('Projected Area in ROI (Pixel Count)', fontsize=14)
+    ax.tick_params(axis='both', which='major', labelsize=16)
     ax.grid(True)
+    ax.legend()
     ax.set_xlim(0, 360)
     ax.set_xticks(np.arange(0, 361, 30))
     plt.tight_layout()

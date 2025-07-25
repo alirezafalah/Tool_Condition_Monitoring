@@ -40,10 +40,10 @@ def run(config):
                 print(f"Failed to create mask for {filename}.")
                 break
             # 2. Apply post-processing to clean up the mask
-            filled1 = fill_holes(initial_mask)
+            largest_contour = keep_largest_contour(initial_mask)
+            filled1 = fill_holes(largest_contour)
             closed = morph_closing(filled1, kernel_size=config['closing_kernel'])
-            filled2 = fill_holes(closed)
-            final_mask = keep_largest_contour(filled2)
+            final_mask = fill_holes(closed)
             
             # 3. Save the result
             if final_mask:
