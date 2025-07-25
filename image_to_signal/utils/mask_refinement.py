@@ -28,7 +28,7 @@ def run_playground():
     ## --- 3. Define All Thresholds (CONTROL PANEL) ---
     # -- LAB Thresholds (real-world scale) --
     L_threshold = 0      # Keep pixels with Lightness > 0
-    a_threshold = 0     # Keep pixels with a <= -2
+    a_threshold = -1     # Keep pixels with a <= -2
     b_threshold = -8      # Keep pixels with b < -8
 
     # -- HSV Thresholds (H: 0-179, S: 0-255, V: 0-255) --
@@ -80,8 +80,8 @@ def run_playground():
 
     # Example 3: A more complex rule.
     # (Must meet 'a' condition) AND (Must meet EITHER 'H' OR 'S' condition)
-    final_boolean_mask =   (b_mask)  | (a_mask) | ~(V_mask)
-    condition_text = "b and a or not V"
+    final_boolean_mask = (b_mask) | (a_mask) | ~(V_mask)
+    condition_text = "b < -8 or a <= 0 or V not in range(45-55)"
 
     ## --- 7. Generate and Display Final Result ---
     final_mask_visual = final_boolean_mask.astype(np.uint8) * 255
