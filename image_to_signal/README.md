@@ -70,7 +70,6 @@ Finding the perfect mask is an iterative process. This pipeline is designed to m
 * **File**: `utils/filters.py`
 * **Purpose**: This is where the core algorithm lives. You should only edit this file if the playground helps you discover a fundamentally new **logical rule** for combining the masks.
 * **Action**: Go to the `create_multichannel_mask` function and modify the single line that combines the boolean masks (e.g., changing `(b_mask) | (a_mask)` to `(b_mask) & (a_mask)`).
-````
 
 ## Important Note
 This project is structured as a Python package to keep the code organized and modular. Consequently, you must run all scripts from the project's root directory (Tool_Condition_Monitoring) using the python -m flag, which tells Python to run the code as a module. This approach is essential for the internal relative imports to function correctly. For example, execute python -m image_to_signal.main to run the entire pipeline, or python -m image_to_signal.utils.mask_refinement to use the experimental playground.
