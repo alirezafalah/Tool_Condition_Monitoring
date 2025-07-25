@@ -1,7 +1,7 @@
 import os
 from PIL import Image
 from tqdm import tqdm
-from utils.filters import apply_median_blur
+from .utils.filters import apply_median_blur
 
 def run(config):
     """

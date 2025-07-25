@@ -1,6 +1,6 @@
-import step1_blur_and_rename
-import step2_generate_masks
-import step3_analyze_and_plot
+from . import step1_blur_and_rename
+from . import step2_generate_masks
+from . import step3_analyze_and_plot
 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 # MASTER CONTROL PANEL
@@ -28,20 +28,20 @@ CONFIG = {
     'closing_kernel': 5,
 
     # -- HSV Parameters --
-    'hue_min': 142,        # Corresponds to 200 degrees
-    'hue_max': 163,        # Corresponds to 230 degrees
-    'sat_min': 38,         # Corresponds to 15%
-    'sat_max': 255,       # Corresponds to 100%
-    'value_min': 0,        # Corresponds to 0%
-    'value_max': 255,      # Corresponds to 100%
+    'h_threshold_min': 70 // 2,        # Corresponds to 70 degrees (Currently not used)
+    'h_threshold_max': 100 // 2,        # Corresponds to 100 degrees (Currently not used)
+    's_threshold_min': 15 * 2.55,    # Saturation > 15% (Currently not used)
+    's_threshold_max': 70 * 2.55,    # Saturation <= 70% (Currently not used)
+    'V_threshold_min': 45 * 2.55,    # Value > 45%
+    'V_threshold_max': 55 * 2.55,    # Value <= 55%
 
     # -- LAB Parameters --
-    'lab_bg_l_min': 128,     # Corresponds to L* = 50  (50 * 2.55)
-    'lab_bg_l_max': 133,     # Corresponds to L* = 52  (52 * 2.55)
-    'lab_bg_a_min': 126,     # Corresponds to a* = -2  (-2 + 128)
-    'lab_bg_a_max': 255,     # Corresponds to a* = 127 (max value)
-    'lab_bg_b_min': 0,       # Corresponds to b* = -128 (min value)
-    'lab_bg_b_max': 130,     # Corresponds to b* = 2   (2 + 128)
+    'L_threshold_min': 0,     # Direct from LAB space, corresponds to L = 0 (Currently not used)
+    'L_threshold_max': 50,     # Direct from LAB space, corresponds to L = 50 (Currently not used)
+    'a_threshold_min': -10 + 128,     # Corresponds to a* = -10 (min value) (Currently not used)
+    'a_threshold_max': -1 + 128,     # Corresponds to a* = 127 (max value)
+    'b_threshold_min': -10 + 128,      # Corresponds to b* = -10 (min value) (Currently not used)
+    'b_threshold_max': -8 + 128,     # Corresponds to b* = -8 (max value)
 
 
     # --- Data Analysis Parameters ---

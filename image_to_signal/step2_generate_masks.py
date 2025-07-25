@@ -3,12 +3,13 @@ from PIL import Image
 import cv2
 import numpy as np
 from tqdm import tqdm
-from utils.filters import (convert_to_hsv, create_hue_mask, create_saturation_mask, 
-                     fill_holes, morph_closing, keep_largest_contour)
+from .utils.filters import (create_multichannel_mask, fill_holes, 
+                          morph_closing, keep_largest_contour)
 
 def run(config):
     """
-    Processes pre-blurred images to generate and save the final binary masks.
+    Processes pre-blurred images to generate and save the final binary masks
+    using the multi-channel segmentation logic.
     """
     input_dir = config['BLURRED_DIR']
     output_dir = config['FINAL_MASKS_DIR']
@@ -33,19 +34,18 @@ def run(config):
             blurred_image = Image.open(image_path)
             
             # --- Segmentation Pipeline ---
-            hsv_image = convert_to_hsv(blurred_image)
-            hue_mask = create_hue_mask(hsv_image, config['hue_min'], config['hue_max'])
-            sat_mask = create_saturation_mask(hsv_image, config['sat_min'])
-            
-            hsv_mask = cv2.bitwise_or(np.array(hue_mask), np.array(sat_mask))
-            hsv_mask_pil = Image.fromarray(hsv_mask)
-
-            # --- Post-processing ---
-            filled1 = fill_holes(hsv_mask_pil)
+            # 1. Create the initial mask with our new powerful function
+            initial_mask = create_multichannel_mask(blurred_image, config)
+            if not initial_mask:  # Error handling if mask creation fails
+                print(f"Failed to create mask for {filename}.")
+                break
+            # 2. Apply post-processing to clean up the mask
+            filled1 = fill_holes(initial_mask)
             closed = morph_closing(filled1, kernel_size=config['closing_kernel'])
             filled2 = fill_holes(closed)
             final_mask = keep_largest_contour(filled2)
             
+            # 3. Save the result
             if final_mask:
                 output_path = os.path.join(output_dir, filename)
                 final_mask.save(output_path, 'TIFF')
