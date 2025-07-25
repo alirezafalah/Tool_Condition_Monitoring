@@ -31,7 +31,7 @@ def create_multichannel_mask(image_object, config):
 
         # --- 4. Combine Masks using the Final Logic ---
         # This is the only line you should change here if you find a better *rule*.
-        final_boolean_mask = (b_mask) | (a_mask) | (~V_mask)
+        final_boolean_mask = ~L_mask
         
         # --- 5. Convert to Visual Mask and Return ---
         final_mask_visual = final_boolean_mask.astype(np.uint8) * 255
@@ -120,4 +120,33 @@ def keep_largest_contour(binary_mask_object):
             return binary_mask_object
     except Exception as e:
         print(f"An error occurred while finding the largest contour: {e}")
+        return None
+    
+# ===================================================================
+# ==================== BACKGROUND SUBTRACTION =======================
+
+def background_subtraction(image_object, background_np, config):
+    """
+    Performs background subtraction between a given image and a pre-loaded
+    background image array.
+    """
+    try:
+        # Prepare the current image
+        sample_np_rgb = np.array(image_object.convert('RGB'))
+        sample_gray = cv2.cvtColor(sample_np_rgb, cv2.COLOR_RGB2GRAY)
+        
+        # Prepare the background image (already loaded as numpy array)
+        background_gray = cv2.cvtColor(background_np, cv2.COLOR_RGB2GRAY)
+
+        # Perform subtraction and thresholding
+        diff_image = cv2.absdiff(sample_gray, background_gray)
+        _, binary_mask = cv2.threshold(
+            diff_image, 
+            config['DIFFERENCE_THRESHOLD'], 
+            255, 
+            cv2.THRESH_BINARY
+        )
+        return Image.fromarray(binary_mask)
+    except Exception as e:
+        print(f"An error occurred during background subtraction: {e}")
         return None

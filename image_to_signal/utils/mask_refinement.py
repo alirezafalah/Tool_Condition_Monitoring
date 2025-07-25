@@ -11,7 +11,7 @@ def run_playground():
 
     ## --- 1. Load Image ---
     try:
-        sample_image_path = 'image_to_signal/data/tool069gain10paperBG_blurred/0000.98_degrees.tiff'
+        sample_image_path = 'image_to_signal/data/tool069gain10paperBG_blurred/0000.00_degrees.tiff'
         print(f"Loading sample image: {sample_image_path}")
         original_pil_image = Image.open(sample_image_path)
     except FileNotFoundError:
@@ -27,7 +27,8 @@ def run_playground():
 
     ## --- 3. Define All Thresholds (CONTROL PANEL) ---
     # -- LAB Thresholds (real-world scale) --
-    L_threshold = 0      # Keep pixels with Lightness > 0
+    L_threshold_min = 50 * 2.55     
+    L_threshold_max = 56 * 2.55
     a_threshold = -1     # Keep pixels with a <= -2
     b_threshold = -8      # Keep pixels with b < -8
 
@@ -54,7 +55,7 @@ def run_playground():
     ## --- 5. Create a Boolean Mask for Each Condition ---
     # Note: `~` is the NOT operator, inverting a mask.
     # LAB Masks
-    L_mask = L_channel > L_threshold
+    L_mask = (L_channel >= L_threshold_min) & (L_channel <= L_threshold_max)
     a_mask = a_channel <= (a_threshold + 128)
     b_mask = b_channel < (b_threshold + 128)
     
@@ -80,8 +81,8 @@ def run_playground():
 
     # Example 3: A more complex rule.
     # (Must meet 'a' condition) AND (Must meet EITHER 'H' OR 'S' condition)
-    final_boolean_mask = (b_mask) | (a_mask) | ~(V_mask)
-    condition_text = "b < -8 or a <= 0 or V not in range(45-55)"
+    final_boolean_mask = ~L_mask
+    condition_text = ""
 
     ## --- 7. Generate and Display Final Result ---
     final_mask_visual = final_boolean_mask.astype(np.uint8) * 255

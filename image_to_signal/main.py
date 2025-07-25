@@ -8,7 +8,7 @@ from . import step3_analyze_and_plot
 
 # Set these to True or False to run or skip steps
 RUN_STEP_1_BLUR_AND_RENAME = False
-RUN_STEP_2_GENERATE_MASKS = False
+RUN_STEP_2_GENERATE_MASKS = True
 RUN_STEP_3_ANALYZE_AND_PLOT = True
 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
@@ -25,7 +25,7 @@ CONFIG = {
 
     # --- Image Processing Parameters ---
     'blur_kernel': 13,
-    'closing_kernel': 5,
+    'closing_kernel': 21,
 
     # -- HSV Parameters --
     'h_threshold_min': 70 // 2,        # Corresponds to 70 degrees (Currently not used)
@@ -36,19 +36,25 @@ CONFIG = {
     'V_threshold_max': 55 * 2.55,    # Value <= 55%
 
     # -- LAB Parameters --
-    'L_threshold_min': 0,     # Direct from LAB space, corresponds to L = 0 (Currently not used)
-    'L_threshold_max': 50,     # Direct from LAB space, corresponds to L = 50 (Currently not used)
+    'L_threshold_min': 50 * 2.55,     # Direct from LAB space, corresponds to L = 0 (Currently not used)
+    'L_threshold_max': 56 * 2.55,     # Direct from LAB space, corresponds to L = 50 (Currently not used)
     'a_threshold_min': -10 + 128,     # Corresponds to a* = -10 (min value) (Currently not used)
     'a_threshold_max': -1 + 128,     # Corresponds to a* = 127 (max value)
     'b_threshold_min': -10 + 128,      # Corresponds to b* = -10 (min value) (Currently not used)
     'b_threshold_max': -8 + 128,     # Corresponds to b* = -8 (max value)
+
+    # --- Background Subtraction Parameters ---
+    'APPLY_BACKGROUND_SUBTRACTION': False,
+    'APPLY_MULTICHANNEL_MASK': True,
+    'BACKGROUND_IMAGE_PATH': 'image_to_signal/data/background.tiff',
+    'DIFFERENCE_THRESHOLD': 15,
 
 
     # --- Data Analysis Parameters ---
     'images_for_366_deg': 372, # Because we used 5 Rev/min and we recorded for 12.2 seconds, therefore we have 366 degrees for each tool.
     'roi_height': 260,
     'outlier_std_dev_factor': 2.0,
-    'APPLY_MOVING_AVERAGE': False,  
+    'APPLY_MOVING_AVERAGE': True,  
     'MOVING_AVERAGE_WINDOW': 5,  
 }
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
