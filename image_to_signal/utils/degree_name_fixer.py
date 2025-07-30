@@ -10,10 +10,10 @@ from tqdm import tqdm
 # 2. Once for your BLURRED image directory.
 #
 # !! SET THE DIRECTORY TO FIX BELOW !!
-TARGET_DIR = '../data/tool077gain10_blurred' 
+TARGET_DIR = '../data/subtract2' 
 
 # The total degrees for a full rotation
-TOTAL_DEGREES = 366.0
+TOTAL_DEGREES = 360.0
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
 def main():
@@ -25,7 +25,7 @@ def main():
     print(f"Targeting directory: '{TARGET_DIR}'")
 
     try:
-        image_files = sorted([f for f in os.listdir(TARGET_DIR) if f.endswith(('.tiff', '.tif'))])
+        image_files = sorted([f for f in os.listdir(TARGET_DIR) if f.endswith(('.tiff', '.tif', '.jpg', '.jpeg'))])
         if not image_files:
             print("No image files found to rename.")
             return
@@ -42,7 +42,7 @@ def main():
     for i, filename in enumerate(tqdm(image_files, desc="Correcting Filenames")):
         correct_angle = i * angle_step
         # Format with leading zeros for correct alphabetical sorting
-        new_filename = f"{correct_angle:07.2f}_degrees.tiff"
+        new_filename = f"{correct_angle:07.2f}_degrees.jpg"
         
         old_path = os.path.join(TARGET_DIR, filename)
         new_path = os.path.join(TARGET_DIR, new_filename)

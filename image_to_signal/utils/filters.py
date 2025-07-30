@@ -121,32 +121,48 @@ def keep_largest_contour(binary_mask_object):
     except Exception as e:
         print(f"An error occurred while finding the largest contour: {e}")
         return None
+        return None
     
 # ===================================================================
 # ==================== BACKGROUND SUBTRACTION =======================
 
-def background_subtraction(image_object, background_np, config):
+def background_subtraction_absdiff(image_object, background_np, config):
     """
-    Performs background subtraction between a given image and a pre-loaded
-    background image array.
+    Performs background subtraction using simple absolute difference on
+    grayscale images.
     """
     try:
-        # Prepare the current image
-        sample_np_rgb = np.array(image_object.convert('RGB'))
-        sample_gray = cv2.cvtColor(sample_np_rgb, cv2.COLOR_RGB2GRAY)
-        
-        # Prepare the background image (already loaded as numpy array)
+        sample_gray = cv2.cvtColor(np.array(image_object.convert('RGB')), cv2.COLOR_RGB2GRAY)
         background_gray = cv2.cvtColor(background_np, cv2.COLOR_RGB2GRAY)
-
-        # Perform subtraction and thresholding
         diff_image = cv2.absdiff(sample_gray, background_gray)
         _, binary_mask = cv2.threshold(
-            diff_image, 
-            config['DIFFERENCE_THRESHOLD'], 
-            255, 
+            diff_image,
+            config['DIFFERENCE_THRESHOLD'],
+            255,
             cv2.THRESH_BINARY
         )
         return Image.fromarray(binary_mask)
     except Exception as e:
-        print(f"An error occurred during background subtraction: {e}")
+        print(f"An error occurred during absdiff background subtraction: {e}")
+        return None
+
+def background_subtraction_lab(image_object, background_np, config):
+    """
+    Performs background subtraction in the LAB color space by calculating
+    the perceptual color difference (Delta E).
+    """
+    try:
+        sample_lab = cv2.cvtColor(np.array(image_object.convert('RGB')), cv2.COLOR_RGB2LAB).astype(np.float32)
+        background_lab = cv2.cvtColor(background_np, cv2.COLOR_RGB2LAB).astype(np.float32)
+        delta_E = np.sqrt(np.sum((sample_lab - background_lab)**2, axis=2))
+        diff_image = cv2.normalize(delta_E, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        _, binary_mask = cv2.threshold(
+            diff_image,
+            config['DIFFERENCE_THRESHOLD'],
+            255,
+            cv2.THRESH_BINARY
+        )
+        return Image.fromarray(binary_mask)
+    except Exception as e:
+        print(f"An error occurred during LAB background subtraction: {e}")
         return None

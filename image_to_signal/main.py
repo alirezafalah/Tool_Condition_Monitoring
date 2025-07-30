@@ -7,9 +7,9 @@ from . import step3_analyze_and_plot
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
 # Set these to True or False to run or skip steps
-RUN_STEP_1_BLUR_AND_RENAME = False
-RUN_STEP_2_GENERATE_MASKS = True
-RUN_STEP_3_ANALYZE_AND_PLOT = True
+RUN_STEP_1_BLUR_AND_RENAME = True
+RUN_STEP_2_GENERATE_MASKS = False
+RUN_STEP_3_ANALYZE_AND_PLOT = False
 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 # CONFIGURATION PARAMETERS
@@ -17,11 +17,11 @@ RUN_STEP_3_ANALYZE_AND_PLOT = True
 
 CONFIG = {
     # --- Directory Paths ---
-    'RAW_DIR': 'image_to_signal/data/tool069gain10paperBG',
-    'BLURRED_DIR': 'image_to_signal/data/tool069gain10paperBG_blurred',
-    'FINAL_MASKS_DIR': 'image_to_signal/data/tool069gain10paperBG_final_masks',
-    'ROI_CSV_PATH': 'image_to_signal/data/tool069gain10paperBG_area_vs_angle.csv',
-    'ROI_PLOT_PATH': 'image_to_signal/data/tool069gain10paperBG_area_vs_angle_plot.png',
+    'RAW_DIR': 'image_to_signal/data/tool014gain10paperBG',
+    'BLURRED_DIR': 'image_to_signal/data/tool054gain10paperBG_blurred',
+    'FINAL_MASKS_DIR': 'image_to_signal/data/tool054gain10paperBG_final_masks',
+    'ROI_CSV_PATH': 'image_to_signal/data/tool014gain54paperBG_area_vs_angle.csv',
+    'ROI_PLOT_PATH': 'image_to_signal/data/tool014gain54paperBG_area_vs_angle_plot.png',
 
     # --- Image Processing Parameters ---
     'blur_kernel': 13,
@@ -44,16 +44,16 @@ CONFIG = {
     'b_threshold_max': -8 + 128,     # Corresponds to b* = -8 (max value)
 
     # --- Background Subtraction Parameters ---
-    'APPLY_BACKGROUND_SUBTRACTION': False,
-    'APPLY_MULTICHANNEL_MASK': True,
-    'BACKGROUND_IMAGE_PATH': 'image_to_signal/data/background.tiff',
+    'BACKGROUND_SUBTRACTION_METHOD': 'lab', # Options: 'none', 'absdiff', 'lab'
+    'APPLY_MULTICHANNEL_MASK': False,
+    'BACKGROUND_IMAGE_PATH': 'image_to_signal/data/paper_background.tiff',
     'DIFFERENCE_THRESHOLD': 15,
 
 
     # --- Data Analysis Parameters ---
-    'images_for_366_deg': 372, # Because we used 5 Rev/min and we recorded for 12.2 seconds, therefore we have 366 degrees for each tool.
-    'roi_height': 260,
-    'outlier_std_dev_factor': 2.0,
+    'images_for_366_deg': 363, # Because we used 5 Rev/min and we recorded for 12.2 seconds, therefore we have 366 degrees for each tool.
+    'roi_height': 300,
+    'outlier_std_dev_factor': 3.0,
     'APPLY_MOVING_AVERAGE': True,  
     'MOVING_AVERAGE_WINDOW': 5,  
 }

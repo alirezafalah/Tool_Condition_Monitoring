@@ -87,7 +87,7 @@ def run(config):
     if target_column == 'Smoothed ROI Area':
         ax.scatter(inliers['Angle (Degrees)'], inliers['ROI Area (Pixels)'], color='lightgray', s=10, label='Raw Data')
 
-    ax.plot(inliers['Angle (Degrees)'], inliers[target_column], marker='.', linestyle='-', markersize=4, label='Processed Data')
+    ax.plot(inliers['Angle (Degrees)'], inliers[target_column], marker='.', linestyle='-', markersize=4, label='Smoothed Data')
     ax.set_title('Tool ROI Area vs. Rotation Angle', fontsize=18, fontweight='bold')
     ax.set_xlabel('Angle (Degrees)', fontsize=14)
     ax.set_ylabel('Projected Area in ROI (Pixel Count)', fontsize=14)

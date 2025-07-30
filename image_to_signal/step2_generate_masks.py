@@ -3,8 +3,9 @@ from PIL import Image
 import cv2
 import numpy as np
 from tqdm import tqdm
-from .utils.filters import (background_subtraction, create_multichannel_mask, 
-                          fill_holes, morph_closing, keep_largest_contour)
+from .utils.filters import (create_multichannel_mask, 
+                          fill_holes, morph_closing, keep_largest_contour, 
+                          background_subtraction_absdiff, background_subtraction_lab)
 
 def run(config):
     """
@@ -12,10 +13,10 @@ def run(config):
     multi-channel color masking based on config settings.
     """
     # --- Guardrail: Check if any masking is enabled ---
-    use_bg_sub = config.get('APPLY_BACKGROUND_SUBTRACTION', False)
+    method = config.get('BACKGROUND_SUBTRACTION_METHOD', 'none').lower()
     use_mc_mask = config.get('APPLY_MULTICHANNEL_MASK', False)
-    if not use_bg_sub and not use_mc_mask:
-        print("Warning: Both background subtraction and multi-channel mask are disabled. No masks will be generated.")
+    if method == 'none' and not use_mc_mask:
+        print("Warning: All masking methods are disabled. Exiting.")
         return
 
     input_dir = config['BLURRED_DIR']
@@ -30,15 +31,15 @@ def run(config):
 
     # --- Load background image ONCE before the loop for efficiency ---
     background_image_np = None
-    if use_bg_sub:
+    if method in ['absdiff', 'lab']:
         try:
             bg_path = config['BACKGROUND_IMAGE_PATH']
             background_image_np = np.array(Image.open(bg_path))
-            print(f"Background image loaded from '{bg_path}'.")
+            print(f"Using '{method}' method with background image: {bg_path}")
         except FileNotFoundError:
-            print(f"Warning: Background image not found at '{bg_path}'. Disabling subtraction.")
-            use_bg_sub = False # Disable if file not found
-    
+            print(f"Warning: Background image not found for '{method}'. Disabling subtraction.")
+            method = 'none'
+
     print(f"Generating final masks for {len(image_files)} images...")
     
     for filename in tqdm(image_files, desc="Generating Masks"):
@@ -50,12 +51,13 @@ def run(config):
             # --- Segmentation Pipeline ---
             bg_mask_np = None
             color_mask_np = None
-
-            # 1. Perform background subtraction (if enabled)
-            if use_bg_sub and background_image_np is not None:
-                bg_mask_pil = background_subtraction(blurred_image, background_image_np, config)
-                if bg_mask_pil:
-                    bg_mask_np = np.array(bg_mask_pil)
+            # 1. Perform background subtraction with the selected method
+            if method == 'absdiff' and background_image_np is not None:
+                bg_mask_pil = background_subtraction_absdiff(blurred_image, background_image_np, config)
+                if bg_mask_pil: bg_mask_np = np.array(bg_mask_pil)
+            elif method == 'lab' and background_image_np is not None:
+                bg_mask_pil = background_subtraction_lab(blurred_image, background_image_np, config)
+                if bg_mask_pil: bg_mask_np = np.array(bg_mask_pil)
 
             # 2. Perform multi-channel color masking (if enabled)
             if use_mc_mask:
