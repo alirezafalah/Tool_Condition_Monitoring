@@ -3,10 +3,10 @@ import numpy as np
 
 # --- Configuration ---
 # IMPORTANT: Replace this with the actual path to your ORIGINAL INTACT CSV file.
-intact_file_path = 'data/chamfer_1edge_fractured.csv'
+intact_file_path = '../chamfer_1edge_fractured.csv'
 
 # Define the output path for the new, modified fractured data CSV.
-output_fractured_path = 'data/chamfer_2edge_broken.csv'
+output_fractured_path = 'chamfer_2edge_broken.csv'
 
 # Define the parameters for the modifications.
 general_variation = 20  # The +/- random variation for most points.

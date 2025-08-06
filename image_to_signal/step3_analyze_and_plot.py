@@ -96,11 +96,15 @@ def run(config):
     ax.legend()
     ax.set_xlim(0, 360)
     ax.set_xticks(np.arange(0, 361, 30))
-    plt.tight_layout()
+    plt.tight_layout() 
     
     plot_path = config['ROI_PLOT_PATH']
+    
+    
     plot_dir = os.path.dirname(plot_path)
     if plot_dir: os.makedirs(plot_dir, exist_ok=True)
-    plt.savefig(plot_path, dpi=300)
-    print(f"Plot saved to '{plot_path}'")
+    
+    plt.savefig(plot_path, format='svg', dpi=300)
+    print(f"Plot saved in SVG format to '{plot_path}'")
+    
     plt.show()
