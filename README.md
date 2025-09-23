@@ -13,7 +13,8 @@ This repository contains the code and data for analyzing CNC tool wear through i
 The main pipeline is designed to be run as a module from the project's root directory.
 
 1.  Navigate to the `Tool_Condition_Monitoring` folder in your terminal.
-2.  Execute the following command, replacing `path/to/your/images` with the actual path to your image data:
+2. Make sure you have your config in main set. 
+3.  Execute the following command.
 
 ```bash
 python -m image_to_signal.main --input_dir path/to/your/images
