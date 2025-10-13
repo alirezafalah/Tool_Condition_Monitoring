@@ -4,12 +4,14 @@ import imageio
 from PyQt6.QtWidgets import QMainWindow, QLabel, QVBoxLayout, QHBoxLayout, QWidget
 from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtCore import Qt
-from .zoomable_svg_widget import ZoomableSvgWidget # Import our new widget
+from .zoomable_svg_widget import ZoomableSvgWidget
+# ... (imports are the same)
+from .zoomable_svg_widget import ZoomableSvgWidget
 
 class ProfileWindow(QMainWindow):
     def __init__(self, tool_id, svg_path, overview_image_paths):
         super().__init__()
-        
+        # ... (init code is the same)
         self.tool_id = tool_id
         self.setWindowTitle(f"Profile View: {self.tool_id}")
         self.setGeometry(150, 150, 1400, 800) 
@@ -17,19 +19,18 @@ class ProfileWindow(QMainWindow):
         main_layout = QHBoxLayout()
         main_layout.setContentsMargins(10, 10, 10, 10)
 
-        # --- Left Panel ---
         left_panel_layout = QVBoxLayout()
         
-        # SVG Viewer
-        svg_caption = QLabel("1D Signal Profile (Scroll to Zoom)")
+        # --- TWEAK: Simplified caption ---
+        svg_caption = QLabel("1D Signal Profile")
         svg_caption.setStyleSheet("font-weight: bold; font-size: 14px;")
         
-        # Use our new custom widget instead of the basic one
         self.svg_widget = ZoomableSvgWidget(svg_path)
         
-        # Overview Images Widget (encapsulated for better layout control)
+        # ... (the rest of the file is exactly the same as before)
         overview_widget = QWidget()
         overview_layout = QVBoxLayout(overview_widget)
+        overview_layout.setContentsMargins(0,0,0,0) # Remove internal margins
         overview_caption = QLabel("Quarter-Turn Overview")
         overview_caption.setStyleSheet("font-weight: bold; font-size: 14px; margin-top: 10px;")
         overview_images_layout = QHBoxLayout()
@@ -55,13 +56,12 @@ class ProfileWindow(QMainWindow):
         overview_layout.addWidget(overview_caption)
         overview_layout.addLayout(overview_images_layout)
         
-        # --- FIX: Reorder the layout to pin images to the bottom ---
-        left_panel_layout.addWidget(svg_caption)
-        left_panel_layout.addWidget(self.svg_widget) # SVG takes up most space
-        left_panel_layout.addStretch(1)              # A spacer that pushes the next item down
-        left_panel_layout.addWidget(overview_widget) # Overview is pinned to the bottom
+        overview_widget.setMaximumHeight(280)
 
-        # --- Right Panel ---
+        left_panel_layout.addWidget(svg_caption)
+        left_panel_layout.addWidget(self.svg_widget)
+        left_panel_layout.addWidget(overview_widget)
+
         right_panel_placeholder = QLabel("Placeholder for Interactive Frame Explorer")
         right_panel_placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         right_panel_placeholder.setStyleSheet("border: 1px solid white; font-size: 16px;")
