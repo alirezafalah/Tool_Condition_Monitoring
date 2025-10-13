@@ -71,10 +71,19 @@ class SyncedImageViewer(QWidget):
         self.mask_view.fitInView(self.mask_scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
     def _sync_views(self, source, target):
+        """
+        BUG FIX: This method now uses fitInView for perfect synchronization.
+        """
         if self._is_syncing or not self.sync_enabled:
             return
         self._is_syncing = True
-        target.setTransform(source.transform())
+        
+        # Get the visible rectangle of the source view in scene coordinates
+        visible_rect = source.mapToScene(source.viewport().rect()).boundingRect()
+        
+        # Command the target view to show the exact same rectangle
+        target.fitInView(visible_rect, Qt.AspectRatioMode.KeepAspectRatio)
+        
         self._is_syncing = False
 
     def load_images(self, raw_path, mask_path):
@@ -83,8 +92,6 @@ class SyncedImageViewer(QWidget):
         self.raw_pixmap_item.setPixmap(QPixmap.fromImage(raw_qimage))
         
         mask_tiff = imageio.imread(mask_path)
-        # --- THIS IS THE FIX ---
-        # Use Grayscale8 for single-channel mask images, not RGB888.
         mask_qimage = QImage(mask_tiff.data, mask_tiff.shape[1], mask_tiff.shape[0], mask_tiff.strides[0], QImage.Format.Format_Grayscale8)
         self.mask_pixmap_item.setPixmap(QPixmap.fromImage(mask_qimage))
         
