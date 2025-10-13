@@ -1,0 +1,930 @@
+[
+  {
+    "tool_id": "tool001",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool002",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool003",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool004",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool005",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool006",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool007",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool008",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool009",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool010",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool011",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool012",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool013",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool014",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool015",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool016",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool017",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool018",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool019",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool020",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool021",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool022",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool023",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool024",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool025",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool026",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool027",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool028",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool029",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool030",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool031",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool032",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool033",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool034",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool035",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool036",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool037",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool038",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool039",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool040",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool041",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool042",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool043",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool044",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool045",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool046",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool047",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool048",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool049",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool050",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool051",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool052",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool053",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool054",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool055",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool056",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool057",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool058",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool059",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool060",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool061",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool062",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool063",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool064",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool065",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool066",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool067",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool068",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool069",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool070",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool071",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool072",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool073",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool074",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool075",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool076",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool077",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool078",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool079",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool080",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool081",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool082",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool083",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool084",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool085",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool086",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool087",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool088",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool089",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool090",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool091",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool092",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool093",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool094",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool095",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool096",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool097",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool098",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool099",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool100",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool101",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool102",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool103",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool104",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool105",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool106",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool107",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool108",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool109",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool110",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool111",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool112",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool113",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool114",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool115",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  },
+  {
+    "tool_id": "tool116",
+    "type": "",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Unknown",
+    "notes": ""
+  }
+]
