@@ -31,7 +31,7 @@ class ProfileWindow(QMainWindow):
         overview_widget = QWidget()
         overview_layout = QVBoxLayout(overview_widget)
         overview_layout.setContentsMargins(0,0,0,0) # Remove internal margins
-        overview_caption = QLabel("Quarter-Turn Overview")
+        overview_caption = QLabel("Quarter-Turn Overview: Overview of tool in 90 degrees increments for initial visual inspection")
         overview_caption.setStyleSheet("font-weight: bold; font-size: 14px; margin-top: 10px;")
         overview_images_layout = QHBoxLayout()
         
