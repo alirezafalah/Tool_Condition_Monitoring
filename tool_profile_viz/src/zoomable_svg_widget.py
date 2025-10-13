@@ -46,8 +46,8 @@ class ZoomableSvgWidget(QWidget):
         self.view = _SvgView(self.scene)
         
         # --- Create Overlay Controls ---
-        self.home_button = QPushButton("Home")
-        self.home_button.setFixedSize(60, 30)
+        self.home_button = QPushButton("Reset View")
+        self.home_button.setFixedSize(80, 30)
         self.home_button.clicked.connect(self.reset_view)
 
         self.controls_label = QLabel("Scroll: Zoom | Left-Click+Drag: Pan")
