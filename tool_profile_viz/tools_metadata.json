@@ -75,7 +75,7 @@
     "tool_id": "tool010",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -259,7 +259,7 @@
     "tool_id": "tool033",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -267,7 +267,7 @@
     "tool_id": "tool034",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -491,7 +491,7 @@
     "tool_id": "tool062",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -499,7 +499,7 @@
     "tool_id": "tool063",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -507,7 +507,7 @@
     "tool_id": "tool064",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -523,7 +523,7 @@
     "tool_id": "tool066",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -531,7 +531,7 @@
     "tool_id": "tool067",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -539,7 +539,7 @@
     "tool_id": "tool068",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -547,7 +547,7 @@
     "tool_id": "tool069",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -555,7 +555,7 @@
     "tool_id": "tool070",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -563,7 +563,7 @@
     "tool_id": "tool071",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -571,7 +571,7 @@
     "tool_id": "tool072",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -579,7 +579,7 @@
     "tool_id": "tool073",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -587,7 +587,7 @@
     "tool_id": "tool074",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -891,7 +891,7 @@
     "tool_id": "tool112",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -899,7 +899,7 @@
     "tool_id": "tool113",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -907,7 +907,7 @@
     "tool_id": "tool114",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -915,7 +915,7 @@
     "tool_id": "tool115",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   },
@@ -923,7 +923,7 @@
     "tool_id": "tool116",
     "type": "",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 2,
     "condition": "Unknown",
     "notes": ""
   }

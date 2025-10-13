@@ -4,9 +4,11 @@ import copy
 from PyQt6.QtWidgets import (QMainWindow, QTableWidget, QTableWidgetItem, QVBoxLayout, 
                              QWidget, QPushButton, QMessageBox, QHeaderView, QFileDialog, 
                              QHBoxLayout, QLabel, QSlider, QSpacerItem, QSizePolicy)
-from PyQt6.QtCore import Qt
+# --- NEW: Import QTimer for the visual effect ---
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction, QKeySequence
 from .metadata_manager import MetadataManager, DEFAULT_METADATA_PATH
+from .profile_window import ProfileWindow
 
 DATA_FOLDER_PATH = os.path.join(os.path.dirname(os.getcwd()), 'data')
 
@@ -24,6 +26,9 @@ class MainWindow(QMainWindow):
         self.redo_stack = []
         self.last_saved_state = copy.deepcopy(self.metadata_manager.get_all_tools())
         self._is_populating = False
+        
+        # --- FIX: Initialize the list to hold open windows ---
+        self.open_windows = []
 
         controls_layout = QHBoxLayout()
         self._create_controls(controls_layout)
@@ -43,6 +48,7 @@ class MainWindow(QMainWindow):
         self._create_edit_actions()
         self.populate_table()
 
+    # ... (all methods until populate_table are unchanged)
     def _create_controls(self, layout):
         load_button = QPushButton("Load Metadata")
         load_button.setObjectName("TopControlButton")
@@ -106,22 +112,12 @@ class MainWindow(QMainWindow):
         self.style().polish(self.save_button)
 
     def _on_item_changed(self, item):
-        # FIX: This function now correctly syncs the model and manages history.
         if not self._is_populating:
-            # 1. Get the state BEFORE this change (which is still in our model)
             old_state = copy.deepcopy(self.metadata_manager.get_all_tools())
-            
-            # 2. Get the NEW state from the table UI
             new_state = self._get_data_from_table()
-            
-            # 3. Push the OLD state to the undo stack
             self.undo_stack.append(old_state)
-            self.redo_stack.clear() # New edit clears redo history
-            
-            # 4. Update our internal model to match the UI
+            self.redo_stack.clear()
             self.metadata_manager.metadata = new_state
-            
-            # 5. Check if we need to change the save button color
             self._check_save_state()
 
     def _undo(self):
@@ -134,7 +130,6 @@ class MainWindow(QMainWindow):
         if self.redo_stack:
             self.undo_stack.append(copy.deepcopy(self.metadata_manager.get_all_tools()))
             self.metadata_manager.metadata = self.redo_stack.pop()
-            # FIX: Corrected the method name typo
             self._check_save_state() 
             self.populate_table()
 
@@ -156,7 +151,9 @@ class MainWindow(QMainWindow):
             profile_btn = QPushButton("View Profile" if svg_exists else "Data Missing")
             profile_btn.setObjectName("ActionButtonSuccess" if svg_exists else "ActionButtonFailure")
             profile_btn.setEnabled(svg_exists)
-            profile_btn.clicked.connect(lambda _, t=tool_id: self.view_profile(t))
+            
+            # --- ENHANCEMENT: Pass the button itself to the handler ---
+            profile_btn.clicked.connect(lambda _, b=profile_btn, t=tool_id: self.view_profile(b, t))
             self.table.setCellWidget(row, 6, profile_btn)
 
             delete_btn = QPushButton("Delete")
@@ -166,6 +163,66 @@ class MainWindow(QMainWindow):
         self._is_populating = False
         self._check_save_state()
 
+    def _find_tool_files(self, tool_id):
+        """Helper to find all necessary file paths for a given tool ID."""
+        svg_path = None
+        blurred_folder_path = None
+        
+        # Find the SVG and the blurred images folder
+        for item_name in os.listdir(DATA_FOLDER_PATH):
+            full_path = os.path.join(DATA_FOLDER_PATH, item_name)
+            if item_name.startswith(tool_id):
+                if item_name.endswith("_area_vs_angle_plot.svg"):
+                    svg_path = full_path
+                elif item_name.endswith("_blurred") and os.path.isdir(full_path):
+                    blurred_folder_path = full_path
+        
+        if not blurred_folder_path:
+            return svg_path, []
+
+        # Find the 4 overview images (closest to 0, 90, 180, 270)
+        image_files = [f for f in os.listdir(blurred_folder_path) if f.endswith(".tiff")]
+        degrees_files = {}
+        for f in image_files:
+            match = re.search(r"(\d{4}\.\d{2})", f)
+            if match:
+                degrees_files[float(match.group(1))] = f
+        
+        overview_paths = []
+        for target_deg in [0, 90, 180, 270]:
+            closest_deg = min(degrees_files.keys(), key=lambda d: abs(d - target_deg))
+            overview_paths.append(os.path.join(blurred_folder_path, degrees_files[closest_deg]))
+            
+        return svg_path, overview_paths
+
+    def view_profile(self, button, tool_id):
+        """Finds tool files and launches the ProfileWindow."""
+        original_text = button.text()
+        button.setText("Loading...")
+        button.setEnabled(False)
+
+        # Use the helper to find all required files
+        svg_path, overview_paths = self._find_tool_files(tool_id)
+
+        if not svg_path or not overview_paths:
+            QMessageBox.warning(self, "Error", f"Could not find all required data files for {tool_id}.")
+            self._reset_button_state(button, original_text)
+            return
+
+        # Pass the found paths to the new window
+        win = ProfileWindow(tool_id, svg_path, overview_paths)
+        self.open_windows.append(win)
+        win.showMaximized()
+        
+        QTimer.singleShot(400, lambda: self._reset_button_state(button, original_text))
+
+
+    def _reset_button_state(self, button, text):
+        """Helper function to restore the button's appearance."""
+        button.setText(text)
+        button.setEnabled(True)
+
+    # ... (all methods from delete_tool onwards are unchanged)
     def delete_tool(self, row_index):
         tool_id = self.table.item(row_index, 0).text()
         reply = QMessageBox.question(self, 'Confirm Deletion', 
@@ -231,6 +288,3 @@ class MainWindow(QMainWindow):
         new_size = int(self.base_font_size * (value / 100.0))
         font.setPointSize(new_size)
         self.table.setFont(font)
-
-    def view_profile(self, tool_id):
-        QMessageBox.information(self, "Navigate", f"Switching to profile view for {tool_id}.")
