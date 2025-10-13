@@ -164,55 +164,56 @@ class MainWindow(QMainWindow):
         self._check_save_state()
 
     def _find_tool_files(self, tool_id):
-        """Helper to find all necessary file paths for a given tool ID."""
-        svg_path = None
-        blurred_folder_path = None
+        """Helper to find all necessary file and folder paths for a tool."""
+        svg_path, blurred_folder, mask_folder = None, None, None
         
-        # Find the SVG and the blurred images folder
+        # Find the primary SVG file and the two main image folders
         for item_name in os.listdir(DATA_FOLDER_PATH):
-            full_path = os.path.join(DATA_FOLDER_PATH, item_name)
             if item_name.startswith(tool_id):
+                full_path = os.path.join(DATA_FOLDER_PATH, item_name)
                 if item_name.endswith("_area_vs_angle_plot.svg"):
                     svg_path = full_path
                 elif item_name.endswith("_blurred") and os.path.isdir(full_path):
-                    blurred_folder_path = full_path
-        
-        if not blurred_folder_path:
-            return svg_path, []
+                    blurred_folder = full_path
+                elif item_name.endswith("_final_masks") and os.path.isdir(full_path):
+                    mask_folder = full_path
 
-        # Find the 4 overview images (closest to 0, 90, 180, 270)
-        image_files = [f for f in os.listdir(blurred_folder_path) if f.endswith(".tiff")]
-        degrees_files = {}
-        for f in image_files:
-            match = re.search(r"(\d{4}\.\d{2})", f)
-            if match:
-                degrees_files[float(match.group(1))] = f
-        
+        # Find the 4 overview images from the blurred folder
         overview_paths = []
-        for target_deg in [0, 90, 180, 270]:
-            closest_deg = min(degrees_files.keys(), key=lambda d: abs(d - target_deg))
-            overview_paths.append(os.path.join(blurred_folder_path, degrees_files[closest_deg]))
-            
-        return svg_path, overview_paths
+        if blurred_folder:
+            image_files = [f for f in os.listdir(blurred_folder) if f.endswith(".tiff")]
+            if image_files:
+                degrees_files = {}
+                for f in image_files:
+                    match = re.search(r"(\d{4}\.\d{2})", f)
+                    if match:
+                        degrees_files[float(match.group(1))] = f
+                
+                if degrees_files:
+                    for target_deg in [0, 90, 180, 270]:
+                        closest_deg = min(degrees_files.keys(), key=lambda d: abs(d - target_deg))
+                        overview_paths.append(os.path.join(blurred_folder, degrees_files[closest_deg]))
+
+        return svg_path, overview_paths, blurred_folder, mask_folder
 
     def view_profile(self, button, tool_id):
-        """Finds tool files and launches the ProfileWindow."""
+        """Finds tool files and launches the ProfileWindow with all necessary paths."""
         original_text = button.text()
         button.setText("Loading...")
         button.setEnabled(False)
 
-        # Use the helper to find all required files
-        svg_path, overview_paths = self._find_tool_files(tool_id)
+        # Use the helper to find all required files and folders
+        svg_path, overview_paths, blurred_folder, mask_folder = self._find_tool_files(tool_id)
 
-        if not svg_path or not overview_paths:
-            QMessageBox.warning(self, "Error", f"Could not find all required data files for {tool_id}.")
+        # A robust check to ensure all necessary paths were found
+        if not all([svg_path, overview_paths, blurred_folder, mask_folder]):
+            QMessageBox.warning(self, "Error", f"Missing some data folders or files for {tool_id}.")
             self._reset_button_state(button, original_text)
             return
 
-        # Pass the found paths to the new window
-        win = ProfileWindow(tool_id, svg_path, overview_paths)
+        # Pass all the required paths to the new window's constructor
+        win = ProfileWindow(tool_id, svg_path, overview_paths, blurred_folder, mask_folder)
         self.open_windows.append(win)
-        win.showMaximized()
         
         QTimer.singleShot(400, lambda: self._reset_button_state(button, original_text))
 
