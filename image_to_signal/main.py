@@ -17,11 +17,11 @@ RUN_STEP_3_ANALYZE_AND_PLOT = True
 
 CONFIG = {
     # --- Directory Paths ---
-    'RAW_DIR': 'image_to_signal/data/tool054gain10paperBG',
-    'BLURRED_DIR': 'image_to_signal/data/tool054gain10paperBG_blurred',
-    'FINAL_MASKS_DIR': 'image_to_signal/data/tool054gain10paperBG_final_masks',
-    'ROI_CSV_PATH': 'image_to_signal/data/tool054gain10paperBG_area_vs_angle.csv',
-    'ROI_PLOT_PATH': 'image_to_signal/data/tool054gain10paperBG_area_vs_angle_plot.svg',
+    'RAW_DIR': 'image_to_signal/data/tool070gain10paperBG',
+    'BLURRED_DIR': 'image_to_signal/data/tool070gain10paperBG_blurred',
+    'FINAL_MASKS_DIR': 'image_to_signal/data/tool070gain10paperBG_final_masks',
+    'ROI_CSV_PATH': 'image_to_signal/data/tool070gain10paperBG_area_vs_angle.csv',
+    'ROI_PLOT_PATH': 'image_to_signal/data/tool070gain10paperBG_area_vs_angle_plot.svg',
 
     # --- Image Processing Parameters ---
     'blur_kernel': 13,
@@ -47,13 +47,13 @@ CONFIG = {
     'BACKGROUND_SUBTRACTION_METHOD': 'lab', # Options: 'none', 'absdiff', 'lab'
     'APPLY_MULTICHANNEL_MASK': False,
     'BACKGROUND_IMAGE_PATH': 'image_to_signal/data/paper_background.tiff',
-    'DIFFERENCE_THRESHOLD': 21,
+    'DIFFERENCE_THRESHOLD': 33,
 
 
     # --- Data Analysis Parameters ---
     'images_for_366_deg': 363, # Because we used 5 Rev/min and we recorded for 12.2 seconds, therefore we have 366 degrees for each tool.
-    'roi_height': 300,
-    'outlier_std_dev_factor': 2.0,
+    'roi_height': 200,
+    'outlier_std_dev_factor': 3.0,
     'APPLY_MOVING_AVERAGE': True,  
     'MOVING_AVERAGE_WINDOW': 5,  
 }
