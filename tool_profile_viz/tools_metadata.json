@@ -1,43 +1,43 @@
 [
   {
     "tool_id": "tool001",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "NEW",
+    "notes": "WELD-ON"
   },
   {
     "tool_id": "tool002",
-    "type": "",
+    "type": "DDRILL",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "NEW",
+    "notes": "SOLID CARBIDE DRILL, without internal cooling channels. Carbide."
   },
   {
     "tool_id": "tool003",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "NEW",
+    "notes": "Dedicated roughing, and the chip formation better because of wavy surface. Higher material remove rate."
   },
   {
     "tool_id": "tool004",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "NEW",
+    "notes": "INTERNAL COOLANT CHANNELS"
   },
   {
     "tool_id": "tool005",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "New",
+    "notes": "Big radius on the edge. special because it can work on 3d (FREE) surface finishing."
   },
   {
     "tool_id": "tool006",
@@ -49,170 +49,170 @@
   },
   {
     "tool_id": "tool007",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "NEW",
+    "notes": "NOT COATED!"
   },
   {
     "tool_id": "tool008",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "NEW",
     "notes": ""
   },
   {
     "tool_id": "tool009",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "NEW",
+    "notes": "Endmill cutter means wecan either use the face or the pheripheral sides. and the shank is weld on"
   },
   {
     "tool_id": "tool010",
-    "type": "",
+    "type": "DRILL",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "USED BUT OKAY",
+    "notes": "Internal coolant, weld-on. There is no significant usage but there are a little color differences. Carbide."
   },
   {
     "tool_id": "tool011",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "NEW",
     "notes": ""
   },
   {
     "tool_id": "tool012",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
-    "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "edges": 2,
+    "condition": "NEW",
+    "notes": "NOT COATED, WELD ON."
   },
   {
     "tool_id": "tool013",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Used",
     "notes": ""
   },
   {
     "tool_id": "tool014",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Broken",
     "notes": ""
   },
   {
     "tool_id": "tool015",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool016",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "Small diameter, it can be broken as well, depending on the definition."
   },
   {
     "tool_id": "tool017",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool018",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool019",
-    "type": "",
+    "type": "Endmill",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "Roughing"
   },
   {
     "tool_id": "tool020",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Broken",
     "notes": ""
   },
   {
     "tool_id": "tool021",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Broken",
     "notes": ""
   },
   {
     "tool_id": "tool022",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "FRACTURED ON ALL EDGES",
+    "notes": "The coating color is not exactly the same as  the tool. End mill cutter. Pheripheral edges are visible only, the face edges are broken."
   },
   {
     "tool_id": "tool023",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Deposit",
+    "notes": "Workpiece has melted on the tooth"
   },
   {
     "tool_id": "tool024",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Thermal shock",
+    "notes": "Melting the material, special case and on the top there's material loss"
   },
   {
     "tool_id": "tool025",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "Very fine fracture"
   },
   {
     "tool_id": "tool026",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "Uncoated"
   },
   {
     "tool_id": "tool027",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Used",
     "notes": ""
   },
   {
@@ -225,67 +225,67 @@
   },
   {
     "tool_id": "tool029",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool030",
-    "type": "",
+    "type": "Endmill",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "Roughing tool"
   },
   {
     "tool_id": "tool031",
-    "type": "",
+    "type": "Endmill",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Used",
     "notes": ""
   },
   {
     "tool_id": "tool032",
-    "type": "",
+    "type": "Endmill",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool033",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Worn",
+    "notes": "Uncoated, wood industry. That's why it is worn because in wood industry we need very sharp edges. HSS"
   },
   {
     "tool_id": "tool034",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 2,
     "condition": "Unknown",
-    "notes": ""
+    "notes": "Fractured. Uncoated"
   },
   {
     "tool_id": "tool035",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Worn",
+    "notes": "Wood industry HSS"
   },
   {
     "tool_id": "tool036",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "Uncoated"
   },
   {
     "tool_id": "tool037",
@@ -297,634 +297,642 @@
   },
   {
     "tool_id": "tool038",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured.",
+    "notes": "Spiral. Uncoated. Grinded the top surface. One top edge is fractured."
   },
   {
     "tool_id": "tool039",
-    "type": "",
+    "type": "TOPPER",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "USED BUT GOOD.",
+    "notes": "Spiral. It seems it has attached chips but the edges are smooth. We have extra cone on the tip for griding porposes and not (LISTEN TO voice aroung mintue 37:00) !uncoated!"
   },
   {
     "tool_id": "tool040",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "Top surface is partially grinded (the cone is partially visible)"
   },
   {
     "tool_id": "tool041",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "ONE OF THE GOOD EXAMPLES THAT WE CAN SHOW THE STRUCTUE OF THE TOOL BECAUSE ITS EASY TO SEE THE TOP SURFACE IS GRINDED BY THE FACTORY. the edges, the cone are visible, speciall tool, can be used as showcase."
   },
   {
     "tool_id": "tool042",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "Grinded by hand"
   },
   {
     "tool_id": "tool043",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "Worn or Used is when the color has changed. The top surface is grinded."
   },
   {
     "tool_id": "tool044",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "Grinded manually on the top surface."
   },
   {
     "tool_id": "tool045",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "There's no clear fracture, grinded on the top, uncoated."
   },
   {
     "tool_id": "tool046",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "the griding profile doesn't account to fracture."
   },
   {
     "tool_id": "tool047",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Broken",
     "notes": ""
   },
   {
     "tool_id": "tool048",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "BROKEN!",
     "notes": ""
   },
   {
     "tool_id": "tool049",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Broken!",
     "notes": ""
   },
   {
     "tool_id": "tool050",
-    "type": "",
+    "type": "Topping",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool051",
-    "type": "",
+    "type": "Topping",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Broken",
     "notes": ""
   },
   {
     "tool_id": "tool052",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
-    "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "edges": 3,
+    "condition": "BROKEN",
+    "notes": "Competely fractured, topper! comptely broken, and it is spiral."
   },
   {
     "tool_id": "tool053",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Broken",
     "notes": ""
   },
   {
     "tool_id": "tool054",
-    "type": "",
+    "type": "Topping",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "manually gridnded the top surface. maybe not coated."
   },
   {
     "tool_id": "tool055",
-    "type": "",
+    "type": "Chamfer",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool056",
-    "type": "",
+    "type": "CHAMFER TOOL",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "FRACTURED.",
+    "notes": "IF nails don't get stuck but the collor is different, then its worn, but if the nails get stuck it is fractured."
   },
   {
     "tool_id": "tool057",
-    "type": "",
+    "type": "CHAMFER TOOL",
     "diameter_mm": 0,
-    "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "edges": 4,
+    "condition": "WORN",
+    "notes": "Good tool, with a little bit of wear we can identify based on color changes, it has coated, it is a cutter with chamfer making speciallity (45 degrees) on a real work edges, and the tip has lost its color that's why we say it is worn. only the first 5 milimeters. and the shank is weld on."
   },
   {
     "tool_id": "tool058",
-    "type": "",
+    "type": "Chamfer tool",
     "diameter_mm": 0,
-    "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "edges": 4,
+    "condition": "Fractured",
+    "notes": "Weld-on"
   },
   {
     "tool_id": "tool059",
-    "type": "",
+    "type": "Chamfer",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured (on the top)",
+    "notes": "Weld-on"
   },
   {
     "tool_id": "tool060",
-    "type": "",
+    "type": "Chamfer",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "Weld-on"
   },
   {
     "tool_id": "tool061",
-    "type": "",
+    "type": "Chamfer",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "Weld-on"
   },
   {
     "tool_id": "tool062",
-    "type": "",
+    "type": "Drill",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured.",
+    "notes": "Internal Ccoolant, carbide."
   },
   {
     "tool_id": "tool063",
-    "type": "",
+    "type": "Drill",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "HSS, Uncoated."
   },
   {
     "tool_id": "tool064",
-    "type": "",
+    "type": "Centeral Drill",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "We use them to drill a small hole because they are more rigid"
   },
   {
     "tool_id": "tool065",
-    "type": "",
+    "type": "Centerla drill",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "We use them to drill a small hole because they are more rigid"
   },
   {
     "tool_id": "tool066",
-    "type": "",
+    "type": "Drill",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "HSS"
   },
   {
     "tool_id": "tool067",
-    "type": "",
+    "type": "Drill",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "Carbide, without internal coolant"
   },
   {
     "tool_id": "tool068",
-    "type": "",
+    "type": "Drill",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "USed",
+    "notes": "HSS (high speed steel)"
   },
   {
     "tool_id": "tool069",
-    "type": "",
+    "type": "Drill",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "MELTED!",
+    "notes": "HSS, the top is melted!"
   },
   {
     "tool_id": "tool070",
-    "type": "",
+    "type": "Drill",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Broken",
+    "notes": "HSS, uncoated"
   },
   {
     "tool_id": "tool071",
-    "type": "",
+    "type": "Drill",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "HSS (high speed steel)"
   },
   {
     "tool_id": "tool072",
-    "type": "",
+    "type": "Drill",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "HSS (high speed steel)"
   },
   {
     "tool_id": "tool073",
-    "type": "",
+    "type": "Drill",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "HSS (high speed steel)"
   },
   {
     "tool_id": "tool074",
-    "type": "",
+    "type": "Drill",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Broken",
+    "notes": "With internal coolant, and carbide."
   },
   {
     "tool_id": "tool075",
-    "type": "",
+    "type": "Reamer",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Worn",
+    "notes": "HSS"
   },
   {
     "tool_id": "tool076",
-    "type": "",
+    "type": "Reamer",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Worn",
+    "notes": "Reamer, is to create a very fine tolerance and if it is a little worn then already its not good. HSS"
   },
   {
     "tool_id": "tool077",
-    "type": "",
+    "type": "T slot",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "Weld on, uncoated. one edge or teeth is competely gone. HSS"
   },
   {
     "tool_id": "tool078",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "M12"
   },
   {
     "tool_id": "tool079",
-    "type": "",
+    "type": "Endmill",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Worn",
     "notes": ""
   },
   {
     "tool_id": "tool080",
-    "type": "",
+    "type": "Endmill",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Worn",
     "notes": ""
   },
   {
     "tool_id": "tool081",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool082",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool083",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "Uncoated"
   },
   {
     "tool_id": "tool084",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool085",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Used",
     "notes": ""
   },
   {
     "tool_id": "tool086",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Used",
     "notes": ""
   },
   {
     "tool_id": "tool087",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Used",
     "notes": ""
   },
   {
     "tool_id": "tool088",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool089",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Used",
     "notes": ""
   },
   {
     "tool_id": "tool090",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "Originally has a small chamferon the edges. Very minor fracture on those edges."
   },
   {
     "tool_id": "tool091",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "Very fine fracture"
   },
   {
     "tool_id": "tool092",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool093",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Worn tool",
+    "notes": "The color is visibly changed, however the are minimal signs of fracture on one edge."
   },
   {
     "tool_id": "tool094",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool095",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool096",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractired",
     "notes": ""
   },
   {
     "tool_id": "tool097",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool098",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool099",
-    "type": "",
+    "type": "Endmill Cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "Roughing"
   },
   {
     "tool_id": "tool100",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool101",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "very fine fracture along the edges."
   },
   {
     "tool_id": "tool102",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "Uncoated"
   },
   {
     "tool_id": "tool103",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured ",
+    "notes": "Uncoated"
   },
   {
     "tool_id": "tool104",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool105",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Worn",
+    "notes": "Used, meaning we can use more, but worn meaning no more usage."
   },
   {
     "tool_id": "tool106",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Used",
     "notes": ""
   },
   {
     "tool_id": "tool107",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Used",
     "notes": ""
   },
   {
     "tool_id": "tool108",
-    "type": "",
+    "type": "Topper",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Broken",
     "notes": ""
   },
   {
     "tool_id": "tool109",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
+    "condition": "Fractured",
     "notes": ""
   },
   {
     "tool_id": "tool110",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Fractured",
+    "notes": "very fine fracture along some edges"
   },
   {
     "tool_id": "tool111",
-    "type": "",
+    "type": "Endmill cutter",
     "diameter_mm": 0,
     "edges": 0,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "Used",
+    "notes": "Weld-on"
   },
   {
     "tool_id": "tool112",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "NEW",
+    "notes": "UNCOATED, weld-on"
   },
   {
     "tool_id": "tool113",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "NEW",
+    "notes": "UNCOATED, weld-on"
   },
   {
     "tool_id": "tool114",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "NEW",
+    "notes": "NOT COATED, weld-on."
   },
   {
     "tool_id": "tool115",
-    "type": "",
+    "type": "ENDMILL CUTTER",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
-    "notes": ""
+    "condition": "NEW",
+    "notes": "NOT COATED, and weld-on."
   },
   {
     "tool_id": "tool116",
-    "type": "",
+    "type": "DRIll",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "Unknown",
+    "condition": "NEW",
+    "notes": "Internal Coolant. Two different coatings. It could be due to different machining conditions. Carbide"
+  },
+  {
+    "tool_id": "1",
+    "type": "Endmill cutter",
+    "diameter_mm": 0,
+    "edges": 0,
+    "condition": "Used",
     "notes": ""
   }
 ]
