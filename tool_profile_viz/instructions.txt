@@ -1,0 +1,47 @@
+=================================
+How to Run "Tool Profile Viz"
+=================================
+
+This guide provides the steps to set up and run the Tool Profile Visualization application from the shared OneDrive folder.
+
+--- Prerequisites ---
+
+1.  **Python 3.9+**: Ensure you have Python installed on your system.
+2.  **OneDrive Desktop App**: You must have the OneDrive client installed and running.
+
+--- 1. Setup Instructions ---
+
+1.  **Access the Shared Folder**:
+    Accept the invitation to the "Data Visualizer" folder. Make sure it is syncing to your computer via the OneDrive desktop application. 
+
+2.  **Navigate to the App Directory**:
+    Open a terminal in the folder (Command Prompt/PowerShell on Windows, Terminal on Linux/macOS). You can also navigate into the application's folder using the `cd` command. The path will look something like this (please be mindful that you should be in tool_profile_viz which is the app directory):
+    "...\Data Visualizer\tool_profile_viz"
+
+
+3.  **Install Dependencies**:
+    Run the following command in the terminal once to install the required Python libraries:
+    pip install -r requirements.txt
+
+--- 2. Understanding Data Sync (Important!) ---
+
+The `data` folder is very large (~100 GB). By default, OneDrive uses "Files On-Demand" to save space.
+
+
+For the best performance, it is **highly recommended** to download the entire dataset once:
+1.  Navigate to the "Data Visualizer" folder in your File Explorer.
+2.  Right-click on the `data` folder.
+3.  Select "Always keep on this device".
+4.  Wait for the sync to complete (this may take a long time).
+
+--- 3. Running the Application ---
+
+Once setup is complete, you can run the application.
+
+**On Windows:**
+Make sure your terminal is inside the `tool_profile_viz` directory and run:
+python main.py
+
+**On Linux / macOS:**
+Make sure your terminal is inside the `tool_profile_viz` directory and run:
+python3 main.py
