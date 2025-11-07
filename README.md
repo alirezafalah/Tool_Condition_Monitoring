@@ -6,7 +6,8 @@ This repository contains the code and data for analyzing CNC tool wear through i
 
 * **`image_to_signal/`**: This is the primary, current pipeline and should be used for analysis.
 * **`signal_processing/`** and **`tool_monitoring/`**: These are legacy versions of the project, kept for historical reference.
-* **`tables/`**: This directory contains some CSV data from earlier experiments.
+* **`old/tool_monitoring/`**: This directory contains the proof of concept of the method, which has sinced by updated.
+* **`old/tables/`**: This directory contains some CSV data from earlier experiments.
 
 ## How to Run the Main Pipeline
 

@@ -7,10 +7,13 @@ from PyQt6.QtWidgets import (QMainWindow, QTableWidget, QTableWidgetItem, QVBoxL
 # --- NEW: Import QTimer for the visual effect ---
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction, QKeySequence
-from .metadata_manager import MetadataManager, DEFAULT_METADATA_PATH
+from .metadata_manager import MetadataManager, DEFAULT_METADATA_PATH, DATA_ROOT
 from .profile_window import ProfileWindow
 
-DATA_FOLDER_PATH = os.path.join(os.path.dirname(os.getcwd()), 'data')
+TOOLS_PATH = os.path.join(DATA_ROOT, "tools")
+PROFILES_PATH = os.path.join(DATA_ROOT, "1d_profiles")
+BLURRED_PATH = os.path.join(DATA_ROOT, "blurred")
+MASKS_PATH = os.path.join(DATA_ROOT, "masks")
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -82,11 +85,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(zoom_slider)
 
     def _configure_table(self):
-        self.table.setColumnCount(8)
-        self.table.setHorizontalHeaderLabels(["Tool ID", "Type", "Diameter (mm)", "Edges", "Condition", "Notes", "Profile", "Actions"])
+        self.table.setColumnCount(12)
+        self.table.setHorizontalHeaderLabels(["Tool ID", "Type", "Diameter (mm)", "Edges", "Condition", "Material", "Coating", "Background", "Color", "Notes", "Profile", "Actions"])
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(9, QHeaderView.ResizeMode.Stretch)
 
     def _create_edit_actions(self):
         undo_action = QAction("Undo", self)
@@ -137,16 +140,28 @@ class MainWindow(QMainWindow):
         self._is_populating = True
         tool_data = self.metadata_manager.get_all_tools()
         self.table.setRowCount(len(tool_data))
+
+        # Check for data folders once
+        if not os.path.isdir(PROFILES_PATH):
+             QMessageBox.warning(self, "Warning", f"Could not find 1D profiles folder. 'View Profile' will be disabled.\nPath: {PROFILES_PATH}")
+        if not os.path.isdir(BLURRED_PATH) or not os.path.isdir(MASKS_PATH):
+             QMessageBox.warning(self, "Warning", f"Could not find image folders ('blurred', 'masks'). 'View Profile' may fail.\nPath: {DATA_ROOT}")
+        
         for row, tool in enumerate(tool_data):
             self.table.setItem(row, 0, QTableWidgetItem(tool.get("tool_id", "")))
             self.table.setItem(row, 1, QTableWidgetItem(tool.get("type", "")))
             self.table.setItem(row, 2, QTableWidgetItem(str(tool.get("diameter_mm", 0))))
             self.table.setItem(row, 3, QTableWidgetItem(str(tool.get("edges", 0))))
             self.table.setItem(row, 4, QTableWidgetItem(tool.get("condition", "")))
-            self.table.setItem(row, 5, QTableWidgetItem(tool.get("notes", "")))
-            
+            self.table.setItem(row, 5, QTableWidgetItem(tool.get("material", "")))
+            self.table.setItem(row, 6, QTableWidgetItem(tool.get("coating", "")))
+            self.table.setItem(row, 7, QTableWidgetItem(tool.get("background_type", "")))
+            self.table.setItem(row, 8, QTableWidgetItem(tool.get("color", "")))
+            self.table.setItem(row, 9, QTableWidgetItem(tool.get("notes", "")))
+
             tool_id = tool.get("tool_id")
-            svg_exists = any(f.startswith(tool_id) and f.endswith("_area_vs_angle_plot.svg") for f in os.listdir(DATA_FOLDER_PATH))
+            svg_file_path = os.path.join(PROFILES_PATH, f"{tool_id}_area_vs_angle_plot.svg")
+            svg_exists = os.path.exists(svg_file_path)
             
             profile_btn = QPushButton("View Profile" if svg_exists else "Data Missing")
             profile_btn.setObjectName("ActionButtonSuccess" if svg_exists else "ActionButtonFailure")
@@ -154,34 +169,36 @@ class MainWindow(QMainWindow):
             
             # --- ENHANCEMENT: Pass the button itself to the handler ---
             profile_btn.clicked.connect(lambda _, b=profile_btn, t=tool_id: self.view_profile(b, t))
-            self.table.setCellWidget(row, 6, profile_btn)
+            self.table.setCellWidget(row, 10, profile_btn)
 
             delete_btn = QPushButton("Delete")
             delete_btn.setObjectName("DeleteButton")
             delete_btn.clicked.connect(lambda _, r=row: self.delete_tool(r))
-            self.table.setCellWidget(row, 7, delete_btn)
+            self.table.setCellWidget(row, 11, delete_btn)
         self._is_populating = False
         self._check_save_state()
 
     def _find_tool_files(self, tool_id):
         """Helper to find all necessary file and folder paths for a tool."""
-        svg_path, blurred_folder, mask_folder = None, None, None
-        
-        # Find the primary SVG file and the two main image folders
-        for item_name in os.listdir(DATA_FOLDER_PATH):
-            if item_name.startswith(tool_id):
-                full_path = os.path.join(DATA_FOLDER_PATH, item_name)
-                if item_name.endswith("_area_vs_angle_plot.svg"):
-                    svg_path = full_path
-                elif item_name.endswith("_blurred") and os.path.isdir(full_path):
-                    blurred_folder = full_path
-                elif item_name.endswith("_final_masks") and os.path.isdir(full_path):
-                    mask_folder = full_path
+        # --- UPDATED: Build paths directly using the new constants ---
+        svg_path = os.path.join(PROFILES_PATH, f"{tool_id}_area_vs_angle_plot.svg")
+        blurred_folder = os.path.join(BLURRED_PATH, f"{tool_id}_blurred")
+        mask_folder = os.path.join(MASKS_PATH, f"{tool_id}_final_masks")
+        tools_folder = os.path.join(TOOLS_PATH, tool_id)
+
+        if not os.path.isdir(tools_folder):
+            tools_folder = None
+        if not os.path.exists(svg_path):
+            svg_path = None
+        if not os.path.isdir(blurred_folder):
+            blurred_folder = None
+        if not os.path.isdir(mask_folder):
+            mask_folder = None
 
         # Find the 4 overview images from the blurred folder
         overview_paths = []
-        if blurred_folder:
-            image_files = [f for f in os.listdir(blurred_folder) if f.endswith(".tiff")]
+        if tools_folder:
+            image_files = [f for f in os.listdir(tools_folder) if f.endswith(".tiff")]
             if image_files:
                 degrees_files = {}
                 for f in image_files:
@@ -192,9 +209,9 @@ class MainWindow(QMainWindow):
                 if degrees_files:
                     for target_deg in [0, 90, 180, 270]:
                         closest_deg = min(degrees_files.keys(), key=lambda d: abs(d - target_deg))
-                        overview_paths.append(os.path.join(blurred_folder, degrees_files[closest_deg]))
+                        overview_paths.append(os.path.join(tools_folder, degrees_files[closest_deg]))
 
-        return svg_path, overview_paths, blurred_folder, mask_folder
+        return svg_path, overview_paths, blurred_folder, mask_folder, tools_folder
 
     def view_profile(self, button, tool_id):
         """Finds tool files and launches the ProfileWindow with all necessary paths."""
@@ -203,16 +220,16 @@ class MainWindow(QMainWindow):
         button.setEnabled(False)
 
         # Use the helper to find all required files and folders
-        svg_path, overview_paths, blurred_folder, mask_folder = self._find_tool_files(tool_id)
+        svg_path, overview_paths, blurred_folder, mask_folder, tools_folder = self._find_tool_files(tool_id)
 
         # A robust check to ensure all necessary paths were found
-        if not all([svg_path, overview_paths, blurred_folder, mask_folder]):
+        if not all([svg_path, overview_paths, blurred_folder, mask_folder, tools_folder]):
             QMessageBox.warning(self, "Error", f"Missing some data folders or files for {tool_id}.")
             self._reset_button_state(button, original_text)
             return
 
         # Pass all the required paths to the new window's constructor
-        win = ProfileWindow(tool_id, svg_path, overview_paths, blurred_folder, mask_folder)
+        win = ProfileWindow(tool_id, svg_path, overview_paths, blurred_folder, mask_folder, tools_folder)
         self.open_windows.append(win)
         
         QTimer.singleShot(400, lambda: self._reset_button_state(button, original_text))
@@ -245,7 +262,10 @@ class MainWindow(QMainWindow):
             match = re.search(r'\d+', tool.get("tool_id", ""))
             if match: max_num = max(max_num, int(match.group(0)))
         new_id = f"tool{max_num + 1:03d}"
-        new_tool = {"tool_id": new_id, "type": "", "diameter_mm": 0, "edges": 0, "condition": "Unknown", "notes": ""}
+        new_tool = {
+            "tool_id": new_id, "type": "", "diameter_mm": 0, "edges": 0,
+            "condition": "Unknown", "material": "", "coating": "", "background_type": "", "notes": "", "color": ""
+        }
         tool_data.append(new_tool)
         self.populate_table()
         self.table.scrollToBottom()
@@ -253,10 +273,22 @@ class MainWindow(QMainWindow):
     def _get_data_from_table(self):
         data = []
         for row in range(self.table.rowCount()):
+            def safe_int(item_text):
+                try:
+                    return int(item_text)
+                except (ValueError, TypeError):
+                    return 0
             data.append({
-                "tool_id": self.table.item(row, 0).text(), "type": self.table.item(row, 1).text(),
-                "diameter_mm": int(self.table.item(row, 2).text()), "edges": int(self.table.item(row, 3).text()),
-                "condition": self.table.item(row, 4).text(), "notes": self.table.item(row, 5).text()
+                "tool_id": self.table.item(row, 0).text(), 
+                "type": self.table.item(row, 1).text(),
+                "diameter_mm": safe_int(self.table.item(row, 2).text()), 
+                "edges": safe_int(self.table.item(row, 3).text()),
+                "condition": self.table.item(row, 4).text(), 
+                "material": self.table.item(row, 5).text(),
+                "coating": self.table.item(row, 6).text(),
+                "background_type": self.table.item(row, 7).text(), 
+                "color": self.table.item(row, 8).text(),
+                "notes": self.table.item(row, 9).text()
             })
         return data
 

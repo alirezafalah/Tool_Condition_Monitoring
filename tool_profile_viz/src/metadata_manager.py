@@ -1,9 +1,13 @@
 import os
 import json
+import csv
 
 # The default path is still inside the app directory
 APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_METADATA_PATH = os.path.join(APP_ROOT, 'tools_metadata.json')
+
+# The DATA_ROOT is two levels up from the app, in the 'DATA' folder
+DATA_ROOT = os.path.abspath(os.path.join(APP_ROOT, "..", "..", "DATA"))
 
 class MetadataManager:
     def __init__(self):
@@ -20,7 +24,7 @@ class MetadataManager:
             tool_id = f"tool{i:03d}"
             default_data.append({
                 "tool_id": tool_id, "type": "", "diameter_mm": 0, "edges": 0,
-                "condition": "Unknown", "notes": ""
+                "condition": "Unknown", "material": "", "coating": "", "background_type": "", "color": "", "notes": ""
             })
         return default_data
 
@@ -39,11 +43,43 @@ class MetadataManager:
         """Returns the currently loaded list of all tool data."""
         return self.metadata
 
+    # --- UPDATED: save() method ---
     def save(self, filepath, data):
-        """Saves the provided data structure to a specific JSON file."""
+        """
+        Saves the provided data structure to:
+        1. The JSON file (at 'filepath')
+        2. The CSV file (in the DATA_ROOT folder)
+        """
+
+        csv_filename = os.path.splitext(os.path.basename(filepath))[0] + ".csv"
+        csv_filepath = os.path.join(DATA_ROOT, csv_filename)
+
+        json_success = False
+        json_message = ""
+
+        # --- Step 1: Save the JSON (critical for the app) ---
         try:
             with open(filepath, 'w') as f:
                 json.dump(data, f, indent=2)
-            return True, "Metadata saved successfully!"
+            json_success = True
+            json_message = "Metadata saved successfully"
         except Exception as e:
-            return False, f"Failed to save metadata: {e}"
+            return False, f"Failed to save JSON metadata: {e}"
+
+        # --- Step 2: Save the CSV (for your supervisor) ---
+        if not data: 
+            return True, "Metadata saved (JSON), but no data to save to CSV."
+
+        try:
+            headers = data[0].keys()
+            
+            with open(csv_filepath, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=headers)
+                writer.writeheader()
+                writer.writerows(data)
+            
+            return True, f"{json_message}."
+
+        except Exception as e:
+            # Inform the user, but this is not a critical failure
+            return True, f"{json_message}, but failed to save CSV: {e}"
