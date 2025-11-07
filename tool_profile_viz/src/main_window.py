@@ -31,9 +31,10 @@ class MainWindow(QMainWindow):
         self.redo_stack = []
         self.last_saved_state = copy.deepcopy(self.metadata_manager.get_all_tools())
         self._is_populating = False
-        
-        # --- FIX: Initialize the list to hold open windows ---
         self.open_windows = []
+
+        self.last_sort_column = -1
+        self.last_sort_order = Qt.SortOrder.AscendingOrder
 
         controls_layout = QHBoxLayout()
         self._create_controls(controls_layout)
@@ -88,11 +89,13 @@ class MainWindow(QMainWindow):
 
     def _configure_table(self):
         self.table.setColumnCount(13)
-        self.table.setHorizontalHeaderLabels(["Tool ID", "Type", "Diameter (mm)", "Edges", "Condition", "Material", "Coating", "Background", "Color", "Notes", "Status", "Profile", "Actions"])
+        self.table.setHorizontalHeaderLabels(["Tool ID", "Type", "Ø (mm)", "Edges", "Condition", "Material", "Coating", "BG", "Color", "Notes", "Status", "Profile", "Actions"])
         header = self.table.horizontalHeader()
-        # header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+
         header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(9, QHeaderView.ResizeMode.Stretch)
+        header.sectionClicked.connect(self.sort_table)
+        header.setSortIndicatorShown(True)
 
     def _create_edit_actions(self):
         undo_action = QAction("Undo", self)
@@ -347,3 +350,62 @@ class MainWindow(QMainWindow):
             self.redo_stack.clear()
             self.metadata_manager.metadata = new_state
             self._check_save_state()
+    
+    def sort_table(self, column_index):
+        """Sorts the master data list and repopulates the table."""
+        
+        # Map visual column index to the key in our JSON data
+        COLUMN_KEY_MAP = {
+            0: "tool_id",
+            1: "type",
+            2: "diameter_mm",
+            3: "edges",
+            4: "condition",
+            5: "material",
+            6: "coating",
+            7: "background_type",
+            8: "color",
+            # 9 (Notes) is not sortable
+            10: "inspection_status"
+            # 11 (Profile) & 12 (Actions) are not sortable
+        }
+
+        # Check if the clicked column is one we can sort
+        if column_index not in COLUMN_KEY_MAP:
+            return
+
+        key_to_sort = COLUMN_KEY_MAP[column_index]
+        data = self.metadata_manager.get_all_tools()
+
+        # Determine if we should reverse the sort
+        if self.last_sort_column == column_index:
+            # Same column, just reverse the order
+            if self.last_sort_order == Qt.SortOrder.AscendingOrder:
+                self.last_sort_order = Qt.SortOrder.DescendingOrder
+            else:
+                self.last_sort_order = Qt.SortOrder.AscendingOrder
+        else:
+            # New column, default to Ascending
+            self.last_sort_order = Qt.SortOrder.AscendingOrder
+            
+        is_reversed = (self.last_sort_order == Qt.SortOrder.DescendingOrder)
+
+        # --- Perform the sort ---
+        try:
+            if key_to_sort in ["diameter_mm", "edges"]:
+                # Sort as numbers
+                data.sort(key=lambda x: int(x.get(key_to_sort, 0)), reverse=is_reversed)
+            else:
+                # Sort as text (case-insensitive)
+                data.sort(key=lambda x: str(x.get(key_to_sort, "")).lower(), reverse=is_reversed)
+        except Exception as e:
+            QMessageBox.warning(self, "Sort Error", f"Could not sort column: {e}")
+            return
+
+        # Update tracking variables
+        self.last_sort_column = column_index
+        self.table.horizontalHeader().setSortIndicator(column_index, self.last_sort_order)
+
+        # --- IMPORTANT ---
+        # Now that the master data is sorted, rebuild the table
+        self.populate_table()
