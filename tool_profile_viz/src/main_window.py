@@ -3,7 +3,7 @@ import re
 import copy
 from PyQt6.QtWidgets import (QMainWindow, QTableWidget, QTableWidgetItem, QVBoxLayout, 
                              QWidget, QPushButton, QMessageBox, QHeaderView, QFileDialog, 
-                             QHBoxLayout, QLabel, QSlider, QSpacerItem, QSizePolicy)
+                             QHBoxLayout, QLabel, QSlider, QSpacerItem, QSizePolicy, QComboBox)
 # --- NEW: Import QTimer for the visual effect ---
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction, QKeySequence
@@ -14,6 +14,8 @@ TOOLS_PATH = os.path.join(DATA_ROOT, "tools")
 PROFILES_PATH = os.path.join(DATA_ROOT, "1d_profiles")
 BLURRED_PATH = os.path.join(DATA_ROOT, "blurred")
 MASKS_PATH = os.path.join(DATA_ROOT, "masks")
+
+STATUS_OPTIONS = ["","Finished", "Question", "Reinspect"]
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -85,10 +87,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(zoom_slider)
 
     def _configure_table(self):
-        self.table.setColumnCount(12)
-        self.table.setHorizontalHeaderLabels(["Tool ID", "Type", "Diameter (mm)", "Edges", "Condition", "Material", "Coating", "Background", "Color", "Notes", "Profile", "Actions"])
+        self.table.setColumnCount(13)
+        self.table.setHorizontalHeaderLabels(["Tool ID", "Type", "Diameter (mm)", "Edges", "Condition", "Material", "Coating", "Background", "Color", "Notes", "Status", "Profile", "Actions"])
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        # header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         header.setSectionResizeMode(9, QHeaderView.ResizeMode.Stretch)
 
     def _create_edit_actions(self):
@@ -158,6 +161,14 @@ class MainWindow(QMainWindow):
             self.table.setItem(row, 7, QTableWidgetItem(tool.get("background_type", "")))
             self.table.setItem(row, 8, QTableWidgetItem(tool.get("color", "")))
             self.table.setItem(row, 9, QTableWidgetItem(tool.get("notes", "")))
+            status_combo = QComboBox()
+            status_combo.addItems(STATUS_OPTIONS)
+            current_status = tool.get("inspection_status", "")
+            if current_status not in STATUS_OPTIONS:
+                current_status = ""
+            status_combo.setCurrentText(current_status)
+            status_combo.currentTextChanged.connect(self._on_combo_changed)
+            self.table.setCellWidget(row, 10, status_combo)
 
             tool_id = tool.get("tool_id")
             svg_file_path = os.path.join(PROFILES_PATH, f"{tool_id}_area_vs_angle_plot.svg")
@@ -169,13 +180,14 @@ class MainWindow(QMainWindow):
             
             # --- ENHANCEMENT: Pass the button itself to the handler ---
             profile_btn.clicked.connect(lambda _, b=profile_btn, t=tool_id: self.view_profile(b, t))
-            self.table.setCellWidget(row, 10, profile_btn)
+            self.table.setCellWidget(row, 11, profile_btn)
 
             delete_btn = QPushButton("Delete")
             delete_btn.setObjectName("DeleteButton")
             delete_btn.clicked.connect(lambda _, r=row: self.delete_tool(r))
-            self.table.setCellWidget(row, 11, delete_btn)
+            self.table.setCellWidget(row, 12, delete_btn)
         self._is_populating = False
+        self.table.resizeColumnsToContents()
         self._check_save_state()
 
     def _find_tool_files(self, tool_id):
@@ -264,7 +276,7 @@ class MainWindow(QMainWindow):
         new_id = f"tool{max_num + 1:03d}"
         new_tool = {
             "tool_id": new_id, "type": "", "diameter_mm": 0, "edges": 0,
-            "condition": "Unknown", "material": "", "coating": "", "background_type": "", "notes": "", "color": ""
+            "condition": "Unknown", "material": "", "coating": "", "background_type": "", "notes": "", "color": "", "inspection_status": ""
         }
         tool_data.append(new_tool)
         self.populate_table()
@@ -278,6 +290,8 @@ class MainWindow(QMainWindow):
                     return int(item_text)
                 except (ValueError, TypeError):
                     return 0
+            status_widget = self.table.cellWidget(row, 10)
+            status_text = status_widget.currentText() if status_widget else ""
             data.append({
                 "tool_id": self.table.item(row, 0).text(), 
                 "type": self.table.item(row, 1).text(),
@@ -288,7 +302,8 @@ class MainWindow(QMainWindow):
                 "coating": self.table.item(row, 6).text(),
                 "background_type": self.table.item(row, 7).text(), 
                 "color": self.table.item(row, 8).text(),
-                "notes": self.table.item(row, 9).text()
+                "notes": self.table.item(row, 9).text(),
+                "inspection_status": status_text,
             })
         return data
 
@@ -321,3 +336,14 @@ class MainWindow(QMainWindow):
         new_size = int(self.base_font_size * (value / 100.0))
         font.setPointSize(new_size)
         self.table.setFont(font)
+
+    def _on_combo_changed(self, text):
+        """Called when a status dropdown is changed by the user."""
+        if not self._is_populating:
+            # Save undo state
+            old_state = copy.deepcopy(self.metadata_manager.get_all_tools())
+            new_state = self._get_data_from_table()
+            self.undo_stack.append(old_state)
+            self.redo_stack.clear()
+            self.metadata_manager.metadata = new_state
+            self._check_save_state()
