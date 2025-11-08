@@ -10,20 +10,20 @@
     "background_type": "",
     "color": "dark gray",
     "notes": "WELD-ON",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool002",
     "type": "drill",
-    "diameter_mm": 0,
+    "diameter_mm": 10,
     "edges": 2,
     "condition": "new",
     "material": "Carbide",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "SOLID CARBIDE DRILL, without internal cooling channels. Carbide.",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool003",
@@ -36,7 +36,7 @@
     "background_type": "",
     "color": "dark gray",
     "notes": "Dedicated roughing, and the chip formation better because of wavy surface. Higher material remove rate.",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool004",
@@ -49,7 +49,7 @@
     "background_type": "",
     "color": "dark gray",
     "notes": "INTERNAL COOLANT CHANNELS",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool005",
@@ -62,7 +62,7 @@
     "background_type": "",
     "color": "silver",
     "notes": "Big radius on the edge. special because it can work on 3d (FREE) surface finishing.",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool006",
@@ -75,7 +75,7 @@
     "background_type": "",
     "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool007",
@@ -88,7 +88,7 @@
     "background_type": "",
     "color": "silver",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool008",
@@ -101,7 +101,7 @@
     "background_type": "",
     "color": "silver",
     "notes": "shank is 6 mm",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool009",
@@ -114,7 +114,7 @@
     "background_type": "",
     "color": "silver",
     "notes": "Endmill cutter means wecan either use the face or the pheripheral sides. and the shank is weld on",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool010",
@@ -140,7 +140,7 @@
     "background_type": "",
     "color": "dark gray",
     "notes": "shaft is 6 mm",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool012",
@@ -153,7 +153,7 @@
     "background_type": "yes",
     "color": "silver",
     "notes": "WELD ON.",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool013",
@@ -166,7 +166,7 @@
     "background_type": "yes",
     "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool014",
@@ -179,7 +179,7 @@
     "background_type": "",
     "color": "light gold",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool015",
@@ -205,7 +205,7 @@
     "background_type": "yes",
     "color": "dark gray",
     "notes": "Small diameter, it can be broken as well, depending on the definition.",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool017",
@@ -244,7 +244,7 @@
     "background_type": "",
     "color": "dark gray",
     "notes": "Roughing",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool020",
@@ -257,7 +257,7 @@
     "background_type": "yes",
     "color": "brown",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool021",
@@ -270,7 +270,7 @@
     "background_type": "",
     "color": "brown",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool022",
@@ -283,7 +283,7 @@
     "background_type": "yes",
     "color": "light gold",
     "notes": "The coating color is not exactly the same as  the tool. End mill cutter. Pheripheral edges are visible only, the face edges are broken. similar to 101.",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool023",
@@ -296,7 +296,7 @@
     "background_type": "yes",
     "color": "dark gray",
     "notes": "Workpiece has melted on the tooth",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool024",
@@ -309,7 +309,7 @@
     "background_type": "Yes",
     "color": "Golden but burned",
     "notes": "Melting the material, special case and on the top there's material loss. ",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool025",
@@ -322,7 +322,7 @@
     "background_type": "no",
     "color": "dark gray",
     "notes": "the shank diameter is 12. Very fine fracture",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool026",
@@ -335,7 +335,7 @@
     "background_type": "No",
     "color": "Silver",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool027",
@@ -348,7 +348,7 @@
     "background_type": "",
     "color": "brown",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool028",
@@ -387,7 +387,7 @@
     "background_type": "no",
     "color": "dark gray",
     "notes": "Roughing tool",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool031",
@@ -400,7 +400,7 @@
     "background_type": "",
     "color": "brown",
     "notes": "shank is 6 mm",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool032",
@@ -418,15 +418,15 @@
   {
     "tool_id": "tool033",
     "type": "endmill",
-    "diameter_mm": 0,
+    "diameter_mm": 7,
     "edges": 2,
     "condition": "worn",
     "material": "HSS",
     "coating": "No",
     "background_type": "",
-    "color": "",
-    "notes": "Uncoated, wood industry. That's why it is worn because in wood industry we need very sharp edges. HSS",
-    "inspection_status": ""
+    "color": "silver",
+    "notes": "Wood industry tool That's why it is worn because in wood industry we need very sharp edges.  HSS. Shaft is 8 mm",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool034",
@@ -439,7 +439,7 @@
     "background_type": "No",
     "color": "silver",
     "notes": "Uncoated, .",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool035",
@@ -465,7 +465,7 @@
     "background_type": "no",
     "color": "silver",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool037",
@@ -478,7 +478,7 @@
     "background_type": "",
     "color": "dark gray",
     "notes": "shank is 6 mm",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool038",
@@ -496,15 +496,15 @@
   {
     "tool_id": "tool039",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 6,
+    "edges": 3,
     "condition": "unknown",
-    "material": "",
+    "material": "HSS-E",
     "coating": "No",
     "background_type": "",
-    "color": "",
-    "notes": "Spiral. It seems it has attached chips but the edges are smooth. We have extra cone on the tip for griding porposes and not (LISTEN TO voice aroung mintue 37:00) !uncoated!",
-    "inspection_status": ""
+    "color": "silver",
+    "notes": "Spiral. It seems it has attached chips but the edges are smooth. We have extra cone on the tip for griding porposes. ",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool040",
@@ -522,15 +522,15 @@
   {
     "tool_id": "tool041",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 4,
+    "edges": 3,
     "condition": "used",
-    "material": "",
+    "material": "HSS-E",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
-    "notes": "ONE OF THE GOOD EXAMPLES THAT WE CAN SHOW THE STRUCTUE OF THE TOOL BECAUSE ITS EASY TO SEE THE TOP SURFACE IS GRINDED BY THE FACTORY. the edges, the cone are visible, speciall tool, can be used as showcase.",
-    "inspection_status": ""
+    "color": "golden",
+    "notes": "ONE OF THE GOOD EXAMPLES THAT WE CAN SHOW THE STRUCTUE OF THE TOOL BECAUSE ITS EASY TO SEE THE TOP SURFACE IS GRINDED BY THE FACTORY. the edges, the cone are visible, speciall tool, can be used as showcase. ",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool042",
@@ -652,15 +652,15 @@
   {
     "tool_id": "tool051",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 10,
+    "edges": 3,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "golden",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool052",
@@ -1024,7 +1024,7 @@
     "background_type": "",
     "color": "light silver",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool080",
@@ -1037,7 +1037,7 @@
     "background_type": "no",
     "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool081",
@@ -1076,7 +1076,7 @@
     "background_type": "no",
     "color": "silver",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool084",
@@ -1102,7 +1102,7 @@
     "background_type": "",
     "color": "brown",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool086",
@@ -1115,7 +1115,7 @@
     "background_type": "no",
     "color": "brown",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool087",
@@ -1128,7 +1128,7 @@
     "background_type": "",
     "color": "brown",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool088",
@@ -1154,7 +1154,7 @@
     "background_type": "no",
     "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool090",
@@ -1167,7 +1167,7 @@
     "background_type": "no",
     "color": "dark gray",
     "notes": "Originally has a small chamfer on the edges. Very minor fracture on those edges. shaft diameter is 12 mm.",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool091",
@@ -1180,7 +1180,7 @@
     "background_type": "no",
     "color": "dark gray",
     "notes": "Very fine fracture",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool092",
@@ -1193,7 +1193,7 @@
     "background_type": "no",
     "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool093",
@@ -1206,7 +1206,7 @@
     "background_type": "no",
     "color": "gold",
     "notes": "The color is visibly changed, however the are minimal signs of fracture on one edge.",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool094",
@@ -1284,7 +1284,7 @@
     "background_type": "no",
     "color": "dark gray",
     "notes": "Roughing",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool100",
@@ -1310,7 +1310,7 @@
     "background_type": "no",
     "color": "light gold",
     "notes": ". very fine fracture along the edges.",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool102",
@@ -1323,7 +1323,7 @@
     "background_type": "no",
     "color": "silver",
     "notes": "Uncoated",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool103",
@@ -1336,7 +1336,7 @@
     "background_type": "No",
     "color": "silver",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool104",
@@ -1362,7 +1362,7 @@
     "background_type": "",
     "color": "dark gray",
     "notes": "Used, meaning we can use more, but worn meaning no more usage.",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool106",
@@ -1375,7 +1375,7 @@
     "background_type": "no",
     "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool107",
@@ -1388,7 +1388,7 @@
     "background_type": "",
     "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool108",
@@ -1427,7 +1427,7 @@
     "background_type": "no",
     "color": "dark gray",
     "notes": "shank diameter 14. very fine fracture along some edges",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool111",
@@ -1440,7 +1440,7 @@
     "background_type": "",
     "color": "silver",
     "notes": "Weld-on. shank is 16 mm",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool112",
@@ -1453,7 +1453,7 @@
     "background_type": "yes",
     "color": "silver",
     "notes": "weld-on",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool113",
@@ -1466,7 +1466,7 @@
     "background_type": "yes",
     "color": "silver",
     "notes": "weld-on",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool114",
@@ -1479,7 +1479,7 @@
     "background_type": "Yes",
     "color": "silver",
     "notes": "weld-on.",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool115",
@@ -1492,7 +1492,7 @@
     "background_type": "Yes",
     "color": "silver",
     "notes": "and weld-on.",
-    "inspection_status": ""
+    "inspection_status": "Reinspect"
   },
   {
     "tool_id": "tool116",
