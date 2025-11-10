@@ -125,9 +125,9 @@
     "material": "Carbide",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
-    "notes": "Internal coolant, weld-on. There is no significant usage but there are a little color differences. Carbide.",
-    "inspection_status": ""
+    "color": "silver",
+    "notes": "Internal coolant, weld-on. There is no significant usage but there are a little color differences.",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool011",
@@ -444,15 +444,15 @@
   {
     "tool_id": "tool035",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 4,
+    "edges": 2,
     "condition": "worn",
     "material": "HSS",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "silver",
     "notes": "Wood industry HSS",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool036",
@@ -489,35 +489,35 @@
     "material": "",
     "coating": "No",
     "background_type": "",
-    "color": "",
-    "notes": "Spiral. Uncoated. Grinded the top surface. One top edge is fractured.",
-    "inspection_status": ""
+    "color": "silver",
+    "notes": "Spiral.  Grinded the top surface. One top edge is fractured. by caliper it gives 13.3. \"Q: I should give the G 1/4 right?\"",
+    "inspection_status": "Question"
   },
   {
     "tool_id": "tool039",
     "type": "topper",
     "diameter_mm": 6,
     "edges": 3,
-    "condition": "unknown",
+    "condition": "deposit",
     "material": "HSS-E",
     "coating": "No",
     "background_type": "",
     "color": "silver",
-    "notes": "Spiral. It seems it has attached chips but the edges are smooth. We have extra cone on the tip for griding porposes. ",
+    "notes": "Spiral. It seems it has attached chips but the edges are smooth. We have extra cone on the tip for griding porposes.  spiral",
     "inspection_status": "Finished"
   },
   {
     "tool_id": "tool040",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 5,
+    "edges": 3,
     "condition": "fractured",
-    "material": "",
+    "material": "HSS-E",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
-    "notes": "Top surface is partially grinded (the cone is partially visible)",
-    "inspection_status": ""
+    "color": "golden",
+    "notes": "Top surface is partially grinded (the cone is partially visible). Spiral",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool041",
@@ -529,125 +529,125 @@
     "coating": "Yes",
     "background_type": "",
     "color": "golden",
-    "notes": "ONE OF THE GOOD EXAMPLES THAT WE CAN SHOW THE STRUCTUE OF THE TOOL BECAUSE ITS EASY TO SEE THE TOP SURFACE IS GRINDED BY THE FACTORY. the edges, the cone are visible, speciall tool, can be used as showcase. ",
+    "notes": "ONE OF THE GOOD EXAMPLES THAT WE CAN SHOW THE STRUCTUE OF THE TOOL BECAUSE ITS EASY TO SEE THE TOP SURFACE IS GRINDED BY THE FACTORY. the edges, the cone are visible, speciall tool, can be used as showcase. Straight ",
     "inspection_status": "Finished"
   },
   {
     "tool_id": "tool042",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 6,
+    "edges": 3,
     "condition": "used",
-    "material": "",
+    "material": "HSSE-TIN",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "gold",
     "notes": "Grinded by hand",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool043",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 5,
+    "edges": 3,
     "condition": "used",
-    "material": "",
+    "material": "HSSE",
     "coating": "Yes",
     "background_type": "",
     "color": "",
     "notes": "Worn or Used is when the color has changed. The top surface is grinded.",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool044",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 6,
+    "edges": 3,
     "condition": "used",
-    "material": "",
+    "material": "HSS-E",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
-    "notes": "Grinded manually on the top surface.",
-    "inspection_status": ""
+    "color": "dark gray",
+    "notes": "Grinded manually on the top surface. spiral",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool045",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 5,
+    "edges": 3,
     "condition": "used",
-    "material": "",
+    "material": "HSS-E",
     "coating": "No",
     "background_type": "",
-    "color": "",
-    "notes": "There's no clear fracture, grinded on the top, uncoated.",
-    "inspection_status": ""
+    "color": "silver",
+    "notes": "",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool046",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 4,
+    "edges": 3,
     "condition": "used",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
-    "notes": "the griding profile doesn't account to fracture.",
-    "inspection_status": ""
+    "color": "silver",
+    "notes": "the griding profile doesn't account to fracture. straight",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool047",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 4,
+    "edges": 3,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "gold",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool048",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 5,
+    "edges": 3,
     "condition": "fractured",
-    "material": "",
+    "material": "HSS-E",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
-    "notes": "",
-    "inspection_status": ""
+    "color": "dark gray",
+    "notes": "spiral",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool049",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 6,
+    "edges": 3,
     "condition": "fractured",
-    "material": "",
+    "material": "HSS-E",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
-    "notes": "",
-    "inspection_status": ""
+    "color": "dark gray",
+    "notes": "straight",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool050",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 15,
+    "edges": 3,
     "condition": "fractured",
-    "material": "",
+    "material": "HSS",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
-    "notes": "",
-    "inspection_status": ""
+    "color": "silver",
+    "notes": "straight",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool051",
@@ -659,47 +659,47 @@
     "coating": "Yes",
     "background_type": "",
     "color": "golden",
-    "notes": "",
+    "notes": "straight (not spiral)",
     "inspection_status": "Finished"
   },
   {
     "tool_id": "tool052",
     "type": "topper",
-    "diameter_mm": 0,
+    "diameter_mm": 12,
     "edges": 3,
     "condition": "fractured",
-    "material": "",
+    "material": "HSSE-PM",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "silver",
     "notes": "Competely fractured, topper! comptely broken, and it is spiral.",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool053",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 8,
+    "edges": 3,
     "condition": "fractured",
-    "material": "",
+    "material": "HSSE",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "gold",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool054",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 12,
+    "edges": 4,
     "condition": "fractured",
-    "material": "",
+    "material": "HSSE",
     "coating": "No",
     "background_type": "",
-    "color": "",
+    "color": "silver",
     "notes": "manually gridnded the top surface. maybe not coated.",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool055",
@@ -795,15 +795,15 @@
   {
     "tool_id": "tool062",
     "type": "drill",
-    "diameter_mm": 0,
+    "diameter_mm": 9,
     "edges": 2,
     "condition": "fractured",
     "material": "Carbide",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "Internal Ccoolant, carbide.",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool063",
@@ -814,9 +814,9 @@
     "material": "HSS",
     "coating": "No",
     "background_type": "",
-    "color": "",
-    "notes": "HSS, Uncoated.",
-    "inspection_status": ""
+    "color": "silver",
+    "notes": "",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool064",
@@ -847,15 +847,15 @@
   {
     "tool_id": "tool066",
     "type": "drill",
-    "diameter_mm": 0,
+    "diameter_mm": 5,
     "edges": 2,
     "condition": "fractured",
     "material": "HSS",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "HSS",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool067",
@@ -866,9 +866,9 @@
     "material": "Carbide",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "Carbide, without internal coolant",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool068",
@@ -879,9 +879,9 @@
     "material": "HSS",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "golden",
     "notes": "HSS (high speed steel)",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool069",
@@ -892,22 +892,22 @@
     "material": "HSS",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "gold",
     "notes": "HSS, the top is melted!",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool070",
     "type": "drill",
-    "diameter_mm": 0,
+    "diameter_mm": 3,
     "edges": 2,
     "condition": "fractured",
     "material": "HSS",
     "coating": "No",
     "background_type": "",
-    "color": "",
-    "notes": "HSS, uncoated",
-    "inspection_status": ""
+    "color": "silver",
+    "notes": "",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool071",
@@ -918,9 +918,9 @@
     "material": "HSS",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "gold",
     "notes": "HSS (high speed steel)",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool072",
@@ -931,9 +931,9 @@
     "material": "HSS",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "gold",
     "notes": "HSS (high speed steel)",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool073",
@@ -944,9 +944,9 @@
     "material": "HSS",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "gold",
     "notes": "HSS (high speed steel)",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool074",
@@ -957,61 +957,61 @@
     "material": "Carbide",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "golden",
     "notes": "With internal coolant, and carbide.",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool075",
     "type": "reamer",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 8,
+    "edges": 6,
     "condition": "worn",
-    "material": "HSS",
+    "material": "HSS-E",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
-    "notes": "HSS",
+    "color": "silver",
+    "notes": "spiral",
     "inspection_status": ""
   },
   {
     "tool_id": "tool076",
     "type": "reamer",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 8,
+    "edges": 8,
     "condition": "worn",
     "material": "HSS",
     "coating": "Yes",
     "background_type": "",
     "color": "",
-    "notes": "Reamer, is to create a very fine tolerance and if it is a little worn then already its not good. HSS",
-    "inspection_status": ""
+    "notes": "Reamer, is to create a very fine tolerance and if it is a little worn then already its not good. HSS. spiral",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool077",
     "type": "t_slot",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 6,
     "condition": "fractured",
     "material": "HSS",
     "coating": "No",
     "background_type": "",
-    "color": "",
+    "color": "silver",
     "notes": "Weld on, uncoated. one edge or teeth is competely gone. HSS",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool078",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 20,
+    "edges": 4,
     "condition": "used",
-    "material": "",
+    "material": "HSS-E",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
-    "notes": "M12",
-    "inspection_status": ""
+    "color": "Silver",
+    "notes": "C-M20",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool079",
@@ -1393,15 +1393,15 @@
   {
     "tool_id": "tool108",
     "type": "topper",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 4,
+    "edges": 3,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "golden",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool109",
@@ -1503,8 +1503,8 @@
     "material": "Carbide",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray / brown",
     "notes": "Internal Coolant. Two different coatings. It could be due to different machining conditions. Carbide",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   }
 ]
