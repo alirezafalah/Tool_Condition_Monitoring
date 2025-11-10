@@ -184,15 +184,15 @@
   {
     "tool_id": "tool015",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 12,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool016",
@@ -210,28 +210,28 @@
   {
     "tool_id": "tool017",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 14,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "light silver",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool018",
     "type": "endmill",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool019",
@@ -366,15 +366,15 @@
   {
     "tool_id": "tool029",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 10,
+    "edges": 3,
     "condition": "fractured",
     "material": "",
-    "coating": "Yes",
+    "coating": "no",
     "background_type": "",
-    "color": "",
+    "color": "silver",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool030",
@@ -405,15 +405,15 @@
   {
     "tool_id": "tool032",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 12,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "brown",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool033",
@@ -704,93 +704,93 @@
   {
     "tool_id": "tool055",
     "type": "chamfer",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 10,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
     "color": "",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool056",
     "type": "chamfer",
-    "diameter_mm": 0,
-    "edges": 0,
-    "condition": "unknown",
+    "diameter_mm": 10,
+    "edges": 4,
+    "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
     "color": "",
     "notes": "IF nails don't get stuck but the collor is different, then its worn, but if the nails get stuck it is fractured.",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool057",
     "type": "chamfer",
-    "diameter_mm": 0,
+    "diameter_mm": 10,
     "edges": 4,
     "condition": "worn",
     "material": "",
     "coating": "Yes",
     "background_type": "",
     "color": "",
-    "notes": "Good tool, with a little bit of wear we can identify based on color changes, it has coated, it is a cutter with chamfer making speciallity (45 degrees) on a real work edges, and the tip has lost its color that's why we say it is worn. only the first 5 milimeters. and the shank is weld on.",
-    "inspection_status": ""
+    "notes": "Good tool, with a little bit of wear, the tip has lost its color that's why we say it is worn. only the first 5 milimeters. and the shank is weld on.",
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool058",
     "type": "chamfer",
-    "diameter_mm": 0,
+    "diameter_mm": 10,
     "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "Weld-on",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool059",
     "type": "chamfer",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 8,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "silver",
     "notes": "Weld-on",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool060",
     "type": "chamfer",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 6,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "Weld-on",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool061",
     "type": "chamfer",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 6,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "Weld-on",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool062",
@@ -821,28 +821,28 @@
   {
     "tool_id": "tool064",
     "type": "central_drill",
-    "diameter_mm": 0,
+    "diameter_mm": 8,
     "edges": 2,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "silver",
     "notes": "We use them to drill a small hole because they are more rigid",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool065",
     "type": "central_drill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 10,
+    "edges": 2,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "We use them to drill a small hole because they are more rigid",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool066",
@@ -1042,28 +1042,28 @@
   {
     "tool_id": "tool081",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 8,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "light silver",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool082",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 8,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool083",
@@ -1081,15 +1081,15 @@
   {
     "tool_id": "tool084",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 8,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool085",
@@ -1134,14 +1134,14 @@
     "tool_id": "tool088",
     "type": "endmill",
     "diameter_mm": 0,
-    "edges": 0,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
-    "notes": "",
-    "inspection_status": ""
+    "color": "dark grat",
+    "notes": "Q: `The webpage says 12 but it measures exactly 11.6 mm the top`  https://toolsunited.com/EN/Article/Details/24696400130670156?print=True",
+    "inspection_status": "Question"
   },
   {
     "tool_id": "tool089",
@@ -1211,67 +1211,67 @@
   {
     "tool_id": "tool094",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 12,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "light silver",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool095",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 10,
+    "edges": 3,
     "condition": "fractured",
-    "material": "",
+    "material": "carbide",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "light golden",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool096",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 10,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool097",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 10,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "gold",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool098",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 10,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "light silver",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool099",
@@ -1289,15 +1289,15 @@
   {
     "tool_id": "tool100",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 10,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "light gold",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool101",
@@ -1309,7 +1309,7 @@
     "coating": "Yes",
     "background_type": "no",
     "color": "light gold",
-    "notes": ". very fine fracture along the edges.",
+    "notes": "very fine fracture along the edges.",
     "inspection_status": "Reinspect"
   },
   {
@@ -1341,15 +1341,15 @@
   {
     "tool_id": "tool104",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 10,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool105",
@@ -1406,15 +1406,15 @@
   {
     "tool_id": "tool109",
     "type": "endmill",
-    "diameter_mm": 0,
-    "edges": 0,
+    "diameter_mm": 12,
+    "edges": 4,
     "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "",
-    "color": "",
+    "color": "dark gray",
     "notes": "",
-    "inspection_status": ""
+    "inspection_status": "Finished"
   },
   {
     "tool_id": "tool110",
