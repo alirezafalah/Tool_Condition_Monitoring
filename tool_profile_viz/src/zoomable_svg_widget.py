@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QGraphicsView, QGraphicsScene, QWidget, QVBoxLayout, QPushButton, QLabel, QHBoxLayout
 from PyQt6.QtSvgWidgets import QGraphicsSvgItem
 from PyQt6.QtCore import Qt, QRectF
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QPainter, QPen
 
 # We create an inner class to handle events cleanly without cluttering the main widget.
 class _SvgView(QGraphicsView):
@@ -12,6 +12,36 @@ class _SvgView(QGraphicsView):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)
+        
+        # Degree indicator properties
+        self.show_degree_indicator = False
+        self.current_degree = None
+
+    def set_degree_indicator(self, show, degree=None):
+        """Enable/disable and update the degree indicator line."""
+        self.show_degree_indicator = show
+        self.current_degree = degree
+        self.viewport().update()  # Trigger repaint
+    
+    def paintEvent(self, event):
+        """Override to draw degree indicator line on top of SVG."""
+        super().paintEvent(event)
+        
+        if self.show_degree_indicator and self.current_degree is not None:
+            # Map degree (0-360) to scene x-coordinate
+            scene_rect = self.sceneRect()
+            x_scene = scene_rect.left() + (self.current_degree / 360.0) * scene_rect.width()
+            
+            # Convert scene coordinates to viewport coordinates
+            top_point = self.mapFromScene(x_scene, scene_rect.top())
+            bottom_point = self.mapFromScene(x_scene, scene_rect.bottom())
+            
+            # Draw the red vertical line
+            painter = QPainter(self.viewport())
+            pen = QPen(Qt.GlobalColor.red, 2, Qt.PenStyle.SolidLine)
+            painter.setPen(pen)
+            painter.drawLine(top_point, bottom_point)
+            painter.end()
 
     def wheelEvent(self, event):
         """Handle mouse wheel events for zooming."""
@@ -36,6 +66,8 @@ class _SvgView(QGraphicsView):
 class ZoomableSvgWidget(QWidget):
     def __init__(self, svg_path):
         super().__init__()
+        
+        self.svg_path = svg_path  # Store for potential reloading
         
         # --- Create Graphics Components ---
         self.scene = QGraphicsScene(self)
@@ -71,6 +103,18 @@ class ZoomableSvgWidget(QWidget):
         controls_layout.addWidget(self.home_button)
         controls_layout.addWidget(self.controls_label)
         controls_layout.addStretch()
+    
+    def load_svg(self, svg_path):
+        """Load a new SVG file."""
+        self.svg_path = svg_path
+        self.scene.removeItem(self.svg_item)
+        self.svg_item = QGraphicsSvgItem(svg_path)
+        self.scene.addItem(self.svg_item)
+        self.reset_view()
+    
+    def set_degree_indicator(self, show, degree=None):
+        """Pass degree indicator settings to the view."""
+        self.view.set_degree_indicator(show, degree)
 
     def reset_view(self):
         """Resets the view to its initial zoom and pan."""

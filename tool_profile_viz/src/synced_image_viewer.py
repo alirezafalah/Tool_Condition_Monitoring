@@ -1,6 +1,7 @@
 import imageio
+import numpy as np
 from PyQt6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QLabel, QGraphicsView, QGraphicsScene, QPushButton, QCheckBox
-from PyQt6.QtGui import QPixmap, QImage
+from PyQt6.QtGui import QPixmap, QImage, QPainter, QPen
 from PyQt6.QtCore import Qt, pyqtSignal
 
 # ... (_ImageView class is unchanged) ...
@@ -40,6 +41,11 @@ class SyncedImageViewer(QWidget):
         self.raw_view = _ImageView(self.raw_scene)
         self.mask_view = _ImageView(self.mask_scene)
         
+        # ROI line properties
+        self.show_roi_line = False
+        self.roi_height = 200  # Default, will be updated from metadata
+        self.current_mask_path = None
+        
         self.sync_checkbox = QCheckBox("Sync Zoom/Pan")
         self.sync_checkbox.setChecked(True)
         self.sync_checkbox.stateChanged.connect(self._toggle_sync)
@@ -68,6 +74,62 @@ class SyncedImageViewer(QWidget):
         self._is_syncing = False
         self.raw_view.viewChanged.connect(lambda: self._sync_views(self.raw_view, self.mask_view))
         self.mask_view.viewChanged.connect(lambda: self._sync_views(self.mask_view, self.raw_view))
+    
+    def set_roi_line(self, show, roi_height=200):
+        """Enable/disable ROI line and set the ROI height."""
+        self.show_roi_line = show
+        self.roi_height = roi_height
+        if self.current_mask_path:
+            self._reload_mask_with_roi()
+    
+    def _reload_mask_with_roi(self):
+        """Reload the mask image with or without ROI line."""
+        if not self.current_mask_path:
+            return
+            
+        mask_tiff = imageio.imread(self.current_mask_path)
+        
+        if self.show_roi_line:
+            # Calculate ROI boundary
+            mask_np = np.array(mask_tiff)
+            white_pixel_coords = np.where(mask_np == 255)
+            
+            if white_pixel_coords[0].size > 0:
+                last_row = white_pixel_coords[0].max()
+                roi_start_row = max(0, last_row - self.roi_height)
+                
+                # Draw red line at ROI boundary
+                mask_with_line = mask_tiff.copy()
+                if roi_start_row < mask_tiff.shape[0]:
+                    mask_with_line[roi_start_row, :] = 255  # Draw horizontal line
+                
+                mask_qimage = QImage(mask_with_line.data, mask_with_line.shape[1], mask_with_line.shape[0], 
+                                    mask_with_line.strides[0], QImage.Format.Format_Grayscale8)
+            else:
+                mask_qimage = QImage(mask_tiff.data, mask_tiff.shape[1], mask_tiff.shape[0], 
+                                    mask_tiff.strides[0], QImage.Format.Format_Grayscale8)
+        else:
+            mask_qimage = QImage(mask_tiff.data, mask_tiff.shape[1], mask_tiff.shape[0], 
+                                mask_tiff.strides[0], QImage.Format.Format_Grayscale8)
+        
+        # Create a red-tinted version for the ROI line
+        if self.show_roi_line:
+            pixmap = QPixmap.fromImage(mask_qimage)
+            painter = QPainter(pixmap)
+            pen = QPen(Qt.GlobalColor.red, 3, Qt.PenStyle.SolidLine)
+            painter.setPen(pen)
+            
+            # Recalculate ROI line position
+            mask_np = np.array(mask_tiff)
+            white_pixel_coords = np.where(mask_np == 255)
+            if white_pixel_coords[0].size > 0:
+                last_row = white_pixel_coords[0].max()
+                roi_start_row = max(0, last_row - self.roi_height)
+                painter.drawLine(0, roi_start_row, pixmap.width(), roi_start_row)
+            painter.end()
+            self.mask_pixmap_item.setPixmap(pixmap)
+        else:
+            self.mask_pixmap_item.setPixmap(QPixmap.fromImage(mask_qimage))
 
     # ... (rest of the file is unchanged) ...
     def _toggle_sync(self, state):
@@ -82,10 +144,11 @@ class SyncedImageViewer(QWidget):
         target.fitInView(visible_rect, Qt.AspectRatioMode.KeepAspectRatio)
         self._is_syncing = False
     def load_images(self, raw_path, mask_path):
+        self.current_mask_path = mask_path  # Store for reloading
+        
         raw_tiff = imageio.imread(raw_path)
         raw_qimage = QImage(raw_tiff.data, raw_tiff.shape[1], raw_tiff.shape[0], raw_tiff.strides[0], QImage.Format.Format_RGB888)
         self.raw_pixmap_item.setPixmap(QPixmap.fromImage(raw_qimage))
-        mask_tiff = imageio.imread(mask_path)
-        mask_qimage = QImage(mask_tiff.data, mask_tiff.shape[1], mask_tiff.shape[0], mask_tiff.strides[0], QImage.Format.Format_Grayscale8)
-        self.mask_pixmap_item.setPixmap(QPixmap.fromImage(mask_qimage))
+        
+        self._reload_mask_with_roi()
         self.reset_views()

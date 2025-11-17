@@ -212,8 +212,8 @@ class MainWindow(QMainWindow):
 
         # Find the 4 overview images from the blurred folder
         overview_paths = []
-        if tools_folder:
-            image_files = [f for f in os.listdir(tools_folder) if f.endswith(".tiff")]
+        if blurred_folder and os.path.isdir(blurred_folder):
+            image_files = [f for f in os.listdir(blurred_folder) if f.endswith((".tiff", ".tif", ".png", ".jpg"))]
             if image_files:
                 degrees_files = {}
                 for f in image_files:
@@ -224,7 +224,7 @@ class MainWindow(QMainWindow):
                 if degrees_files:
                     for target_deg in [0, 90, 180, 270]:
                         closest_deg = min(degrees_files.keys(), key=lambda d: abs(d - target_deg))
-                        overview_paths.append(os.path.join(tools_folder, degrees_files[closest_deg]))
+                        overview_paths.append(os.path.join(blurred_folder, degrees_files[closest_deg]))
 
         return svg_path, overview_paths, blurred_folder, mask_folder, tools_folder
 
@@ -237,14 +237,14 @@ class MainWindow(QMainWindow):
         # Use the helper to find all required files and folders
         svg_path, overview_paths, blurred_folder, mask_folder, tools_folder = self._find_tool_files(tool_id)
 
-        # A robust check to ensure all necessary paths were found
-        if not all([svg_path, overview_paths, blurred_folder, mask_folder, tools_folder]):
+        # A robust check to ensure all necessary paths were found (tools_folder optional for overview)
+        if not all([svg_path, blurred_folder, mask_folder]):
             QMessageBox.warning(self, "Error", f"Missing some data folders or files for {tool_id}.")
             self._reset_button_state(button, original_text)
             return
 
         # Pass all the required paths to the new window's constructor
-        win = ProfileWindow(tool_id, svg_path, overview_paths, blurred_folder, mask_folder, tools_folder)
+        win = ProfileWindow(tool_id, svg_path, overview_paths, blurred_folder, mask_folder)
         self.open_windows.append(win)
         
         QTimer.singleShot(400, lambda: self._reset_button_state(button, original_text))
