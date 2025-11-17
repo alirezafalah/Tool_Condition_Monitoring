@@ -1,24 +1,41 @@
 # Tool Condition Monitoring
 
-This repository contains the code and data for analyzing CNC tool wear through image processing.
+This repository provides a complete pipeline for analyzing CNC tool wear through automated image processing and a professional GUI for visualization and metadata management.
 
-## Project Structure & Usage
+## Project Structure
 
-* **`image_to_signal/`**: This is the primary, current pipeline and should be used for analysis.
-* **`signal_processing/`** and **`tool_monitoring/`**: These are legacy versions of the project, kept for historical reference.
-* **`old/tool_monitoring/`**: This directory contains the proof of concept of the method, which has sinced by updated.
-* **`old/tables/`**: This directory contains some CSV data from earlier experiments.
+* **`image_to_signal/`**: Main processing pipeline that converts tool images into 1D profile signals for wear analysis
+* **`tool_profile_viz/`**: Modern PyQt6 GUI application for visualizing tool profiles, managing metadata, and reviewing inspection results
+* **`signal_processing/`** and **`tool_monitoring/`**: Legacy versions, kept for historical reference
+* **`old/`**: Proof of concept implementations and experimental data
 
-## How to Run the Main Pipeline
+## Features
 
-The main pipeline is designed to be run as a module from the project's root directory.
+### Image Processing Pipeline
+- Automated blur detection and preprocessing
+- Background subtraction with multiple methods
+- Contour detection and profile extraction
+- 1D signal generation (area vs. rotation angle)
+- Batch processing with progress tracking
 
-1.  Navigate to the `Tool_Condition_Monitoring` folder in your terminal.
-2. Make sure you have your config in main set. 
-3.  Execute the following command.
+### Visualization GUI
+- Interactive matplotlib-based profile viewer
+- Quarter-turn overview with synchronized image viewing
+- ROI toggling for blurred/masked images
+- Metadata management with undo/redo
+- iOS-style toggle switches for clean UX
+- Status column for inspection tracking (hidden by default to prevent accidental edits)
 
+## Quick Start
+
+### Run Image Processing Pipeline (GUI)
 ```bash
-python -m image_to_signal.main --input_dir path/to/your/images
+cd Tool_Condition_Monitoring
+python -m image_to_signal.gui_main
 ```
 
-The input directory can contain either raw or blurred images. If only raw images are present, the script will automatically create the blurred versions before proceeding with the analysis.
+### Run Profile Visualization Tool
+```bash
+cd Tool_Condition_Monitoring/tool_profile_viz
+python src/main.py
+```
