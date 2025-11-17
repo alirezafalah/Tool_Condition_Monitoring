@@ -148,5 +148,4 @@ def run(config):
     
     plt.savefig(plot_path, format='svg', dpi=300)
     print(f"Plot saved in SVG format to '{plot_path}'")
-    
-    plt.show()
+    plt.close()  # Close instead of show to avoid blocking in GUI

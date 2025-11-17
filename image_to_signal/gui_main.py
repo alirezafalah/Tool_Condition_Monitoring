@@ -3,12 +3,16 @@ Sophisticated GUI for Image-to-Signal Processing Pipeline
 """
 import sys
 import os
+import warnings
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                             QGroupBox, QLabel, QPushButton, QLineEdit, QSpinBox, QDoubleSpinBox,
                             QCheckBox, QComboBox, QProgressBar, QTextEdit, QTabWidget,
                             QFileDialog, QFrame, QScrollArea)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QColor, QPalette
+
+# Suppress matplotlib threading warnings
+warnings.filterwarnings('ignore', message='Starting a Matplotlib GUI outside of the main thread')
 
 # Import processing modules
 from . import step1_blur_and_rename
@@ -19,7 +23,6 @@ from . import step4_process_and_plot
 
 class ProcessingThread(QThread):
     """Thread for running processing steps without blocking UI."""
-    progress = pyqtSignal(str)
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
     
@@ -30,10 +33,13 @@ class ProcessingThread(QThread):
     
     def run(self):
         try:
+            # Run the step - output goes to terminal
             self.step_func(self.config)
             self.finished.emit("Step completed successfully!")
         except Exception as e:
-            self.error.emit(f"Error: {str(e)}")
+            import traceback
+            error_msg = f"Error: {str(e)}\n{traceback.format_exc()}"
+            self.error.emit(error_msg)
 
 
 class ImageToSignalGUI(QMainWindow):
@@ -47,7 +53,7 @@ class ImageToSignalGUI(QMainWindow):
         self.DATA_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "DATA"))
         
         # Initialize config
-        self.tool_id = 'tool002'
+        self.tool_id = 'tool'  # Start with 'tool' prefix
         self.config = self._create_default_config()
         
         # Setup UI
@@ -368,12 +374,6 @@ class ImageToSignalGUI(QMainWindow):
         btn_layout.addWidget(self.stop_btn)
         layout.addLayout(btn_layout)
         
-        # Progress
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setMaximum(0)  # Indeterminate
-        self.progress_bar.setVisible(False)
-        layout.addWidget(self.progress_bar)
-        
         # Log output
         log_label = QLabel("Processing Log:")
         log_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
@@ -383,6 +383,35 @@ class ImageToSignalGUI(QMainWindow):
         self.log_output.setReadOnly(True)
         self.log_output.setStyleSheet("background: #1e1e1e; color: #ddd; font-family: 'Consolas', monospace;")
         layout.addWidget(self.log_output, stretch=1)
+        
+        # Quick open buttons
+        open_label = QLabel("Quick Open:")
+        open_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        layout.addWidget(open_label)
+        
+        open_layout = QHBoxLayout()
+        
+        self.open_raw_plot_btn = QPushButton("📊 Raw Plot")
+        self.open_raw_plot_btn.clicked.connect(lambda: self._open_file('ROI_PLOT_PATH'))
+        open_layout.addWidget(self.open_raw_plot_btn)
+        
+        self.open_processed_plot_btn = QPushButton("📈 Processed Plot")
+        self.open_processed_plot_btn.clicked.connect(lambda: self._open_file('PROCESSED_PLOT_PATH'))
+        open_layout.addWidget(self.open_processed_plot_btn)
+        
+        self.open_masks_btn = QPushButton("🎭 Masks Folder")
+        self.open_masks_btn.clicked.connect(lambda: self._open_file('FINAL_MASKS_DIR'))
+        open_layout.addWidget(self.open_masks_btn)
+        
+        self.open_blurred_btn = QPushButton("🌫️ Blurred Folder")
+        self.open_blurred_btn.clicked.connect(lambda: self._open_file('BLURRED_DIR'))
+        open_layout.addWidget(self.open_blurred_btn)
+        
+        self.open_raw_btn = QPushButton("📁 Raw Folder")
+        self.open_raw_btn.clicked.connect(lambda: self._open_file('RAW_DIR'))
+        open_layout.addWidget(self.open_raw_btn)
+        
+        layout.addLayout(open_layout)
         
         return widget
     
@@ -481,7 +510,6 @@ class ImageToSignalGUI(QMainWindow):
         
         self.run_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
-        self.progress_bar.setVisible(True)
         
         # Run steps sequentially
         self.current_step = 0
@@ -496,6 +524,7 @@ class ImageToSignalGUI(QMainWindow):
         
         step_name, step_func = self.steps_to_run[self.current_step]
         self.log_output.append(f"\n<span style='color: #2196F3;'>▶️ {step_name}...</span>")
+        self.log_output.append(f"<span style='color: #888;'>(Check terminal for detailed progress)</span>")
         self.status_label.setText(f"Running: {step_name}")
         
         # Run in thread
@@ -521,7 +550,30 @@ class ImageToSignalGUI(QMainWindow):
         self.status_label.setText("Ready")
         self.run_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
-        self.progress_bar.setVisible(False)
+    
+    def _open_file(self, config_key):
+        """Open a file or folder in the default application."""
+        path = self.config.get(config_key)
+        if not path:
+            self.log_output.append(f"<span style='color: orange;'>⚠️ Path not configured for {config_key}</span>")
+            return
+        
+        if not os.path.exists(path):
+            self.log_output.append(f"<span style='color: orange;'>⚠️ File/folder not found: {path}</span>")
+            return
+        
+        try:
+            import subprocess
+            if os.path.isfile(path):
+                # Open file with default application
+                os.startfile(path)
+                self.log_output.append(f"<span style='color: #4CAF50;'>✓ Opened: {os.path.basename(path)}</span>")
+            else:
+                # Open folder in explorer
+                subprocess.Popen(f'explorer "{path}"')
+                self.log_output.append(f"<span style='color: #4CAF50;'>✓ Opened folder: {os.path.basename(path)}</span>")
+        except Exception as e:
+            self.log_output.append(f"<span style='color: #f44336;'>✗ Error opening: {str(e)}</span>")
     
     def _apply_styles(self):
         """Apply dark theme styling."""
