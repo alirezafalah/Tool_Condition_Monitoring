@@ -19,7 +19,7 @@ def run_playground():
     # CONTROL PANEL
     # --- --- --- --- --- --- --- --- --- --- --- --- --- ---
     # 1. Define the path to your background image
-    BACKGROUND_IMAGE_PATH = 'image_to_signal/data/background.tiff'
+    BACKGROUND_IMAGE_PATH = 'DATA/backgrounds/background.tiff'
 
     # 2. Define the threshold for creating the binary mask after subtraction
     #    A lower value is more sensitive to small differences.

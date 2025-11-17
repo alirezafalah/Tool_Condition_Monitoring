@@ -6,7 +6,7 @@ import csv
 APP_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_METADATA_PATH = os.path.join(APP_ROOT, 'tools_metadata.json')
 
-# The DATA_ROOT is two levels up from the app, in the 'DATA' folder
+# The DATA_ROOT is one level up from Tool_Condition_Monitoring, in the 'DATA' folder
 DATA_ROOT = os.path.abspath(os.path.join(APP_ROOT, "..", "..", "DATA"))
 
 class MetadataManager:

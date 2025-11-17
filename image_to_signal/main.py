@@ -15,13 +15,16 @@ RUN_STEP_3_ANALYZE_AND_PLOT = True
 # CONFIGURATION PARAMETERS
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
+# --- Tool Identification ---
+TOOL_ID = 'tool070'  # Set the tool ID here - all paths will be automatically derived
+
 CONFIG = {
-    # --- Directory Paths ---
-    'RAW_DIR': 'image_to_signal/data/tool070gain10paperBG',
-    'BLURRED_DIR': 'image_to_signal/data/tool070gain10paperBG_blurred',
-    'FINAL_MASKS_DIR': 'image_to_signal/data/tool070gain10paperBG_final_masks',
-    'ROI_CSV_PATH': 'image_to_signal/data/tool070gain10paperBG_area_vs_angle.csv',
-    'ROI_PLOT_PATH': 'image_to_signal/data/tool070gain10paperBG_area_vs_angle_plot.svg',
+    # --- Directory Paths (Auto-generated from TOOL_ID) ---
+    'RAW_DIR': f'DATA/tools/{TOOL_ID}',
+    'BLURRED_DIR': f'DATA/blurred/{TOOL_ID}_blurred',
+    'FINAL_MASKS_DIR': f'DATA/masks/{TOOL_ID}_final_masks',
+    'ROI_CSV_PATH': f'DATA/1d_profiles/{TOOL_ID}_area_vs_angle.csv',
+    'ROI_PLOT_PATH': f'DATA/1d_profiles/{TOOL_ID}_area_vs_angle_plot.svg',
 
     # --- Image Processing Parameters ---
     'blur_kernel': 13,
@@ -46,7 +49,7 @@ CONFIG = {
     # --- Background Subtraction Parameters ---
     'BACKGROUND_SUBTRACTION_METHOD': 'lab', # Options: 'none', 'absdiff', 'lab'
     'APPLY_MULTICHANNEL_MASK': False,
-    'BACKGROUND_IMAGE_PATH': 'image_to_signal/data/paper_background.tiff',
+    'BACKGROUND_IMAGE_PATH': 'DATA/backgrounds/paper_background.tiff',
     'DIFFERENCE_THRESHOLD': 33,
 
 

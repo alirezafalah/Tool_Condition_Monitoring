@@ -11,7 +11,7 @@ def run_playground():
 
     ## --- 1. Load Image ---
     try:
-        sample_image_path = 'image_to_signal/data/tool069gain10paperBG_blurred/0000.00_degrees.tiff'
+        sample_image_path = 'DATA/blurred/tool069gain10paperBG_blurred/0000.00_degrees.tiff'
         print(f"Loading sample image: {sample_image_path}")
         original_pil_image = Image.open(sample_image_path)
     except FileNotFoundError:
