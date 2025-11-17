@@ -1,6 +1,8 @@
+import os
 from . import step1_blur_and_rename
 from . import step2_generate_masks
 from . import step3_analyze_and_plot
+from . import step4_process_and_plot
 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 # MASTER CONTROL PANEL
@@ -9,22 +11,34 @@ from . import step3_analyze_and_plot
 # Set these to True or False to run or skip steps
 RUN_STEP_1_BLUR_AND_RENAME = False
 RUN_STEP_2_GENERATE_MASKS = False
-RUN_STEP_3_ANALYZE_AND_PLOT = True
+RUN_STEP_3_ANALYZE_AND_PLOT = False  # Generate raw CSV/plot
+RUN_STEP_4_PROCESS_AND_PLOT = True  # Generate processed CSV/plot
+
 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 # CONFIGURATION PARAMETERS
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
+# Calculate the path to the DATA folder (two levels up from this file, then into DATA)
+SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Tool_Condition_Monitoring
+DATA_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "DATA"))  # Go up to CCD_DATA, then into DATA
+
 # --- Tool Identification ---
-TOOL_ID = 'tool070'  # Set the tool ID here - all paths will be automatically derived
+TOOL_ID = 'tool002'  # Set the tool ID here - all paths will be automatically derived
 
 CONFIG = {
     # --- Directory Paths (Auto-generated from TOOL_ID) ---
-    'RAW_DIR': f'DATA/tools/{TOOL_ID}',
-    'BLURRED_DIR': f'DATA/blurred/{TOOL_ID}_blurred',
-    'FINAL_MASKS_DIR': f'DATA/masks/{TOOL_ID}_final_masks',
-    'ROI_CSV_PATH': f'DATA/1d_profiles/{TOOL_ID}_area_vs_angle.csv',
-    'ROI_PLOT_PATH': f'DATA/1d_profiles/{TOOL_ID}_area_vs_angle_plot.svg',
+    'RAW_DIR': os.path.join(DATA_ROOT, 'tools', TOOL_ID),
+    'BLURRED_DIR': os.path.join(DATA_ROOT, 'blurred', f'{TOOL_ID}_blurred'),
+    'FINAL_MASKS_DIR': os.path.join(DATA_ROOT, 'masks', f'{TOOL_ID}_final_masks'),
+    'ROI_CSV_PATH': os.path.join(DATA_ROOT, '1d_profiles', f'{TOOL_ID}_area_vs_angle.csv'),
+    'ROI_PLOT_PATH': os.path.join(DATA_ROOT, '1d_profiles', f'{TOOL_ID}_area_vs_angle_plot.svg'),
+    'PROCESSED_CSV_PATH': os.path.join(DATA_ROOT, '1d_profiles', f'{TOOL_ID}_area_vs_angle_processed.csv'),
+    'PROCESSED_PLOT_PATH': os.path.join(DATA_ROOT, '1d_profiles', f'{TOOL_ID}_area_vs_angle_processed_plot.svg'),
+    'BACKGROUND_IMAGE_PATH': os.path.join(DATA_ROOT, 'backgrounds', 'paper_background.tiff'),
+
+    # --- Processing Parameters (for Step 4) ---
+    'NUMBER_OF_PEAKS': 2,  # Number of cutting edges/flutes to segment the data into
 
     # --- Image Processing Parameters ---
     'blur_kernel': 13,
@@ -49,7 +63,6 @@ CONFIG = {
     # --- Background Subtraction Parameters ---
     'BACKGROUND_SUBTRACTION_METHOD': 'lab', # Options: 'none', 'absdiff', 'lab'
     'APPLY_MULTICHANNEL_MASK': False,
-    'BACKGROUND_IMAGE_PATH': 'DATA/backgrounds/paper_background.tiff',
     'DIFFERENCE_THRESHOLD': 33,
 
 
@@ -58,7 +71,8 @@ CONFIG = {
     'roi_height': 200,
     'outlier_std_dev_factor': 3.0,
     'APPLY_MOVING_AVERAGE': True,  
-    'MOVING_AVERAGE_WINDOW': 5,  
+    'MOVING_AVERAGE_WINDOW': 5,
+
 }
 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
@@ -80,9 +94,14 @@ def main():
         print("--- Step 2 Complete ---")
 
     if RUN_STEP_3_ANALYZE_AND_PLOT:
-        print("\n--- Running Step 3: Analyze ROI and Plot ---")
+        print("\n--- Running Step 3: Analyze ROI and Plot (Raw Data) ---")
         step3_analyze_and_plot.run(CONFIG)
         print("--- Step 3 Complete ---")
+    
+    if RUN_STEP_4_PROCESS_AND_PLOT:
+        print("\n--- Running Step 4: Process and Plot (Normalized & Segmented) ---")
+        step4_process_and_plot.run(CONFIG)
+        print("--- Step 4 Complete ---")
         
     print("\nPipeline finished.")
 
