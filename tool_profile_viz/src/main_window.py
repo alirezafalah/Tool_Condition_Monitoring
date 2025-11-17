@@ -9,6 +9,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction, QKeySequence
 from .metadata_manager import MetadataManager, DEFAULT_METADATA_PATH, DATA_ROOT
 from .profile_window import ProfileWindow
+from .custom_widgets import ToggleSwitch
 
 TOOLS_PATH = os.path.join(DATA_ROOT, "tools")
 PROFILES_PATH = os.path.join(DATA_ROOT, "1d_profiles")
@@ -53,6 +54,9 @@ class MainWindow(QMainWindow):
 
         self._create_edit_actions()
         self.populate_table()
+        
+        # Hide Status column by default
+        self.table.setColumnHidden(10, True)
 
     # ... (all methods until populate_table are unchanged)
     def _create_controls(self, layout):
@@ -76,6 +80,17 @@ class MainWindow(QMainWindow):
         layout.addWidget(reminder_label)
 
         layout.addSpacerItem(QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+
+        # Status column visibility toggle
+        status_label = QLabel("Show Status:")
+        self.status_toggle = ToggleSwitch()
+        self.status_toggle.setChecked(False)  # Hidden by default
+        self.status_toggle.toggled.connect(self._toggle_status_column)
+        
+        layout.addWidget(status_label)
+        layout.addWidget(self.status_toggle)
+        
+        layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum))
 
         zoom_label = QLabel("Table Zoom:")
         zoom_slider = QSlider(Qt.Orientation.Horizontal)
@@ -254,6 +269,10 @@ class MainWindow(QMainWindow):
         """Helper function to restore the button's appearance."""
         button.setText(text)
         button.setEnabled(True)
+
+    def _toggle_status_column(self, is_checked):
+        """Show or hide the Status column based on toggle state."""
+        self.table.setColumnHidden(10, not is_checked)
 
     # ... (all methods from delete_tool onwards are unchanged)
     def delete_tool(self, row_index):
