@@ -1,4 +1,6 @@
 import os
+import json
+from datetime import datetime
 import cv2
 import numpy as np
 import pandas as pd
@@ -71,6 +73,46 @@ def run(config):
     if csv_dir: os.makedirs(csv_dir, exist_ok=True)
     df.to_csv(csv_path, index=False)
     print(f"ROI data saved to '{csv_path}'")
+    
+    # --- 3.5. Save Metadata ---
+    metadata_dir = os.path.join(os.path.dirname(csv_path), 'analysis_metadata')
+    os.makedirs(metadata_dir, exist_ok=True)
+    
+    tool_id = os.path.basename(csv_path).replace('_area_vs_angle.csv', '')
+    metadata = {
+        "tool_id": tool_id,
+        "analysis_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "total_images_analyzed": len(image_files),
+        "analysis_type": "raw",
+        
+        "roi_parameters": {
+            "roi_height": config['roi_height'],
+            "images_for_366_deg": config['images_for_366_deg']
+        },
+        
+        "processing_parameters": {
+            "apply_moving_average": config.get('APPLY_MOVING_AVERAGE', False),
+            "moving_average_window": config.get('MOVING_AVERAGE_WINDOW', 5),
+            "outlier_std_dev_factor": config['outlier_std_dev_factor']
+        },
+        
+        "image_processing": {
+            "blur_kernel": config['blur_kernel'],
+            "closing_kernel": config['closing_kernel'],
+            "background_subtraction_method": config['BACKGROUND_SUBTRACTION_METHOD']
+        },
+        
+        "paths": {
+            "raw_dir": config['RAW_DIR'],
+            "blurred_dir": config['BLURRED_DIR'],
+            "masks_dir": config['FINAL_MASKS_DIR']
+        }
+    }
+    
+    metadata_path = os.path.join(metadata_dir, f'{tool_id}_metadata.json')
+    with open(metadata_path, 'w') as f:
+        json.dump(metadata, f, indent=2)
+    print(f"Metadata saved to '{metadata_path}'")
 
     # --- 4. Filter Outliers ---
     mean = df[target_column].mean()
