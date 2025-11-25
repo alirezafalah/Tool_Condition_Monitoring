@@ -39,3 +39,10 @@ python -m image_to_signal.gui_main
 cd Tool_Condition_Monitoring/tool_profile_viz
 python src/main.py
 ```
+
+### Find Optimal Frame Count for 360°
+```bash
+cd Tool_Condition_Monitoring
+python -m image_to_signal.find_360_by_similarity
+```
+Set `TOOL_ID` in the script to test different tools.

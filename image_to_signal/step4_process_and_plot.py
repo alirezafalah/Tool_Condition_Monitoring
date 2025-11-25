@@ -41,8 +41,18 @@ def run(config):
             angle = float(filename.split('_')[0])
             image_path = os.path.join(input_dir, filename)
             mask_np = np.array(Image.open(image_path))
+            
+            # Count white pixels to detect bad segmentation
+            total_white_pixels = np.sum(mask_np == 255)
+            total_pixels = mask_np.size
+            white_ratio = total_white_pixels / total_pixels
+            
             roi_area = find_roi_and_calculate_area(mask_np, config['roi_height'])
-            results.append({'Angle (Degrees)': angle, 'ROI Area (Pixels)': roi_area})
+            results.append({
+                'Angle (Degrees)': angle, 
+                'ROI Area (Pixels)': roi_area,
+                'white_ratio': white_ratio
+            })
         except (ValueError, IndexError):
             print(f"Could not parse angle from filename: {filename}. Skipping.")
             continue
@@ -52,6 +62,28 @@ def run(config):
         return
         
     df = pd.DataFrame(results)
+    
+    # --- 1.5. Detect and fix outliers (bad segmentation) ---
+    outlier_threshold = 0.5
+    df['is_outlier'] = df['white_ratio'] > outlier_threshold
+    num_outliers = df['is_outlier'].sum()
+    
+    if num_outliers > 0:
+        print(f"\n⚠️  Detected {num_outliers} over-segmented masks (>{outlier_threshold*100:.0f}% white)")
+        print(f"   Interpolating with neighboring values...")
+        
+        for idx in df[df['is_outlier']].index:
+            prev_idx = (idx - 1) % len(df)
+            next_idx = (idx + 1) % len(df)
+            
+            if not df.loc[prev_idx, 'is_outlier'] and not df.loc[next_idx, 'is_outlier']:
+                avg_value = (df.loc[prev_idx, 'ROI Area (Pixels)'] + df.loc[next_idx, 'ROI Area (Pixels)']) / 2
+                df.loc[idx, 'ROI Area (Pixels)'] = avg_value
+    else:
+        print(f"✓ No over-segmented masks detected")
+    
+    # Drop helper columns
+    df = df[['Angle (Degrees)', 'ROI Area (Pixels)']]
     
     # --- 2. Scale to 0-1 ---
     print("Scaling data to 0-1 range...")

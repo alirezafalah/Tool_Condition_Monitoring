@@ -352,15 +352,15 @@
   },
   {
     "tool_id": "tool028",
-    "type": "unknown",
+    "type": "drill",
     "diameter_mm": 0,
-    "edges": 0,
-    "condition": "unknown",
-    "material": "",
+    "edges": 2,
+    "condition": "new",
+    "material": "Carbide",
     "coating": "Yes",
-    "background_type": "",
-    "color": "",
-    "notes": "",
+    "background_type": "Yes",
+    "color": "dark gray, brown",
+    "notes": "Internal Coolant. Two different coatings. It could be due to different machining conditions. Carbide",
     "inspection_status": ""
   },
   {
@@ -1493,18 +1493,5 @@
     "color": "silver",
     "notes": "and weld-on.",
     "inspection_status": "Reinspect"
-  },
-  {
-    "tool_id": "tool116",
-    "type": "drill",
-    "diameter_mm": 0,
-    "edges": 2,
-    "condition": "new",
-    "material": "Carbide",
-    "coating": "Yes",
-    "background_type": "",
-    "color": "dark gray / brown",
-    "notes": "Internal Coolant. Two different coatings. It could be due to different machining conditions. Carbide",
-    "inspection_status": "Finished"
   }
 ]
