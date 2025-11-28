@@ -37,7 +37,7 @@ python -m image_to_signal.gui_main
 ### Run Profile Visualization Tool
 ```bash
 cd Tool_Condition_Monitoring/tool_profile_viz
-python src/main.py
+python main.py
 ```
 
 ### Find Optimal Frame Count for 360°
@@ -45,7 +45,6 @@ python src/main.py
 cd Tool_Condition_Monitoring
 python -m image_to_signal.find360
 ```
-Edit `TOOL_ID` at top of `find360.py`.
 
 ### Rename Raw Images Using Detected Frame Count
 After you know the 360° frame count (e.g. 363):
