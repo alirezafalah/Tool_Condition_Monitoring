@@ -89,9 +89,7 @@ class ImageToSignalGUI(QMainWindow):
             'BACKGROUND_SUBTRACTION_METHOD': 'lab',
             'APPLY_MULTICHANNEL_MASK': False,
             'DIFFERENCE_THRESHOLD': 33,
-            'images_for_366_deg': 363,
             'roi_height': 200,
-            'outlier_std_dev_factor': 3.0,
             'WHITE_RATIO_OUTLIER_THRESHOLD': 0.8,
             'APPLY_MOVING_AVERAGE': True,
             'MOVING_AVERAGE_WINDOW': 5,
@@ -276,9 +274,9 @@ class ImageToSignalGUI(QMainWindow):
         roi_group = QGroupBox("ROI Analysis")
         roi_layout = QVBoxLayout()
         
-        self.images_for_366 = self._add_spinbox_param(roi_layout, "Images for 366°:", 1, 1000, 1, self.config['images_for_366_deg'])
         self.roi_height = self._add_spinbox_param(roi_layout, "ROI Height:", 1, 1000, 1, self.config['roi_height'])
-        self.outlier_factor = self._add_double_spinbox_param(roi_layout, "Outlier Std Dev Factor:", 0.1, 10.0, self.config['outlier_std_dev_factor'])
+        
+        self.white_ratio_threshold = self._add_double_spinbox_param(roi_layout, "White Ratio Outlier Threshold:", 0.0, 1.0, self.config['WHITE_RATIO_OUTLIER_THRESHOLD'])
         
         self.apply_moving_avg = QCheckBox("Apply Moving Average")
         self.apply_moving_avg.setChecked(self.config['APPLY_MOVING_AVERAGE'])
@@ -540,13 +538,11 @@ class ImageToSignalGUI(QMainWindow):
         self.config['b_threshold_max'] = self.b_max.value()
         
         # Analysis
-        self.config['images_for_366_deg'] = self.images_for_366.value()
         self.config['roi_height'] = self.roi_height.value()
-        self.config['outlier_std_dev_factor'] = self.outlier_factor.value()
+        self.config['WHITE_RATIO_OUTLIER_THRESHOLD'] = self.white_ratio_threshold.value()
         self.config['APPLY_MOVING_AVERAGE'] = self.apply_moving_avg.isChecked()
         self.config['MOVING_AVERAGE_WINDOW'] = self.moving_avg_window.value()
         self.config['NUMBER_OF_PEAKS'] = self.num_peaks.value()
-        self.config['WHITE_RATIO_OUTLIER_THRESHOLD'] = self.config.get('WHITE_RATIO_OUTLIER_THRESHOLD', 0.8)
     
     def _run_pipeline(self):
         """Run selected pipeline steps."""

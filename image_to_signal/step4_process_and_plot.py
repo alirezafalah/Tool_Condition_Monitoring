@@ -120,13 +120,12 @@ def run(config):
         "analysis_type": "processed",
         
         "roi_parameters": {
-            "roi_height": config['roi_height'],
-            "images_for_366_deg": config['images_for_366_deg']
+            "roi_height": config['roi_height']
         },
         
         "processing_parameters": {
             "number_of_peaks": config.get('NUMBER_OF_PEAKS', 1),
-            "outlier_std_dev_factor": config['outlier_std_dev_factor']
+            "white_ratio_outlier_threshold": config.get('WHITE_RATIO_OUTLIER_THRESHOLD', 0.8)
         },
         
         "image_processing": {
@@ -153,6 +152,7 @@ def run(config):
     
     plt.style.use('seaborn-v0_8-whitegrid')
     fig, ax = plt.subplots(figsize=(12, 7))
+    fig.canvas.manager.set_window_title(f'Processed Profile - {tool_id}')
     
     colors = ['blue', 'green', 'red', 'purple', 'orange', 'cyan', 'magenta', 'yellow']
     
@@ -179,4 +179,12 @@ def run(config):
     
     plt.savefig(plot_path, format='svg', dpi=300)
     print(f"Processed plot saved to '{plot_path}'")
-    plt.close()  # Close instead of show to avoid blocking
+    plt.close()
+    
+    # Open the saved plot with default system application (e.g., Edge)
+    import subprocess
+    try:
+        subprocess.Popen(['cmd', '/c', 'start', '', plot_path], shell=False)
+        print(f"Opening plot with default application...")
+    except Exception as e:
+        print(f"Could not open plot automatically: {e}")

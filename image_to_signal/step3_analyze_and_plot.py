@@ -118,14 +118,12 @@ def run(config):
         "analysis_type": "raw",
         
         "roi_parameters": {
-            "roi_height": config['roi_height'],
-            "images_for_366_deg": config['images_for_366_deg']
+            "roi_height": config['roi_height']
         },
         
         "processing_parameters": {
             "apply_moving_average": config.get('APPLY_MOVING_AVERAGE', False),
-            "moving_average_window": config.get('MOVING_AVERAGE_WINDOW', 5),
-            "outlier_std_dev_factor": config['outlier_std_dev_factor']
+            "moving_average_window": config.get('MOVING_AVERAGE_WINDOW', 5)
         },
         
         "image_processing": {
@@ -146,22 +144,16 @@ def run(config):
         json.dump(metadata, f, indent=2)
     print(f"Metadata saved to '{metadata_path}'")
 
-    # --- 4. Filter Outliers ---
-    mean = df[target_column].mean()
-    std = df[target_column].std()
-    factor = config['outlier_std_dev_factor']
-    inliers = df[(df[target_column] >= mean - factor * std) & (df[target_column] <= mean + factor * std)]
-    print(f"Removed {len(df) - len(inliers)} outliers from '{target_column}'.")
-
-    # --- 5. Plot Data ---
+    # --- 4. Plot Data ---
     plt.style.use('seaborn-v0_8-whitegrid')
     fig, ax = plt.subplots(figsize=(12, 7))
+    fig.canvas.manager.set_window_title(f'ROI Analysis - {tool_id}')
     
     # Plot raw data as scattered points if smoothing was applied
     if target_column == 'Smoothed ROI Area':
-        ax.scatter(inliers['Angle (Degrees)'], inliers['ROI Area (Pixels)'], color='lightgray', s=10, label='Raw Data')
+        ax.scatter(df['Angle (Degrees)'], df['ROI Area (Pixels)'], color='lightgray', s=10, label='Raw Data')
 
-    ax.plot(inliers['Angle (Degrees)'], inliers[target_column], marker='.', linestyle='-', markersize=4, label='Smoothed Data')
+    ax.plot(df['Angle (Degrees)'], df[target_column], marker='.', linestyle='-', markersize=4, label='Smoothed Data')
     ax.set_title('Tool ROI Area vs. Rotation Angle', fontsize=18, fontweight='bold')
     ax.set_xlabel('Angle (Degrees)', fontsize=14)
     ax.set_ylabel('Projected Area in ROI (Pixel Count)', fontsize=14)
@@ -180,4 +172,12 @@ def run(config):
     
     plt.savefig(plot_path, format='svg', dpi=300)
     print(f"Plot saved in SVG format to '{plot_path}'")
-    plt.close()  # Close instead of show to avoid blocking in GUI
+    plt.close()
+    
+    # Open the saved plot with default system application (e.g., Edge)
+    import subprocess
+    try:
+        subprocess.Popen(['cmd', '/c', 'start', '', plot_path], shell=False)
+        print(f"Opening plot with default application...")
+    except Exception as e:
+        print(f"Could not open plot automatically: {e}")

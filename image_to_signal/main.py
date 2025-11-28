@@ -67,11 +67,11 @@ CONFIG = {
 
 
     # --- Data Analysis Parameters ---
-    'images_for_366_deg': 363, # Because we used 5 Rev/min and we recorded for 12.2 seconds, therefore we have 366 degrees for each tool.
     'roi_height': 200,
-    'outlier_std_dev_factor': 3.0,
+    'WHITE_RATIO_OUTLIER_THRESHOLD': 0.8,
     'APPLY_MOVING_AVERAGE': True,  
     'MOVING_AVERAGE_WINDOW': 5,
+    'NUMBER_OF_PEAKS': 3,
 
 }
 
