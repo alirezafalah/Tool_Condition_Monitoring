@@ -43,6 +43,14 @@ python src/main.py
 ### Find Optimal Frame Count for 360°
 ```bash
 cd Tool_Condition_Monitoring
-python -m image_to_signal.find_360_by_similarity
+python -m image_to_signal.find360
 ```
-Set `TOOL_ID` in the script to test different tools.
+Edit `TOOL_ID` at top of `find360.py`.
+
+### Rename Raw Images Using Detected Frame Count
+After you know the 360° frame count (e.g. 363):
+```bash
+cd Tool_Condition_Monitoring
+python -m image_to_signal.rename_by_angle --tool tool002 --frames360 363
+```
+Then run the GUI or pipeline steps.

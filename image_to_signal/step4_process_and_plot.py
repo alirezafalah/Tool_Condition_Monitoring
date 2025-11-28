@@ -64,7 +64,7 @@ def run(config):
     df = pd.DataFrame(results)
     
     # --- 1.5. Detect and fix outliers (bad segmentation) ---
-    outlier_threshold = 0.5
+    outlier_threshold = config.get('WHITE_RATIO_OUTLIER_THRESHOLD', 0.8)
     df['is_outlier'] = df['white_ratio'] > outlier_threshold
     num_outliers = df['is_outlier'].sum()
     

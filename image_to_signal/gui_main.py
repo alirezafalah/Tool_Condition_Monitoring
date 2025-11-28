@@ -92,6 +92,7 @@ class ImageToSignalGUI(QMainWindow):
             'images_for_366_deg': 363,
             'roi_height': 200,
             'outlier_std_dev_factor': 3.0,
+            'WHITE_RATIO_OUTLIER_THRESHOLD': 0.8,
             'APPLY_MOVING_AVERAGE': True,
             'MOVING_AVERAGE_WINDOW': 5,
         }
@@ -114,6 +115,7 @@ class ImageToSignalGUI(QMainWindow):
         tabs.addTab(self._create_processing_params_tab(), "⚙️ Processing Parameters")
         tabs.addTab(self._create_analysis_params_tab(), "📊 Analysis Parameters")
         tabs.addTab(self._create_pipeline_tab(), "▶️ Run Pipeline")
+        tabs.addTab(self._create_360_utils_tab(), "🔄 360° Utilities")
         main_layout.addWidget(tabs, stretch=1)
         
         # Status bar
@@ -312,7 +314,8 @@ class ImageToSignalGUI(QMainWindow):
         steps_group = QGroupBox("Pipeline Steps")
         steps_layout = QVBoxLayout()
         
-        self.step1_check = QCheckBox("Step 1: Blur and Rename Images")
+        # Renaming moved to separate utility; update label accordingly
+        self.step1_check = QCheckBox("Step 1: Blur Images")
         self.step2_check = QCheckBox("Step 2: Generate Masks")
         self.step3_check = QCheckBox("Step 3: Analyze ROI and Plot (Raw)")
         self.step4_check = QCheckBox("Step 4: Process and Plot (Normalized & Segmented)")
@@ -414,6 +417,64 @@ class ImageToSignalGUI(QMainWindow):
         layout.addLayout(open_layout)
         
         return widget
+
+    def _create_360_utils_tab(self):
+        """Create dedicated tab for 360° detection and renaming."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(20)
+
+        info = QLabel("Tools to detect 360° frame count and rename raw images based on that count.")
+        info.setStyleSheet("color: #ccc; font-style: italic;")
+        layout.addWidget(info)
+
+        # Two groups side by side - equal width
+        top_row = QHBoxLayout()
+        
+        # Detection group
+        detect_group = QGroupBox("Find 360° Frame Count")
+        dg_layout = QVBoxLayout()
+        find_btn = QPushButton("🔍 Run Similarity Detector\n(find360)")
+        find_btn.setMinimumHeight(60)
+        find_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
+        find_btn.clicked.connect(self._run_find360)
+        dg_layout.addWidget(find_btn)
+        dg_layout.addStretch()
+        detect_group.setLayout(dg_layout)
+        top_row.addWidget(detect_group, 1)
+
+        # Rename group
+        rename_group = QGroupBox("Rename Raw Images")
+        rg_layout = QVBoxLayout()
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Frames for 360°:"))
+        self.frames360_spin = QSpinBox(); self.frames360_spin.setRange(1, 5000); self.frames360_spin.setValue(360)
+        self.frames360_spin.setMinimumWidth(100)
+        row.addWidget(self.frames360_spin)
+        row.addStretch()
+        rg_layout.addLayout(row)
+        rename_btn = QPushButton("📝 Rename Using Above Value")
+        rename_btn.setMinimumHeight(40)
+        rename_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
+        rename_btn.clicked.connect(self._run_rename)
+        rg_layout.addWidget(rename_btn)
+        rename_group.setLayout(rg_layout)
+        top_row.addWidget(rename_group, 1)
+        
+        layout.addLayout(top_row)
+
+        # Live output
+        log_group = QGroupBox("360° Utilities Output")
+        lg_layout = QVBoxLayout()
+        self.utils_log_output = QTextEdit()
+        self.utils_log_output.setReadOnly(True)
+        self.utils_log_output.setStyleSheet("background:#1e1e1e; color:#ccc; font-family:Consolas;")
+        lg_layout.addWidget(self.utils_log_output)
+        log_group.setLayout(lg_layout)
+        layout.addWidget(log_group)
+
+        layout.addStretch()
+        return widget
     
     def _add_spinbox_param(self, layout, label, min_val, max_val, step, default):
         """Helper to add spinbox parameter."""
@@ -485,6 +546,7 @@ class ImageToSignalGUI(QMainWindow):
         self.config['APPLY_MOVING_AVERAGE'] = self.apply_moving_avg.isChecked()
         self.config['MOVING_AVERAGE_WINDOW'] = self.moving_avg_window.value()
         self.config['NUMBER_OF_PEAKS'] = self.num_peaks.value()
+        self.config['WHITE_RATIO_OUTLIER_THRESHOLD'] = self.config.get('WHITE_RATIO_OUTLIER_THRESHOLD', 0.8)
     
     def _run_pipeline(self):
         """Run selected pipeline steps."""
@@ -550,6 +612,94 @@ class ImageToSignalGUI(QMainWindow):
         self.status_label.setText("Ready")
         self.run_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
+
+    def _run_find360(self):
+        """Run find360 with current tool id, show plot window, capture output."""
+        self.utils_log_output.append(f"<span style='color:#4CAF50;'>Starting find360 for {self.tool_id}...</span>")
+        self._start_utility_process([sys.executable, "-u", "-m", "image_to_signal.find360", "--tool", self.tool_id])
+
+    def _run_rename(self):
+        """Run rename_by_angle capturing output, with confirmation if already renamed."""
+        frames360 = self.frames360_spin.value()
+        self.utils_log_output.append(f"<span style='color:#4CAF50;'>Checking mask files for {self.tool_id}...</span>")
+        
+        # First check if already renamed
+        import os
+        # DATA is at CCD_DATA/DATA level (sibling to Tool_Condition_Monitoring)
+        script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Tool_Condition_Monitoring
+        data_root = os.path.join(os.path.dirname(script_dir), "DATA")  # Go up one more level to CCD_DATA, then DATA
+        masks_dir = os.path.join(data_root, "masks", f"{self.tool_id}_final_masks")
+        
+        if os.path.isdir(masks_dir):
+            files = [f for f in os.listdir(masks_dir) if f.lower().endswith(('.tiff', '.tif'))]
+            already_renamed = any('_degrees.tiff' in f for f in files)
+            
+            if already_renamed:
+                from PyQt6.QtWidgets import QMessageBox
+                reply = QMessageBox.question(
+                    self, 
+                    'Files Already Renamed',
+                    f'Mask files in {self.tool_id}_final_masks appear to be already renamed with angle values.\n\nDo you want to rename them again (override)?',
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
+                if reply == QMessageBox.StandardButton.No:
+                    self.utils_log_output.append("<span style='color:#FFA726;'>Rename cancelled by user.</span>")
+                    return
+                # User said yes, add --force flag
+                self.utils_log_output.append(f"<span style='color:#4CAF50;'>Re-renaming mask files for {self.tool_id} with frames360={frames360}...</span>")
+                self._start_utility_process([sys.executable, "-u", "-m", "image_to_signal.rename_by_angle", "--tool", self.tool_id, "--frames360", str(frames360), "--force"])
+                return
+        
+        # Not renamed yet, proceed normally
+        self.utils_log_output.append(f"<span style='color:#4CAF50;'>Renaming mask files for {self.tool_id} with frames360={frames360}...</span>")
+        self._start_utility_process([sys.executable, "-u", "-m", "image_to_signal.rename_by_angle", "--tool", self.tool_id, "--frames360", str(frames360)])
+
+    def _start_utility_process(self, cmd):
+        """Start utility subprocess and stream output to utils log."""
+        try:
+            import subprocess
+            self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+            self._poll_process_output()
+        except Exception as e:
+            self.utils_log_output.append(f"<span style='color:#f44336;'>Error starting process: {e}</span>")
+
+    def _poll_process_output(self):
+        """Poll running process output (non-blocking using QTimer)."""
+        if not hasattr(self, 'proc'):
+            return
+        # Read any available lines first
+        while True:
+            if self.proc.stdout is None:
+                break
+            pos = self.proc.stdout.tell()
+            line = self.proc.stdout.readline()
+            if not line:
+                # restore position if no full line
+                try:
+                    self.proc.stdout.seek(pos)
+                except Exception:
+                    pass
+                break
+            safe = line.rstrip().replace('<', '&lt;').replace('>', '&gt;')
+            self.utils_log_output.append(safe)
+        # If finished, drain remaining buffer then show code
+        if self.proc.poll() is not None:
+            # Drain any residual text
+            residual = self.proc.stdout.read()
+            if residual:
+                for line in residual.splitlines():
+                    safe = line.rstrip().replace('<', '&lt;').replace('>', '&gt;')
+                    self.utils_log_output.append(safe)
+            rc = self.proc.returncode
+            color = '#4CAF50' if rc == 0 else '#f44336'
+            self.utils_log_output.append(f"<span style='color:{color};'>Process finished (code {rc}).</span>")
+            return
+        line = self.proc.stdout.readline()
+        if line:
+            safe = line.rstrip().replace('<', '&lt;').replace('>', '&gt;')
+            self.utils_log_output.append(safe)
+        QTimer.singleShot(50, self._poll_process_output)
     
     def _open_file(self, config_key):
         """Open a file or folder in the default application."""

@@ -22,30 +22,8 @@ def run(config):
         print(f"Error: Raw data directory not found at '{raw_dir}'.")
         return
 
-    # --- Part 1: Rename Raw Files ---
-    # Check if the first file seems to be already renamed to avoid re-running
-    if '_degrees.tiff' not in image_files[0]:
-        print("Renaming raw files to include their rotation angle...")
-        angle_step = 366.0 / config['images_for_366_deg']
-        renamed_files = []
-        for i, filename in enumerate(tqdm(image_files, desc="Renaming Raw Files")):
-            current_angle = i * angle_step
-            new_filename = f"{current_angle:07.2f}_degrees.tiff"
-            
-            old_path = os.path.join(raw_dir, filename)
-            new_path = os.path.join(raw_dir, new_filename)
-            
-            try:
-                os.rename(old_path, new_path)
-                renamed_files.append(new_filename)
-            except OSError as e:
-                print(f"\nError renaming {filename}: {e}")
-                continue
-        # Update image_files to use the new names for the next step
-        image_files = sorted(renamed_files)
-        print("File renaming complete.")
-    else:
-        print("Raw files appear to be already renamed. Skipping renaming.")
+    # Renaming removed; use external script after determining 360 frame count.
+    print("Using existing raw filenames (renaming handled by separate script).")
 
     # --- Part 2: Blur Renamed Files ---
     # Check if blurred images already exist
