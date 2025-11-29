@@ -210,11 +210,18 @@ class MainWindow(QMainWindow):
 
     def _find_tool_files(self, tool_id):
         """Helper to find all necessary file and folder paths for a tool."""
+        print(f"[DEBUG] Finding files for tool_id: {tool_id}")
+        
         # --- UPDATED: Build paths directly using the new constants ---
         svg_path = os.path.join(PROFILES_PATH, f"{tool_id}_raw_plot.svg")
         blurred_folder = os.path.join(BLURRED_PATH, f"{tool_id}_blurred")
         mask_folder = os.path.join(MASKS_PATH, f"{tool_id}_final_masks")
         tools_folder = os.path.join(TOOLS_PATH, tool_id)
+
+        print(f"[DEBUG] SVG path: {svg_path}")
+        print(f"[DEBUG] Blurred folder: {blurred_folder}")
+        print(f"[DEBUG] Mask folder: {mask_folder}")
+        print(f"[DEBUG] Tools folder: {tools_folder}")
 
         if not os.path.isdir(tools_folder):
             tools_folder = None
@@ -224,6 +231,8 @@ class MainWindow(QMainWindow):
             blurred_folder = None
         if not os.path.isdir(mask_folder):
             mask_folder = None
+
+        print(f"[DEBUG] Validated - SVG: {svg_path is not None}, Blurred: {blurred_folder is not None}, Mask: {mask_folder is not None}")
 
         # Find the 4 overview images from the blurred folder
         overview_paths = []

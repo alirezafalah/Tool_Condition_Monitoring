@@ -88,19 +88,38 @@ class ProfileWindow(QMainWindow):
         return super().eventFilter(source, event)
 
     def _create_image_maps(self):
+        print(f"[DEBUG] Creating image maps for tool {self.tool_id}")
+        print(f"[DEBUG] Blurred folder: {self.blurred_folder}")
+        print(f"[DEBUG] Mask folder: {self.mask_folder}")
+        print(f"[DEBUG] Blurred folder exists: {os.path.exists(self.blurred_folder)}")
+        print(f"[DEBUG] Mask folder exists: {os.path.exists(self.mask_folder)}")
+        
         self.raw_image_map = {}
-        for f in os.listdir(self.blurred_folder):
-            match = re.search(r"(\d{4}\.\d{2})", f)
-            if match:
-                self.raw_image_map[float(match.group(1))] = os.path.join(self.blurred_folder, f)
+        if os.path.exists(self.blurred_folder):
+            files = os.listdir(self.blurred_folder)
+            print(f"[DEBUG] Found {len(files)} files in blurred folder")
+            for f in files:
+                match = re.search(r"(\d{4}\.\d{2})", f)
+                if match:
+                    self.raw_image_map[float(match.group(1))] = os.path.join(self.blurred_folder, f)
+            print(f"[DEBUG] Mapped {len(self.raw_image_map)} blurred images")
+        else:
+            print(f"[DEBUG] Blurred folder does not exist!")
         
         self.mask_image_map = {}
-        for f in os.listdir(self.mask_folder):
-            match = re.search(r"(\d{4}\.\d{2})", f)
-            if match:
-                self.mask_image_map[float(match.group(1))] = os.path.join(self.mask_folder, f)
+        if os.path.exists(self.mask_folder):
+            files = os.listdir(self.mask_folder)
+            print(f"[DEBUG] Found {len(files)} files in mask folder")
+            for f in files:
+                match = re.search(r"(\d{4}\.\d{2})", f)
+                if match:
+                    self.mask_image_map[float(match.group(1))] = os.path.join(self.mask_folder, f)
+            print(f"[DEBUG] Mapped {len(self.mask_image_map)} mask images")
+        else:
+            print(f"[DEBUG] Mask folder does not exist!")
             
         self.sorted_degrees = sorted(self.raw_image_map.keys())
+        print(f"[DEBUG] Total sorted degrees: {len(self.sorted_degrees)}")
 
     def _create_left_panel(self, overview_paths):
         left_panel_widget = QWidget()
@@ -260,12 +279,18 @@ class ProfileWindow(QMainWindow):
         self._show_frames_for_degree(closest_deg)
 
     def _show_frames_for_degree(self, degree):
+        print(f"[DEBUG] Showing frames for degree: {degree}")
         raw_path = self.raw_image_map.get(degree)
         mask_path = self.mask_image_map.get(degree)
+        print(f"[DEBUG] Raw path: {raw_path}")
+        print(f"[DEBUG] Mask path: {mask_path}")
+        print(f"[DEBUG] Raw path exists: {os.path.exists(raw_path) if raw_path else 'N/A'}")
+        print(f"[DEBUG] Mask path exists: {os.path.exists(mask_path) if mask_path else 'N/A'}")
 
         if raw_path and mask_path:
             self.image_caption.setText(f"Showing frames for: {degree}°")
             self.degree_input.setText(str(degree))
+            print(f"[DEBUG] Calling image_viewer.load_images({raw_path}, {mask_path})")
             self.image_viewer.load_images(raw_path, mask_path)
             self.current_degree_index = self.sorted_degrees.index(degree)
             
@@ -277,4 +302,5 @@ class ProfileWindow(QMainWindow):
             # Update degree indicator on graph
             self._update_degree_indicator()
         else:
+            print(f"[DEBUG] Missing frame(s) for {degree}°")
             self.image_caption.setText(f"Missing a frame for {degree}°")

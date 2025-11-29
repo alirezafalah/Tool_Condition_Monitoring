@@ -433,88 +433,113 @@ class ImageToSignalGUI(QMainWindow):
 
     def _create_360_utils_tab(self):
         """Create dedicated tab for 360° detection and renaming."""
-        widget = QWidget()
-        layout = QVBoxLayout(widget)
-        layout.setSpacing(20)
+        # Create scroll area to contain everything
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        
+        scroll_content = QWidget()
+        layout = QVBoxLayout(scroll_content)
+        layout.setSpacing(15)
+        layout.setContentsMargins(10, 10, 10, 10)
 
-        info = QLabel("Tools to detect 360° frame count and rename raw images based on that count.")
+        info = QLabel("Tools to detect 360° frame count, remove extra images, and rename frames based on angles.")
         info.setStyleSheet("color: #ccc; font-style: italic;")
+        info.setWordWrap(True)
         layout.addWidget(info)
 
-        # Container for top controls (will be hidden when plot expanded)
-        self.find360_top_container = QWidget()
-        top_row = QHBoxLayout(self.find360_top_container)
+        # Three columns in one row for the controls
+        controls_row = QHBoxLayout()
+        controls_row.setSpacing(15)
         
-        # Detection group
-        detect_group = QGroupBox("Find 360° Frame Count")
+        # First column: Detection
+        detect_group = QGroupBox("1. Find 360° Frame Count")
         dg_layout = QVBoxLayout()
         find_btn = QPushButton("🔍 Run Similarity Detector\n(find360)")
         find_btn.setMinimumHeight(60)
-        find_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
+        find_btn.setMaximumHeight(80)
+        find_btn.setStyleSheet("font-size: 13px; font-weight: bold;")
         find_btn.clicked.connect(self._run_find360)
         dg_layout.addWidget(find_btn)
         dg_layout.addStretch()
         detect_group.setLayout(dg_layout)
-        top_row.addWidget(detect_group, 1)
+        controls_row.addWidget(detect_group, 1)
 
-        # Rename group
-        rename_group = QGroupBox("Rename Raw Images")
+        # Second column: Remove extra images
+        remove_group = QGroupBox("2. Remove Extra Images")
+        remove_layout = QVBoxLayout()
+        self.remove_extra_label = QLabel("Run detector first to see how many extra images need removal.")
+        self.remove_extra_label.setStyleSheet("color: #888; font-style: italic; font-size: 11px;")
+        self.remove_extra_label.setWordWrap(True)
+        self.remove_extra_label.setMinimumHeight(40)
+        remove_layout.addWidget(self.remove_extra_label)
+        self.remove_extra_btn = QPushButton("🗑️ Remove Extra Images")
+        self.remove_extra_btn.setMinimumHeight(40)
+        self.remove_extra_btn.setStyleSheet("font-size: 13px; font-weight: bold; background: #f44336;")
+        self.remove_extra_btn.setEnabled(False)
+        self.remove_extra_btn.clicked.connect(self._remove_extra_images)
+        remove_layout.addWidget(self.remove_extra_btn)
+        remove_layout.addStretch()
+        remove_group.setLayout(remove_layout)
+        controls_row.addWidget(remove_group, 1)
+
+        # Third column: Rename
+        rename_group = QGroupBox("3. Rename All Images by Angle")
         rg_layout = QVBoxLayout()
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Frames for 360°:"))
-        self.frames360_spin = QSpinBox(); self.frames360_spin.setRange(1, 5000); self.frames360_spin.setValue(360)
+        frames_row = QHBoxLayout()
+        frames_row.addWidget(QLabel("Frames for 360°:"))
+        self.frames360_spin = QSpinBox()
+        self.frames360_spin.setRange(1, 5000)
+        self.frames360_spin.setValue(360)
         self.frames360_spin.setMinimumWidth(100)
-        row.addWidget(self.frames360_spin)
-        row.addStretch()
-        rg_layout.addLayout(row)
-        rename_btn = QPushButton("📝 Rename Using Above Value")
+        self.frames360_spin.setSpecialValueText("Auto-detect first")
+        frames_row.addWidget(self.frames360_spin)
+        frames_row.addStretch()
+        rg_layout.addLayout(frames_row)
+        rename_btn = QPushButton("📝 Rename All Images\n(Masks + Blurred)")
         rename_btn.setMinimumHeight(40)
-        rename_btn.setStyleSheet("font-size: 14px; font-weight: bold;")
-        rename_btn.clicked.connect(self._run_rename)
+        rename_btn.setStyleSheet("font-size: 13px; font-weight: bold;")
+        rename_btn.clicked.connect(self._run_rename_all)
         rg_layout.addWidget(rename_btn)
+        rg_layout.addStretch()
         rename_group.setLayout(rg_layout)
-        top_row.addWidget(rename_group, 1)
+        controls_row.addWidget(rename_group, 1)
         
-        layout.addWidget(self.find360_top_container)
+        layout.addLayout(controls_row)
 
-        # Live output + embedded plot below in scroll area
-        log_plot_group = QGroupBox("360° Utilities Output & Plot")
-        lpg_layout = QVBoxLayout()
-        # Expand / collapse button row
-        expand_row = QHBoxLayout()
-        self.find360_expand_btn = QPushButton("⬆ Expand Plot")
-        self.find360_expand_btn.setToolTip("Expand plot to occupy this tab; hides controls above.")
-        self.find360_expand_btn.clicked.connect(self._toggle_find360_expand)
-        expand_row.addWidget(self.find360_expand_btn)
-        expand_row.addStretch()
-        lpg_layout.addLayout(expand_row)
+        # Terminal output with larger height
+        log_label = QLabel("Terminal Output:")
+        log_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        layout.addWidget(log_label)
+        
         self.utils_log_output = QTextEdit()
         self.utils_log_output.setReadOnly(True)
-        self.utils_log_output.setStyleSheet("background:#1e1e1e; color:#ccc; font-family:Consolas;")
-        lpg_layout.addWidget(self.utils_log_output)
+        self.utils_log_output.setStyleSheet("background:#1e1e1e; color:#ccc; font-family:Consolas; font-size: 11px;")
+        self.utils_log_output.setMinimumHeight(200)
+        self.utils_log_output.setMaximumHeight(250)
+        layout.addWidget(self.utils_log_output)
 
-        # Matplotlib embedded figure (lazy import only once)
+        # Plot section with better sizing
+        plot_label = QLabel("360° Detection Plot:")
+        plot_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        layout.addWidget(plot_label)
+        
+        # Matplotlib embedded figure with larger size
         from matplotlib.figure import Figure
         from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
         from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
-        self.find360_fig = Figure(figsize=(6, 3))
+        self.find360_fig = Figure(figsize=(11, 6.5))
         self.find360_canvas = FigureCanvas(self.find360_fig)
-        self.find360_toolbar = NavigationToolbar(self.find360_canvas, widget)
-        # Wrap in scroll area for comfortable vertical navigation if resized larger
-        self.find360_scroll = QScrollArea()
-        self.find360_scroll.setWidgetResizable(True)
-        scroll_inner = QWidget()
-        sv_layout = QVBoxLayout(scroll_inner)
-        sv_layout.addWidget(self.find360_toolbar)
-        sv_layout.addWidget(self.find360_canvas)
-        scroll_inner.setLayout(sv_layout)
-        self.find360_scroll.setWidget(scroll_inner)
-        lpg_layout.addWidget(self.find360_scroll)
-        log_plot_group.setLayout(lpg_layout)
-        layout.addWidget(log_plot_group)
-
+        self.find360_toolbar = NavigationToolbar(self.find360_canvas, scroll_content)
+        
+        layout.addWidget(self.find360_toolbar)
+        layout.addWidget(self.find360_canvas)
+        
         layout.addStretch()
-        return widget
+        
+        scroll.setWidget(scroll_content)
+        return scroll
     
     def _add_spinbox_param(self, layout, label, min_val, max_val, step, default):
         """Helper to add spinbox parameter."""
@@ -597,9 +622,10 @@ class ImageToSignalGUI(QMainWindow):
         config['RAW_DIR'] = os.path.join(data_root, 'tools', tool_id)
         config['BLURRED_DIR'] = os.path.join(data_root, 'blurred', f'{tool_id}_blurred')
         config['FINAL_MASKS_DIR'] = os.path.join(data_root, 'masks', f'{tool_id}_final_masks')
-        config['AREA_VS_ANGLE_CSV'] = os.path.join(data_root, '1d_profiles', f'{tool_id}_area_vs_angle.csv')
-        config['PROCESSED_CSV_PATH'] = os.path.join(data_root, '1d_profiles', f'{tool_id}_area_vs_angle_processed.csv')
-        config['ROI_PLOT_PATH'] = os.path.join(data_root, '1d_profiles', f'{tool_id}_roi_plot.svg')
+        # Standardized naming convention for outputs
+        config['ROI_CSV_PATH'] = os.path.join(data_root, '1d_profiles', f'{tool_id}_raw_data.csv')
+        config['ROI_PLOT_PATH'] = os.path.join(data_root, '1d_profiles', f'{tool_id}_raw_plot.svg')
+        config['PROCESSED_CSV_PATH'] = os.path.join(data_root, '1d_profiles', f'{tool_id}_processed_data.csv')
         config['PROCESSED_PLOT_PATH'] = os.path.join(data_root, '1d_profiles', f'{tool_id}_processed_plot.svg')
         
         return config
@@ -714,48 +740,158 @@ class ImageToSignalGUI(QMainWindow):
         # Temporarily enable JSON for GUI embedding; find360 won't save JSON by default anymore
         self._start_utility_process([sys.executable, "-u", "-m", "image_to_signal.find360", "--tool", self.tool_id, "--no-plot", "--write-json"]) 
 
-    def _run_rename(self):
-        """Run rename_by_angle capturing output, with confirmation if already renamed."""
-        frames360 = self.frames360_spin.value()
-        self.utils_log_output.append(f"<span style='color:#4CAF50;'>Checking mask files for {self.tool_id}...</span>")
+    def _remove_extra_images(self):
+        """Remove extra images from both masks and blurred folders."""
+        from PyQt6.QtWidgets import QMessageBox
         
-        # First check if already renamed
-        import os
-        # DATA is at CCD_DATA/DATA level (sibling to Tool_Condition_Monitoring)
-        script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Tool_Condition_Monitoring
-        data_root = os.path.join(os.path.dirname(script_dir), "DATA")  # Go up one more level to CCD_DATA, then DATA
-        masks_dir = os.path.join(data_root, "masks", f"{self.tool_id}_final_masks")
+        result = getattr(self, '_last_find360_result', None)
+        if not result:
+            QMessageBox.warning(self, "No Detection Data", "Please run the similarity detector first.")
+            return
+        
+        best_frame = result.get('best_frame_number')
+        if not best_frame:
+            QMessageBox.warning(self, "Invalid Data", "Detection result doesn't contain frame count.")
+            return
+        
+        tool_id = result.get('tool_id', self.tool_id)
+        masks_dir = os.path.join(self.DATA_ROOT, 'masks', f"{tool_id}_final_masks")
+        blurred_dir = os.path.join(self.DATA_ROOT, 'blurred', f"{tool_id}_blurred")
+        
+        # Count files to remove
+        mask_files = []
+        blurred_files = []
+        if os.path.isdir(masks_dir):
+            mask_files = sorted([f for f in os.listdir(masks_dir) if f.lower().endswith(('.tiff', '.tif'))])
+        if os.path.isdir(blurred_dir):
+            blurred_files = sorted([f for f in os.listdir(blurred_dir) if f.lower().endswith(('.tiff', '.tif'))])
+        
+        mask_extra = len(mask_files) - best_frame if len(mask_files) > best_frame else 0
+        blurred_extra = len(blurred_files) - best_frame if len(blurred_files) > best_frame else 0
+        
+        if mask_extra == 0 and blurred_extra == 0:
+            QMessageBox.information(self, "No Extra Images", "No extra images found to remove.")
+            return
+        
+        # Confirm deletion
+        msg = f"This will permanently delete:\n\n"
+        if mask_extra > 0:
+            msg += f"• {mask_extra} image(s) from masks folder\n"
+        if blurred_extra > 0:
+            msg += f"• {blurred_extra} image(s) from blurred folder\n"
+        msg += f"\n(Removing last {max(mask_extra, blurred_extra)} files from each folder)\n\nContinue?"
+        
+        reply = QMessageBox.question(
+            self, 
+            'Confirm Deletion',
+            msg,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.No:
+            self.utils_log_output.append("<span style='color:#FFA726;'>Deletion cancelled by user.</span>")
+            return
+        
+        # Delete extra files
+        deleted_count = 0
+        try:
+            if mask_extra > 0:
+                for f in mask_files[-mask_extra:]:
+                    os.remove(os.path.join(masks_dir, f))
+                    deleted_count += 1
+                self.utils_log_output.append(f"<span style='color:#4CAF50;'>✓ Deleted {mask_extra} file(s) from masks folder</span>")
+            
+            if blurred_extra > 0:
+                for f in blurred_files[-blurred_extra:]:
+                    os.remove(os.path.join(blurred_dir, f))
+                    deleted_count += 1
+                self.utils_log_output.append(f"<span style='color:#4CAF50;'>✓ Deleted {blurred_extra} file(s) from blurred folder</span>")
+            
+            self.utils_log_output.append(f"<span style='color:#4CAF50;'>✓ Total: {deleted_count} file(s) deleted successfully</span>")
+            
+            # Update button state
+            self.remove_extra_btn.setEnabled(False)
+            self.remove_extra_label.setText("Extra images removed. Image count now matches 360° frame count.")
+            self.remove_extra_label.setStyleSheet("color: #4CAF50; font-style: italic;")
+            
+            QMessageBox.information(self, "Success", f"Successfully deleted {deleted_count} file(s).")
+            
+        except Exception as e:
+            self.utils_log_output.append(f"<span style='color:#f44336;'>✗ Error during deletion: {e}</span>")
+            QMessageBox.critical(self, "Error", f"Failed to delete files:\n{str(e)}")
+    
+    def _run_rename_all(self):
+        """Run rename_by_angle for both masks and blurred folders."""
+        frames360 = self.frames360_spin.value()
+        
+        # Check if already renamed
+        masks_dir = os.path.join(self.DATA_ROOT, "masks", f"{self.tool_id}_final_masks")
+        blurred_dir = os.path.join(self.DATA_ROOT, "blurred", f"{self.tool_id}_blurred")
+        
+        masks_already_renamed = False
+        blurred_already_renamed = False
         
         if os.path.isdir(masks_dir):
             files = [f for f in os.listdir(masks_dir) if f.lower().endswith(('.tiff', '.tif'))]
-            already_renamed = any('_degrees.tiff' in f for f in files)
-            
-            if already_renamed:
-                from PyQt6.QtWidgets import QMessageBox
-                reply = QMessageBox.question(
-                    self, 
-                    'Files Already Renamed',
-                    f'Mask files in {self.tool_id}_final_masks appear to be already renamed with angle values.\n\nDo you want to rename them again (override)?',
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No
-                )
-                if reply == QMessageBox.StandardButton.No:
-                    self.utils_log_output.append("<span style='color:#FFA726;'>Rename cancelled by user.</span>")
-                    return
-                # User said yes, add --force flag
-                self.utils_log_output.append(f"<span style='color:#4CAF50;'>Re-renaming mask files for {self.tool_id} with frames360={frames360}...</span>")
-                self._start_utility_process([sys.executable, "-u", "-m", "image_to_signal.rename_by_angle", "--tool", self.tool_id, "--frames360", str(frames360), "--force"])
-                return
+            masks_already_renamed = any('_degrees.tiff' in f for f in files)
         
-        # Not renamed yet, proceed normally
-        self.utils_log_output.append(f"<span style='color:#4CAF50;'>Renaming mask files for {self.tool_id} with frames360={frames360}...</span>")
-        self._start_utility_process([sys.executable, "-u", "-m", "image_to_signal.rename_by_angle", "--tool", self.tool_id, "--frames360", str(frames360)])
+        if os.path.isdir(blurred_dir):
+            files = [f for f in os.listdir(blurred_dir) if f.lower().endswith(('.tiff', '.tif'))]
+            blurred_already_renamed = any('_degrees.tiff' in f for f in files)
+        
+        if masks_already_renamed or blurred_already_renamed:
+            from PyQt6.QtWidgets import QMessageBox
+            msg = "Images appear to be already renamed with angle values:\n\n"
+            if masks_already_renamed:
+                msg += "• Masks folder already renamed\n"
+            if blurred_already_renamed:
+                msg += "• Blurred folder already renamed\n"
+            msg += "\nDo you want to rename them again (override)?"
+            
+            reply = QMessageBox.question(
+                self, 
+                'Files Already Renamed',
+                msg,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.No:
+                self.utils_log_output.append("<span style='color:#FFA726;'>Rename cancelled by user.</span>")
+                return
+            force_flag = ["--force"]
+        else:
+            force_flag = []
+        
+        # Store state for sequential execution
+        self._rename_queue = ['masks', 'blurred']
+        self._rename_frames360 = frames360
+        self._rename_force_flag = force_flag
+        
+        self.utils_log_output.append(f"<span style='color:#4CAF50;'>Renaming all images for {self.tool_id} with frames360={frames360}...</span>")
+        self._run_next_rename()
+    
+    def _run_next_rename(self):
+        """Run the next folder rename in the queue."""
+        if not self._rename_queue:
+            self.utils_log_output.append(f"<span style='color:#4CAF50;'>✓ All folders renamed successfully!</span>")
+            return
+        
+        folder = self._rename_queue.pop(0)
+        self.utils_log_output.append(f"<span style='color:#2196F3;'>→ Renaming {folder} folder...</span>")
+        
+        # Start the rename process for this folder
+        cmd = [sys.executable, "-u", "-m", "image_to_signal.rename_by_angle", 
+               "--tool", self.tool_id, "--frames360", str(self._rename_frames360),
+               "--folder", folder] + self._rename_force_flag
+        self._start_utility_process(cmd, on_complete=self._run_next_rename)
 
-    def _start_utility_process(self, cmd):
+    def _start_utility_process(self, cmd, on_complete=None):
         """Start utility subprocess and stream output to utils log."""
         try:
             import subprocess
             self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+            self._proc_on_complete = on_complete
             self._poll_process_output()
         except Exception as e:
             self.utils_log_output.append(f"<span style='color:#f44336;'>Error starting process: {e}</span>")
@@ -790,9 +926,16 @@ class ImageToSignalGUI(QMainWindow):
             rc = self.proc.returncode
             color = '#4CAF50' if rc == 0 else '#f44336'
             self.utils_log_output.append(f"<span style='color:{color};'>Process finished (code {rc}).</span>")
+            
+            # Handle completion callback
             if rc == 0 and hasattr(self, '_pending_find360_json'):
                 # Defer loading slightly in case file buffer not flushed yet
                 QTimer.singleShot(120, self._load_find360_json_and_plot)
+            elif hasattr(self, '_proc_on_complete') and self._proc_on_complete:
+                # Execute the completion callback
+                callback = self._proc_on_complete
+                self._proc_on_complete = None
+                QTimer.singleShot(100, callback)
             return
         line = self.proc.stdout.readline()
         if line:
@@ -816,6 +959,35 @@ class ImageToSignalGUI(QMainWindow):
             self.utils_log_output.append(f"<span style='color:#f44336;'>Failed JSON read: {e}</span>")
             return
 
+        # Store detection results for later use
+        self._last_find360_result = data
+        best_frame = data.get('best_frame_number', None)
+        
+        # Update frames360 spinbox with detected value
+        if best_frame is not None:
+            self.frames360_spin.setValue(best_frame)
+            self.utils_log_output.append(f"<span style='color:#4CAF50;'>✓ Auto-set frames for 360° to {best_frame}</span>")
+        
+        # Update remove button based on extra images
+        masks_dir = os.path.join(self.DATA_ROOT, 'masks', f"{data.get('tool_id','')}_final_masks")
+        blurred_dir = os.path.join(self.DATA_ROOT, 'blurred', f"{data.get('tool_id','')}_blurred")
+        
+        extra_count = 0
+        if os.path.isdir(masks_dir):
+            mask_files = [f for f in os.listdir(masks_dir) if f.lower().endswith(('.tiff', '.tif'))]
+            if best_frame and len(mask_files) > best_frame:
+                extra_count = len(mask_files) - best_frame
+        
+        if extra_count > 0:
+            self.remove_extra_label.setText(f"Detected {extra_count} extra image(s) beyond 360° cycle.")
+            self.remove_extra_label.setStyleSheet("color: #FFA726; font-weight: bold;")
+            self.remove_extra_btn.setText(f"🗑️ Remove {extra_count} Extra Image(s)")
+            self.remove_extra_btn.setEnabled(True)
+        else:
+            self.remove_extra_label.setText("No extra images detected. Image count matches 360° frame count.")
+            self.remove_extra_label.setStyleSheet("color: #4CAF50; font-style: italic;")
+            self.remove_extra_btn.setEnabled(False)
+
         # Clear and redraw figure
         self.find360_fig.clear()
         ax_main = self.find360_fig.add_subplot(2, 2, (1, 3))
@@ -825,7 +997,6 @@ class ImageToSignalGUI(QMainWindow):
         nums = data.get('frame_numbers', [])
         white_i = data.get('white_i_series', [])
         white_j = data.get('white_j_series', [])
-        best_frame = data.get('best_frame_number', None)
         first_white = data.get('first_white', None)
         second_white = data.get('second_white', None)
 
@@ -847,7 +1018,6 @@ class ImageToSignalGUI(QMainWindow):
 
         # Attempt side images
         try:
-            masks_dir = os.path.join(self.DATA_ROOT, 'masks', f"{data.get('tool_id','')}_final_masks")
             mask_files = sorted([f for f in os.listdir(masks_dir) if f.lower().endswith(('.tiff', '.tif'))])
             if len(mask_files) >= 2:
                 from PIL import Image
@@ -872,32 +1042,14 @@ class ImageToSignalGUI(QMainWindow):
         self.find360_fig.tight_layout()
         self.find360_canvas.draw()
         self.utils_log_output.append("<span style='color:#4CAF50;'>Embedded plot updated.</span>")
+        
+        # Clean up JSON file after loading
         try:
+            if os.path.isfile(path):
+                os.remove(path)
             del self._pending_find360_json
         except Exception:
             pass
-
-    def _toggle_find360_expand(self):
-        """Toggle expanded view of the find360 plot within the tab."""
-        expanded = getattr(self, 'find360_expanded', False)
-        # Flip state
-        expanded = not expanded
-        self.find360_expanded = expanded
-        if expanded:
-            # Hide top controls, enlarge figure
-            self.find360_top_container.setVisible(False)
-            self.find360_expand_btn.setText("⬇ Collapse Plot")
-            # Enlarge figure canvas (adjust inches then redraw)
-            self.find360_fig.set_size_inches(10, 6, forward=True)
-            self.find360_canvas.draw()
-            self.utils_log_output.append("<span style='color:#4CAF50;'>Plot expanded.</span>")
-        else:
-            # Show controls again, shrink figure
-            self.find360_top_container.setVisible(True)
-            self.find360_expand_btn.setText("⬆ Expand Plot")
-            self.find360_fig.set_size_inches(6, 3, forward=True)
-            self.find360_canvas.draw()
-            self.utils_log_output.append("<span style='color:#4CAF50;'>Plot collapsed.</span>")
     
     def _open_file(self, config_key):
         """Open a file or folder in the default application."""
