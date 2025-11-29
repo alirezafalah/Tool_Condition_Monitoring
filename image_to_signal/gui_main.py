@@ -7,7 +7,7 @@ import warnings
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                             QGroupBox, QLabel, QPushButton, QLineEdit, QSpinBox, QDoubleSpinBox,
                             QCheckBox, QComboBox, QProgressBar, QTextEdit, QTabWidget,
-                            QFileDialog, QFrame, QScrollArea)
+                            QFileDialog, QFrame, QScrollArea, QDialog, QListWidget, QListWidgetItem)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QColor, QPalette
 
@@ -137,9 +137,15 @@ class ImageToSignalGUI(QMainWindow):
         # Tool ID selector
         layout.addWidget(QLabel("Tool ID:"))
         self.tool_id_input = QLineEdit(self.tool_id)
-        self.tool_id_input.setMaximumWidth(120)
+        self.tool_id_input.setMaximumWidth(200)
         self.tool_id_input.textChanged.connect(self._on_tool_id_changed)
         layout.addWidget(self.tool_id_input)
+        
+        # Multi-select button
+        multi_select_btn = QPushButton("📋 Select Multiple")
+        multi_select_btn.setMaximumWidth(120)
+        multi_select_btn.clicked.connect(self._open_tool_selector)
+        layout.addWidget(multi_select_btn)
         
         return header
     
@@ -544,6 +550,24 @@ class ImageToSignalGUI(QMainWindow):
         self.config['MOVING_AVERAGE_WINDOW'] = self.moving_avg_window.value()
         self.config['NUMBER_OF_PEAKS'] = self.num_peaks.value()
     
+    def _build_config_for_tool(self, tool_id):
+        """Build a complete config dictionary for a specific tool ID."""
+        config = self.config.copy()
+        config['tool_id'] = tool_id
+        
+        # Update paths for this specific tool
+        data_root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "DATA")
+        config['DATA_ROOT'] = data_root
+        config['RAW_DIR'] = os.path.join(data_root, 'tools', tool_id)
+        config['BLURRED_DIR'] = os.path.join(data_root, 'blurred', f'{tool_id}_blurred')
+        config['FINAL_MASKS_DIR'] = os.path.join(data_root, 'masks', f'{tool_id}_final_masks')
+        config['AREA_VS_ANGLE_CSV'] = os.path.join(data_root, '1d_profiles', f'{tool_id}_area_vs_angle.csv')
+        config['PROCESSED_CSV_PATH'] = os.path.join(data_root, '1d_profiles', f'{tool_id}_area_vs_angle_processed.csv')
+        config['ROI_PLOT_PATH'] = os.path.join(data_root, '1d_profiles', f'{tool_id}_roi_plot.svg')
+        config['PROCESSED_PLOT_PATH'] = os.path.join(data_root, '1d_profiles', f'{tool_id}_processed_plot.svg')
+        
+        return config
+    
     def _run_pipeline(self):
         """Run selected pipeline steps."""
         self._update_config_from_ui()
@@ -562,28 +586,58 @@ class ImageToSignalGUI(QMainWindow):
             self.log_output.append("<span style='color: orange;'>⚠️ No steps selected!</span>")
             return
         
+        # Parse tool IDs (comma-separated)
+        tool_ids = [t.strip() for t in self.tool_id.split(',') if t.strip()]
+        if not tool_ids:
+            self.log_output.append("<span style='color: orange;'>⚠️ No tool ID specified!</span>")
+            return
+        
         self.log_output.clear()
-        self.log_output.append(f"<span style='color: #4CAF50;'>🚀 Starting pipeline for {self.tool_id}...</span>")
-        self.log_output.append(f"<span style='color: #888;'>Running {len(steps)} step(s)</span>")
+        if len(tool_ids) == 1:
+            self.log_output.append(f"<span style='color: #4CAF50;'>🚀 Starting pipeline for {tool_ids[0]}...</span>")
+        else:
+            self.log_output.append(f"<span style='color: #4CAF50;'>🚀 Starting pipeline for {len(tool_ids)} tools...</span>")
+            self.log_output.append(f"<span style='color: #888;'>Tools: {', '.join(tool_ids)}</span>")
+        self.log_output.append(f"<span style='color: #888;'>Running {len(steps)} step(s) per tool</span>")
         
         self.run_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
         
-        # Run steps sequentially
+        # Run steps sequentially for each tool
         self.current_step = 0
+        self.current_tool_index = 0
+        self.tools_to_process = tool_ids
         self.steps_to_run = steps
+        
+        # Build config for first tool
+        self.config = self._build_config_for_tool(tool_ids[0])
+        
         self._run_next_step()
     
     def _run_next_step(self):
         """Run the next step in the queue."""
+        # Check if we finished all steps for current tool
         if self.current_step >= len(self.steps_to_run):
-            self._pipeline_finished()
-            return
+            # Move to next tool
+            self.current_tool_index += 1
+            if self.current_tool_index >= len(self.tools_to_process):
+                # All tools processed
+                self._pipeline_finished()
+                return
+            
+            # Start next tool
+            self.current_step = 0
+            current_tool = self.tools_to_process[self.current_tool_index]
+            self.log_output.append(f"\n<span style='color: #FFA726;'>📦 Processing tool {self.current_tool_index + 1}/{len(self.tools_to_process)}: {current_tool}</span>")
+            # Update config with new tool_id
+            self.config['tool_id'] = current_tool
+            self.config = self._build_config_for_tool(current_tool)
         
         step_name, step_func = self.steps_to_run[self.current_step]
-        self.log_output.append(f"\n<span style='color: #2196F3;'>▶️ {step_name}...</span>")
+        current_tool = self.tools_to_process[self.current_tool_index]
+        self.log_output.append(f"\n<span style='color: #2196F3;'>▶️ {step_name} for {current_tool}...</span>")
         self.log_output.append(f"<span style='color: #888;'>(Check terminal for detailed progress)</span>")
-        self.status_label.setText(f"Running: {step_name}")
+        self.status_label.setText(f"Running: {step_name} ({current_tool})")
         
         # Run in thread
         self.worker = ProcessingThread(step_func, self.config)
@@ -600,11 +654,14 @@ class ImageToSignalGUI(QMainWindow):
     def _step_error(self, message):
         """Handle step error."""
         self.log_output.append(f"<span style='color: #f44336;'>✗ {message}</span>")
-        self._pipeline_finished()
+        self.log_output.append(f"<span style='color: #FFA726;'>⚠️ Skipping remaining steps for this tool due to error.</span>")
+        # Skip to next tool
+        self.current_step = len(self.steps_to_run)
+        QTimer.singleShot(100, self._run_next_step)
     
     def _pipeline_finished(self):
         """Handle pipeline completion."""
-        self.log_output.append("\n<span style='color: #4CAF50;'>✓ Pipeline finished!</span>")
+        self.log_output.append(f"\n<span style='color: #4CAF50;'>✓ Pipeline finished! Processed {len(self.tools_to_process)} tool(s).</span>")
         self.status_label.setText("Ready")
         self.run_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
@@ -802,6 +859,145 @@ class ImageToSignalGUI(QMainWindow):
                 padding: 10px;
             }
         """)
+    
+    def _open_tool_selector(self):
+        """Open dialog for multi-selecting tool IDs."""
+        # Read available tool IDs from metadata CSV
+        import csv
+        data_root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", "DATA")
+        metadata_path = os.path.join(data_root, "tools_metadata.csv")
+        
+        available_tools = []
+        if os.path.exists(metadata_path):
+            try:
+                with open(metadata_path, 'r') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        tool_id = row.get('tool_id', '')
+                        if tool_id:
+                            available_tools.append(tool_id)
+            except Exception as e:
+                print(f"Error reading metadata: {e}")
+        
+        if not available_tools:
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "No Tools Found", "Could not find any tools in tools_metadata.csv")
+            return
+        
+        # Open selector dialog
+        dialog = ToolSelectorDialog(available_tools, self.tool_id_input.text(), self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            selected = dialog.get_selected_tools()
+            if selected:
+                self.tool_id_input.setText(", ".join(selected))
+
+
+class ToolSelectorDialog(QDialog):
+    """Dialog for selecting multiple tool IDs with checkboxes."""
+    
+    def __init__(self, available_tools, current_selection, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Select Tool IDs")
+        self.setMinimumWidth(400)
+        self.setMinimumHeight(500)
+        
+        # Apply dark theme styling with green checkmarks
+        self.setStyleSheet("""
+            QListWidget {
+                background: #2d2d2d;
+                color: #e0e0e0;
+                border: 1px solid #555;
+            }
+            QListWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #3d3d3d;
+            }
+            QListWidget::item:hover {
+                background: #3d3d3d;
+            }
+            QListWidget::item:selected {
+                background: #4d4d4d;
+            }
+            QListWidget::indicator {
+                width: 18px;
+                height: 18px;
+                border: 2px solid #555;
+                border-radius: 3px;
+                background: #1e1e1e;
+            }
+            QListWidget::indicator:checked {
+                background: #4CAF50;
+                border-color: #4CAF50;
+                image: url(none);
+            }
+            QListWidget::indicator:checked::after {
+                content: "✓";
+                color: white;
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        
+        # Info label
+        info = QLabel("Select tools to process (Shift for range, Ctrl for individual):")
+        layout.addWidget(info)
+        
+        # Select/Deselect All buttons
+        btn_layout = QHBoxLayout()
+        select_all_btn = QPushButton("Select All")
+        select_all_btn.clicked.connect(self._select_all)
+        deselect_all_btn = QPushButton("Deselect All")
+        deselect_all_btn.clicked.connect(self._deselect_all)
+        btn_layout.addWidget(select_all_btn)
+        btn_layout.addWidget(deselect_all_btn)
+        btn_layout.addStretch()
+        layout.addLayout(btn_layout)
+        
+        # List widget with checkboxes
+        self.list_widget = QListWidget()
+        self.list_widget.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        
+        # Parse current selection
+        current_tools = [t.strip() for t in current_selection.split(',') if t.strip()]
+        
+        # Add tools as checkable items
+        for tool_id in sorted(available_tools):
+            item = QListWidgetItem(tool_id)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if tool_id in current_tools else Qt.CheckState.Unchecked)
+            self.list_widget.addItem(item)
+        
+        layout.addWidget(self.list_widget)
+        
+        # OK/Cancel buttons
+        btn_box_layout = QHBoxLayout()
+        ok_btn = QPushButton("OK")
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_box_layout.addStretch()
+        btn_box_layout.addWidget(ok_btn)
+        btn_box_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_box_layout)
+    
+    def _select_all(self):
+        """Check all items."""
+        for i in range(self.list_widget.count()):
+            self.list_widget.item(i).setCheckState(Qt.CheckState.Checked)
+    
+    def _deselect_all(self):
+        """Uncheck all items."""
+        for i in range(self.list_widget.count()):
+            self.list_widget.item(i).setCheckState(Qt.CheckState.Unchecked)
+    
+    def get_selected_tools(self):
+        """Return list of checked tool IDs."""
+        selected = []
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            if item.checkState() == Qt.CheckState.Checked:
+                selected.append(item.text())
+        return selected
 
 
 def main():
