@@ -189,7 +189,7 @@ class MainWindow(QMainWindow):
             self.table.setCellWidget(row, 10, status_combo)
 
             tool_id = tool.get("tool_id")
-            svg_file_path = os.path.join(PROFILES_PATH, f"{tool_id}_area_vs_angle_plot.svg")
+            svg_file_path = os.path.join(PROFILES_PATH, f"{tool_id}_raw_plot.svg")
             svg_exists = os.path.exists(svg_file_path)
             
             profile_btn = QPushButton("View Profile" if svg_exists else "Data Missing")
@@ -211,7 +211,7 @@ class MainWindow(QMainWindow):
     def _find_tool_files(self, tool_id):
         """Helper to find all necessary file and folder paths for a tool."""
         # --- UPDATED: Build paths directly using the new constants ---
-        svg_path = os.path.join(PROFILES_PATH, f"{tool_id}_area_vs_angle_plot.svg")
+        svg_path = os.path.join(PROFILES_PATH, f"{tool_id}_raw_plot.svg")
         blurred_folder = os.path.join(BLURRED_PATH, f"{tool_id}_blurred")
         mask_folder = os.path.join(MASKS_PATH, f"{tool_id}_final_masks")
         tools_folder = os.path.join(TOOLS_PATH, tool_id)

@@ -31,10 +31,10 @@ CONFIG = {
     'RAW_DIR': os.path.join(DATA_ROOT, 'tools', TOOL_ID),
     'BLURRED_DIR': os.path.join(DATA_ROOT, 'blurred', f'{TOOL_ID}_blurred'),
     'FINAL_MASKS_DIR': os.path.join(DATA_ROOT, 'masks', f'{TOOL_ID}_final_masks'),
-    'ROI_CSV_PATH': os.path.join(DATA_ROOT, '1d_profiles', f'{TOOL_ID}_area_vs_angle.csv'),
-    'ROI_PLOT_PATH': os.path.join(DATA_ROOT, '1d_profiles', f'{TOOL_ID}_area_vs_angle_plot.svg'),
-    'PROCESSED_CSV_PATH': os.path.join(DATA_ROOT, '1d_profiles', f'{TOOL_ID}_area_vs_angle_processed.csv'),
-    'PROCESSED_PLOT_PATH': os.path.join(DATA_ROOT, '1d_profiles', f'{TOOL_ID}_area_vs_angle_processed_plot.svg'),
+    'ROI_CSV_PATH': os.path.join(DATA_ROOT, '1d_profiles', f'{TOOL_ID}_raw_data.csv'),
+    'ROI_PLOT_PATH': os.path.join(DATA_ROOT, '1d_profiles', f'{TOOL_ID}_raw_plot.svg'),
+    'PROCESSED_CSV_PATH': os.path.join(DATA_ROOT, '1d_profiles', f'{TOOL_ID}_processed_data.csv'),
+    'PROCESSED_PLOT_PATH': os.path.join(DATA_ROOT, '1d_profiles', f'{TOOL_ID}_processed_plot.svg'),
     'BACKGROUND_IMAGE_PATH': os.path.join(DATA_ROOT, 'backgrounds', 'paper_background.tiff'),
 
     # --- Processing Parameters (for Step 4) ---

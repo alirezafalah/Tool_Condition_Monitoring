@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                             QCheckBox, QComboBox, QProgressBar, QTextEdit, QTabWidget,
                             QFileDialog, QFrame, QScrollArea, QDialog, QListWidget, QListWidgetItem)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QColor, QPalette
+from PyQt6.QtGui import QFont, QColor, QPalette, QIcon
 
 # Suppress matplotlib threading warnings
 warnings.filterwarnings('ignore', message='Starting a Matplotlib GUI outside of the main thread')
@@ -48,8 +48,17 @@ class ImageToSignalGUI(QMainWindow):
         self.setWindowTitle("Image-to-Signal Processing Pipeline")
         self.setGeometry(100, 100, 1200, 800)
         
-        # Calculate DATA_ROOT
+        # Set window icon
         SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        icon_path = os.path.join(SCRIPT_DIR, "app_icon.ico")
+        print(f"Looking for icon at: {icon_path}")
+        print(f"Icon exists: {os.path.isfile(icon_path)}")
+        if os.path.isfile(icon_path):
+            icon = QIcon(icon_path)
+            self.setWindowIcon(icon)
+            print(f"Icon loaded, null: {icon.isNull()}")
+        
+        # Calculate DATA_ROOT
         self.DATA_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "DATA"))
         
         # Initialize config
@@ -66,10 +75,10 @@ class ImageToSignalGUI(QMainWindow):
             'RAW_DIR': os.path.join(self.DATA_ROOT, 'tools', self.tool_id),
             'BLURRED_DIR': os.path.join(self.DATA_ROOT, 'blurred', f'{self.tool_id}_blurred'),
             'FINAL_MASKS_DIR': os.path.join(self.DATA_ROOT, 'masks', f'{self.tool_id}_final_masks'),
-            'ROI_CSV_PATH': os.path.join(self.DATA_ROOT, '1d_profiles', f'{self.tool_id}_area_vs_angle.csv'),
-            'ROI_PLOT_PATH': os.path.join(self.DATA_ROOT, '1d_profiles', f'{self.tool_id}_area_vs_angle_plot.svg'),
-            'PROCESSED_CSV_PATH': os.path.join(self.DATA_ROOT, '1d_profiles', f'{self.tool_id}_area_vs_angle_processed.csv'),
-            'PROCESSED_PLOT_PATH': os.path.join(self.DATA_ROOT, '1d_profiles', f'{self.tool_id}_area_vs_angle_processed_plot.svg'),
+            'ROI_CSV_PATH': os.path.join(self.DATA_ROOT, '1d_profiles', f'{self.tool_id}_raw_data.csv'),
+            'ROI_PLOT_PATH': os.path.join(self.DATA_ROOT, '1d_profiles', f'{self.tool_id}_raw_plot.svg'),
+            'PROCESSED_CSV_PATH': os.path.join(self.DATA_ROOT, '1d_profiles', f'{self.tool_id}_processed_data.csv'),
+            'PROCESSED_PLOT_PATH': os.path.join(self.DATA_ROOT, '1d_profiles', f'{self.tool_id}_processed_plot.svg'),
             'BACKGROUND_IMAGE_PATH': os.path.join(self.DATA_ROOT, 'backgrounds', 'paper_background.tiff'),
             'NUMBER_OF_PEAKS': 2,
             'blur_kernel': 13,
@@ -432,8 +441,9 @@ class ImageToSignalGUI(QMainWindow):
         info.setStyleSheet("color: #ccc; font-style: italic;")
         layout.addWidget(info)
 
-        # Two groups side by side - equal width
-        top_row = QHBoxLayout()
+        # Container for top controls (will be hidden when plot expanded)
+        self.find360_top_container = QWidget()
+        top_row = QHBoxLayout(self.find360_top_container)
         
         # Detection group
         detect_group = QGroupBox("Find 360° Frame Count")
@@ -465,17 +475,43 @@ class ImageToSignalGUI(QMainWindow):
         rename_group.setLayout(rg_layout)
         top_row.addWidget(rename_group, 1)
         
-        layout.addLayout(top_row)
+        layout.addWidget(self.find360_top_container)
 
-        # Live output
-        log_group = QGroupBox("360° Utilities Output")
-        lg_layout = QVBoxLayout()
+        # Live output + embedded plot below in scroll area
+        log_plot_group = QGroupBox("360° Utilities Output & Plot")
+        lpg_layout = QVBoxLayout()
+        # Expand / collapse button row
+        expand_row = QHBoxLayout()
+        self.find360_expand_btn = QPushButton("⬆ Expand Plot")
+        self.find360_expand_btn.setToolTip("Expand plot to occupy this tab; hides controls above.")
+        self.find360_expand_btn.clicked.connect(self._toggle_find360_expand)
+        expand_row.addWidget(self.find360_expand_btn)
+        expand_row.addStretch()
+        lpg_layout.addLayout(expand_row)
         self.utils_log_output = QTextEdit()
         self.utils_log_output.setReadOnly(True)
         self.utils_log_output.setStyleSheet("background:#1e1e1e; color:#ccc; font-family:Consolas;")
-        lg_layout.addWidget(self.utils_log_output)
-        log_group.setLayout(lg_layout)
-        layout.addWidget(log_group)
+        lpg_layout.addWidget(self.utils_log_output)
+
+        # Matplotlib embedded figure (lazy import only once)
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+        from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
+        self.find360_fig = Figure(figsize=(6, 3))
+        self.find360_canvas = FigureCanvas(self.find360_fig)
+        self.find360_toolbar = NavigationToolbar(self.find360_canvas, widget)
+        # Wrap in scroll area for comfortable vertical navigation if resized larger
+        self.find360_scroll = QScrollArea()
+        self.find360_scroll.setWidgetResizable(True)
+        scroll_inner = QWidget()
+        sv_layout = QVBoxLayout(scroll_inner)
+        sv_layout.addWidget(self.find360_toolbar)
+        sv_layout.addWidget(self.find360_canvas)
+        scroll_inner.setLayout(sv_layout)
+        self.find360_scroll.setWidget(scroll_inner)
+        lpg_layout.addWidget(self.find360_scroll)
+        log_plot_group.setLayout(lpg_layout)
+        layout.addWidget(log_plot_group)
 
         layout.addStretch()
         return widget
@@ -667,9 +703,16 @@ class ImageToSignalGUI(QMainWindow):
         self.stop_btn.setEnabled(False)
 
     def _run_find360(self):
-        """Run find360 with current tool id, show plot window, capture output."""
-        self.utils_log_output.append(f"<span style='color:#4CAF50;'>Starting find360 for {self.tool_id}...</span>")
-        self._start_utility_process([sys.executable, "-u", "-m", "image_to_signal.find360", "--tool", self.tool_id])
+        """Run find360; suppress external plot, embed via JSON afterward."""
+        self.utils_log_output.append(f"<span style='color:#4CAF50;'>Starting find360 for {self.tool_id} (embedded plot)...</span>")
+        self._pending_find360_json = os.path.join(self.DATA_ROOT, '1d_profiles', f'find360_{self.tool_id}.json')
+        try:
+            if os.path.isfile(self._pending_find360_json):
+                os.remove(self._pending_find360_json)
+        except Exception:
+            pass
+        # Temporarily enable JSON for GUI embedding; find360 won't save JSON by default anymore
+        self._start_utility_process([sys.executable, "-u", "-m", "image_to_signal.find360", "--tool", self.tool_id, "--no-plot", "--write-json"]) 
 
     def _run_rename(self):
         """Run rename_by_angle capturing output, with confirmation if already renamed."""
@@ -747,12 +790,114 @@ class ImageToSignalGUI(QMainWindow):
             rc = self.proc.returncode
             color = '#4CAF50' if rc == 0 else '#f44336'
             self.utils_log_output.append(f"<span style='color:{color};'>Process finished (code {rc}).</span>")
+            if rc == 0 and hasattr(self, '_pending_find360_json'):
+                # Defer loading slightly in case file buffer not flushed yet
+                QTimer.singleShot(120, self._load_find360_json_and_plot)
             return
         line = self.proc.stdout.readline()
         if line:
             safe = line.rstrip().replace('<', '&lt;').replace('>', '&gt;')
             self.utils_log_output.append(safe)
         QTimer.singleShot(50, self._poll_process_output)
+
+    def _load_find360_json_and_plot(self):
+        """Load JSON results from find360 and render embedded plot."""
+        path = getattr(self, '_pending_find360_json', None)
+        if not path:
+            return
+        if not os.path.isfile(path):
+            self.utils_log_output.append("<span style='color:#FFA726;'>JSON not found for plotting.</span>")
+            return
+        try:
+            import json
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+        except Exception as e:
+            self.utils_log_output.append(f"<span style='color:#f44336;'>Failed JSON read: {e}</span>")
+            return
+
+        # Clear and redraw figure
+        self.find360_fig.clear()
+        ax_main = self.find360_fig.add_subplot(2, 2, (1, 3))
+        ax_ref = self.find360_fig.add_subplot(2, 2, 2)
+        ax_best = self.find360_fig.add_subplot(2, 2, 4)
+
+        nums = data.get('frame_numbers', [])
+        white_i = data.get('white_i_series', [])
+        white_j = data.get('white_j_series', [])
+        best_frame = data.get('best_frame_number', None)
+        first_white = data.get('first_white', None)
+        second_white = data.get('second_white', None)
+
+        if nums and white_i:
+            ax_main.plot(nums, white_i, 'b-', label='Frame i', linewidth=1.1)
+        if nums and white_j:
+            ax_main.plot([n + 1 for n in nums], white_j, 'c--', label='Frame i+1', linewidth=1.0)
+        if first_white is not None:
+            ax_main.axhline(first_white, color='green', linestyle='--', linewidth=0.8, label=f'Ref1 {first_white:,}')
+        if second_white is not None:
+            ax_main.axhline(second_white, color='lime', linestyle='--', linewidth=0.8, label=f'Ref2 {second_white:,}')
+        if best_frame is not None:
+            ax_main.axvline(best_frame, color='red', linewidth=1.2, label=f'Best {best_frame}')
+        ax_main.set_xlabel('Frame Number')
+        ax_main.set_ylabel('White Pixels')
+        ax_main.set_title(f"360° Similarity (tool {data.get('tool_id','?')})")
+        ax_main.legend(fontsize=7, ncol=2)
+        ax_main.grid(alpha=0.25)
+
+        # Attempt side images
+        try:
+            masks_dir = os.path.join(self.DATA_ROOT, 'masks', f"{data.get('tool_id','')}_final_masks")
+            mask_files = sorted([f for f in os.listdir(masks_dir) if f.lower().endswith(('.tiff', '.tif'))])
+            if len(mask_files) >= 2:
+                from PIL import Image
+                import numpy as np
+                ref1 = np.array(Image.open(os.path.join(masks_dir, mask_files[0])))
+                ref2 = np.array(Image.open(os.path.join(masks_dir, mask_files[1])))
+                ax_ref.imshow(np.hstack([ref1, ref2]), cmap='gray')
+                ax_ref.axis('off')
+                ax_ref.set_title(f"Ref 1 & 2\n{first_white:,} | {second_white:,}", fontsize=8)
+            if best_frame is not None and best_frame - 1 < len(mask_files) - 1:
+                bf_idx = best_frame - 1
+                best_i = np.array(Image.open(os.path.join(masks_dir, mask_files[bf_idx])))
+                best_j = np.array(Image.open(os.path.join(masks_dir, mask_files[bf_idx + 1])))
+                ax_best.imshow(np.hstack([best_i, best_j]), cmap='gray')
+                ax_best.axis('off')
+                ax_best.set_title(f"Best {best_frame} & {best_frame+1}\n{data.get('best_white_i','?')} | {data.get('best_white_j','?')}", fontsize=8)
+        except Exception as e:
+            ax_ref.set_title('Ref load error')
+            ax_best.set_title('Best load error')
+            self.utils_log_output.append(f"<span style='color:#FFA726;'>Image load warning: {e}</span>")
+
+        self.find360_fig.tight_layout()
+        self.find360_canvas.draw()
+        self.utils_log_output.append("<span style='color:#4CAF50;'>Embedded plot updated.</span>")
+        try:
+            del self._pending_find360_json
+        except Exception:
+            pass
+
+    def _toggle_find360_expand(self):
+        """Toggle expanded view of the find360 plot within the tab."""
+        expanded = getattr(self, 'find360_expanded', False)
+        # Flip state
+        expanded = not expanded
+        self.find360_expanded = expanded
+        if expanded:
+            # Hide top controls, enlarge figure
+            self.find360_top_container.setVisible(False)
+            self.find360_expand_btn.setText("⬇ Collapse Plot")
+            # Enlarge figure canvas (adjust inches then redraw)
+            self.find360_fig.set_size_inches(10, 6, forward=True)
+            self.find360_canvas.draw()
+            self.utils_log_output.append("<span style='color:#4CAF50;'>Plot expanded.</span>")
+        else:
+            # Show controls again, shrink figure
+            self.find360_top_container.setVisible(True)
+            self.find360_expand_btn.setText("⬆ Expand Plot")
+            self.find360_fig.set_size_inches(6, 3, forward=True)
+            self.find360_canvas.draw()
+            self.utils_log_output.append("<span style='color:#4CAF50;'>Plot collapsed.</span>")
     
     def _open_file(self, config_key):
         """Open a file or folder in the default application."""
@@ -1001,7 +1146,20 @@ class ToolSelectorDialog(QDialog):
 
 
 def main():
+    # Windows-specific: Set AppUserModelID for proper taskbar icon grouping
+    try:
+        import ctypes
+        myappid = 'alireza.toolconditionmonitoring.imageprocessing.1.0'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except Exception:
+        pass
+    
     app = QApplication(sys.argv)
+    # Set application icon (for taskbar)
+    SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    icon_path = os.path.join(SCRIPT_DIR, "app_icon.ico")
+    if os.path.isfile(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
     window = ImageToSignalGUI()
     window.show()
     sys.exit(app.exec())

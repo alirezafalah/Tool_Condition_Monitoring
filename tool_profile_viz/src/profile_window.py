@@ -20,8 +20,8 @@ class ProfileWindow(QMainWindow):
         
         # Determine CSV paths
         profiles_dir = os.path.dirname(svg_path)
-        self.raw_csv_path = os.path.join(profiles_dir, f'{tool_id}_area_vs_angle.csv')
-        self.processed_csv_path = os.path.join(profiles_dir, f'{tool_id}_area_vs_angle_processed.csv')
+        self.raw_csv_path = os.path.join(profiles_dir, f'{tool_id}_raw_data.csv')
+        self.processed_csv_path = os.path.join(profiles_dir, f'{tool_id}_processed_data.csv')
         
         # Load metadata
         self.metadata = self._load_metadata(profiles_dir)

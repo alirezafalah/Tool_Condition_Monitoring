@@ -46,6 +46,8 @@ def _run():
     parser.add_argument('--test-window', type=int, default=25, help='Number of frames to inspect near expected wrap')
     parser.add_argument('--expected-366', type=int, default=366, help='Angle basis (default 366° recorded)')
     parser.add_argument('--no-plot', action='store_true', help='Suppress matplotlib visualization (GUI mode)')
+    parser.add_argument('--block-plot', action='store_true', help='Keep plot window open until closed (blocking)')
+    parser.add_argument('--write-json', action='store_true', help='Write results JSON (for GUI embedding)')
     args = parser.parse_args()
 
     tool_id = args.tool
@@ -132,41 +134,51 @@ def _run():
     print("=" * 70); sys.stdout.flush()
 
     if not args.no_plot:
-        fig = plt.figure(figsize=(16, 8))
-        fig.canvas.manager.set_window_title(f'360 Degree Detection - Tool {tool_id}')
+        # Interactive matplotlib window (smaller footprint ~640x300)
+        fig = plt.figure(figsize=(6.4, 3.0))
         nums = [r['frame_number'] for r in results]
-        
-        # Left: Main graph - white pixel counts (takes 2/3 of width)
-        ax1 = plt.subplot(1, 2, 1)
-        ax1.plot(nums, [r['white_i'] for r in results], 'b-', label='Frame i', linewidth=2)
-        ax1.plot([n+1 for n in nums], [r['white_j'] for r in results], 'c--', label='Frame i+1', linewidth=2)
-        ax1.axhline(first_white, color='green', linestyle='--', linewidth=1.5, label=f'Ref 1 ({first_white:,})')
-        ax1.axhline(second_white, color='lime', linestyle='--', linewidth=1.5, label=f'Ref 2 ({second_white:,})')
-        ax1.axvline(best['frame_number'], color='red', linewidth=2.5, label=f"Best: {best['frame_number']}")
-        ax1.set_xlabel('Frame Number', fontsize=11)
-        ax1.set_ylabel('White Pixel Count', fontsize=11)
-        ax1.set_title('White Pixel Counts - Sequential Pairs', fontsize=12, fontweight='bold')
-        ax1.legend(loc='best', fontsize=10)
-        ax1.grid(alpha=0.3)
 
-        # Right side: Two image comparisons stacked vertically
-        ax2 = plt.subplot(2, 2, 2)
+        from matplotlib.gridspec import GridSpec
+        gs = GridSpec(2, 2, width_ratios=[3, 2], height_ratios=[1, 1], figure=fig)
+        ax_main = fig.add_subplot(gs[:, 0])
+        ax_ref = fig.add_subplot(gs[0, 1])
+        ax_best = fig.add_subplot(gs[1, 1])
+
+        ax_main.plot(nums, [r['white_i'] for r in results], 'b-', label='Frame i', linewidth=1.2)
+        ax_main.plot([n + 1 for n in nums], [r['white_j'] for r in results], 'c--', label='Frame i+1', linewidth=1.0)
+        ax_main.axhline(first_white, color='green', linestyle='--', linewidth=0.9, label=f'Ref1 {first_white:,}')
+        ax_main.axhline(second_white, color='lime', linestyle='--', linewidth=0.9, label=f'Ref2 {second_white:,}')
+        ax_main.axvline(best['frame_number'], color='red', linewidth=1.3, label=f"Best {best['frame_number']}")
+        ax_main.set_xlabel('Frame Number', fontsize=9)
+        ax_main.set_ylabel('White Pixels', fontsize=9)
+        ax_main.set_title(f'360° Similarity (tool {tool_id})', fontsize=10)
+        ax_main.legend(fontsize=7, ncol=2)
+        ax_main.grid(alpha=0.25)
+
         ref_combo = np.hstack([first_mask, second_mask])
-        ax2.imshow(ref_combo, cmap='gray')
-        ax2.axis('off')
-        ax2.set_title(f'Reference: Frames 1 & 2\n{first_white:,} | {second_white:,} pixels', fontsize=10)
+        ax_ref.imshow(ref_combo, cmap='gray')
+        ax_ref.axis('off')
+        ax_ref.set_title(f'Ref 1 & 2\n{first_white:,} | {second_white:,}', fontsize=8)
 
-        ax3 = plt.subplot(2, 2, 4)
         best_i = np.array(Image.open(os.path.join(masks_dir, image_files[best['frame_idx']])))
-        best_j = np.array(Image.open(os.path.join(masks_dir, image_files[best['frame_idx']+1])))
+        best_j = np.array(Image.open(os.path.join(masks_dir, image_files[best['frame_idx'] + 1])))
         best_combo = np.hstack([best_i, best_j])
-        ax3.imshow(best_combo, cmap='gray')
-        ax3.axis('off')
-        ax3.set_title(f'Best Match: Frames {best["frame_number"]} & {best["frame_number"]+1}\n{best["white_i"]:,} | {best["white_j"]:,} pixels', fontsize=10)
+        ax_best.imshow(best_combo, cmap='gray')
+        ax_best.axis('off')
+        ax_best.set_title(f'Best {best["frame_number"]} & {best["frame_number"]+1}\n{best["white_i"]:,} | {best["white_j"]:,}', fontsize=8)
 
-        plt.suptitle(f'360 Degree Detection - Tool {tool_id}', fontsize=14, fontweight='bold', y=0.98)
-        plt.tight_layout(rect=[0, 0, 1, 0.96])
-        plt.show()
+        fig.tight_layout()
+        if args.block_plot:
+            # Blocking show keeps window until user closes it (prevents auto-close)
+            plt.show()
+        else:
+            # Non-blocking show will close immediately when process exits
+            # (Use --block-plot when launched via subprocess to keep it visible)
+            try:
+                plt.show(block=False)
+                plt.pause(0.5)  # brief event pump; window will still vanish on process exit
+            except Exception:
+                pass
 
     remove = total_frames - best['frame_number']
     print("\nAction:"); sys.stdout.flush()
@@ -174,6 +186,29 @@ def _run():
         print(f"   Remove the last {remove} frame(s) to keep {best['frame_number']} = 360 degrees"); sys.stdout.flush()
     else:
         print(f"   Dataset already aligned to 360 degrees with {best['frame_number']} frames"); sys.stdout.flush()
+
+    if args.write_json:
+        import json
+        out_dir = os.path.join(DATA_ROOT, '1d_profiles')
+        os.makedirs(out_dir, exist_ok=True)
+        json_path = os.path.join(out_dir, f'find360_{tool_id}.json')
+        payload = {
+            'tool_id': tool_id,
+            'first_white': int(first_white),
+            'second_white': int(second_white),
+            'best_frame_number': int(best['frame_number']),
+            'best_white_i': int(best['white_i']),
+            'best_white_j': int(best['white_j']),
+            'frame_numbers': [int(r['frame_number']) for r in results],
+            'white_i_series': [int(r['white_i']) for r in results],
+            'white_j_series': [int(r['white_j']) for r in results],
+        }
+        try:
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(payload, f)
+            print(f"Results JSON written: {json_path}"); sys.stdout.flush()
+        except Exception as e:
+            print(f"Failed to write JSON: {e}"); sys.stdout.flush()
 
 if __name__ == '__main__':
     main()
