@@ -222,6 +222,18 @@ class ImageToSignalGUI(QMainWindow):
         bg_group = QGroupBox("Background Subtraction")
         bg_layout = QVBoxLayout()
         
+        # Info label explaining the methods
+        info_label = QLabel(
+            "<b>Methods:</b><br>"
+            "• <b>none</b>: No background subtraction (relies on multichannel mask only)<br>"
+            "• <b>absdiff</b>: Grayscale absolute difference (simple, fast)<br>"
+            "• <b>lab</b>: LAB color space Delta E (perceptual color difference, sophisticated)<br><br>"
+            "<b>Combination:</b> If both method + multichannel mask are enabled, results are combined (union)."
+        )
+        info_label.setStyleSheet("color: #888; font-size: 10px; padding: 5px; background: #1a1a1a; border-radius: 3px;")
+        info_label.setWordWrap(True)
+        bg_layout.addWidget(info_label)
+        
         method_row = QHBoxLayout()
         method_row.addWidget(QLabel("Method:"))
         self.bg_method = QComboBox()
@@ -231,7 +243,19 @@ class ImageToSignalGUI(QMainWindow):
         method_row.addStretch()
         bg_layout.addLayout(method_row)
         
-        self.apply_multichannel = QCheckBox("Apply Multichannel Mask")
+        # Background image selector
+        bg_image_row = QHBoxLayout()
+        bg_image_row.addWidget(QLabel("Background Image:"))
+        self.bg_image_combo = QComboBox()
+        self.bg_image_combo.addItems(['paper_background.tiff', 'normal_background.tiff'])
+        # Set current background based on config
+        current_bg = os.path.basename(self.config.get('BACKGROUND_IMAGE_PATH', 'paper_background.tiff'))
+        self.bg_image_combo.setCurrentText(current_bg)
+        bg_image_row.addWidget(self.bg_image_combo)
+        bg_image_row.addStretch()
+        bg_layout.addLayout(bg_image_row)
+        
+        self.apply_multichannel = QCheckBox("Apply Multichannel Mask (uses HSV+LAB thresholds below)")
         self.apply_multichannel.setChecked(self.config['APPLY_MULTICHANNEL_MASK'])
         bg_layout.addWidget(self.apply_multichannel)
         
@@ -588,6 +612,11 @@ class ImageToSignalGUI(QMainWindow):
         self.config['blur_kernel'] = self.blur_kernel.value()
         self.config['closing_kernel'] = self.closing_kernel.value()
         self.config['BACKGROUND_SUBTRACTION_METHOD'] = self.bg_method.currentText()
+        
+        # Update background image path based on selection
+        bg_filename = self.bg_image_combo.currentText()
+        self.config['BACKGROUND_IMAGE_PATH'] = os.path.join(self.DATA_ROOT, 'backgrounds', bg_filename)
+        
         self.config['APPLY_MULTICHANNEL_MASK'] = self.apply_multichannel.isChecked()
         self.config['DIFFERENCE_THRESHOLD'] = self.diff_threshold.value()
         
