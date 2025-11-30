@@ -385,6 +385,7 @@ class ImageToSignalGUI(QMainWindow):
                 color: #888;
             }
         """)
+        self.stop_btn.clicked.connect(self._stop_pipeline)
         
         btn_layout.addWidget(self.run_btn)
         btn_layout.addWidget(self.stop_btn)
@@ -720,6 +721,18 @@ class ImageToSignalGUI(QMainWindow):
         # Skip to next tool
         self.current_step = len(self.steps_to_run)
         QTimer.singleShot(100, self._run_next_step)
+    
+    def _stop_pipeline(self):
+        """Stop the running pipeline."""
+        if hasattr(self, 'worker') and self.worker.isRunning():
+            self.log_output.append(f"\n<span style='color: #FFA726;'>⏹️ Stopping pipeline...</span>")
+            self.worker.terminate()
+            self.worker.wait()
+            self.log_output.append(f"<span style='color: #FFA726;'>⚠️ Pipeline stopped by user.</span>")
+        
+        self.status_label.setText("Stopped")
+        self.run_btn.setEnabled(True)
+        self.stop_btn.setEnabled(False)
     
     def _pipeline_finished(self):
         """Handle pipeline completion."""
