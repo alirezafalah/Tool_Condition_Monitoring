@@ -838,7 +838,7 @@
     "edges": 2,
     "condition": "fractured",
     "material": "",
-    "coating": "Yes",
+    "coating": "no",
     "background_type": "",
     "color": "dark gray",
     "notes": "We use them to drill a small hole because they are more rigid",
