@@ -1,5 +1,6 @@
 import os
 import json
+import csv
 from datetime import datetime
 import numpy as np
 import pandas as pd
@@ -113,11 +114,25 @@ def run(config):
     os.makedirs(metadata_dir, exist_ok=True)
     
     tool_id = os.path.basename(csv_path).replace('_area_vs_angle_processed.csv', '')
+    
+    # Load tool metadata from tools_metadata.csv
+    tool_meta = None
+    tools_metadata_path = os.path.join(os.path.dirname(csv_path), '..', 'tools_metadata.csv')
+    if os.path.exists(tools_metadata_path):
+        with open(tools_metadata_path, 'r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['tool_id'] == tool_id:
+                    tool_meta = row
+                    break
+    
     metadata = {
         "tool_id": tool_id,
         "analysis_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "total_images_analyzed": len(image_files),
         "analysis_type": "processed",
+        
+        "tool_metadata": tool_meta if tool_meta else {},
         
         "roi_parameters": {
             "roi_height": config['roi_height']

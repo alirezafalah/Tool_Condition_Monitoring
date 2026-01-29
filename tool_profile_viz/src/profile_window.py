@@ -54,7 +54,10 @@ class ProfileWindow(QMainWindow):
     def _load_metadata(self, profiles_dir):
         """Load metadata JSON for this tool."""
         metadata_dir = os.path.join(profiles_dir, 'analysis_metadata')
-        metadata_path = os.path.join(metadata_dir, f'{self.tool_id}_metadata.json')
+        # Try new naming convention first (_raw_metadata.json), fallback to old (_metadata.json)
+        metadata_path = os.path.join(metadata_dir, f'{self.tool_id}_raw_metadata.json')
+        if not os.path.exists(metadata_path):
+            metadata_path = os.path.join(metadata_dir, f'{self.tool_id}_metadata.json')
         
         if os.path.exists(metadata_path):
             try:
