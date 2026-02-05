@@ -4,6 +4,39 @@ This project provides an automated pipeline to process a series of TIFF images o
 
 ---
 
+## 🚀 Performance Optimization
+
+The pipeline supports **three processing modes** that apply to **ALL pipeline steps** (blur, mask generation, and ROI analysis):
+
+### Processing Modes
+
+| Mode | Description | Hardware Requirements |
+|------|-------------|----------------------|
+| **GPU** (Default) | Uses OpenCL to offload processing to GPU. Fastest option for Intel systems. | Intel Iris Xe GPU (or OpenCL 1.2+ compatible) with updated drivers |
+| **Multi-Core** | Distributes work across all CPU cores in parallel. Good for non-Intel systems. | Multi-core CPU (4+ cores recommended) |
+| **Single-Core** | Sequential processing on a single core. Slowest but always works. | Any CPU (no special requirements) |
+
+### Hardware Recommendations
+
+- **For best performance**: Intel 11th gen+ processor with Iris Xe integrated GPU
+- **For non-Intel systems**: Multi-core mode utilizes all available CPU cores
+- **Fallback behavior**: If GPU mode is selected but unavailable, automatically falls back to Multi-Core
+
+### Selecting Processing Mode
+
+**In GUI:**
+The processing mode selector is located in the header area at the top of the window. Select your mode before running the pipeline.
+
+**In Terminal/Script:**
+```python
+config = {
+    # ... other settings
+    'OPTIMIZATION_METHOD': 'gpu',  # 'gpu', 'multicore', or 'single'
+}
+```
+
+---
+
 ## Project Structure
 
 The project is organized into a main pipeline and a `utils` directory containing helper functions.
@@ -17,12 +50,14 @@ image\_to\_signal/
 ├── step1\_blur\_and\_rename.py
 ├── step2\_generate\_masks.py
 ├── step3\_analyze\_and\_plot.py
+├── step4\_process\_and\_plot.py
 │
 ├── data/                         \# \<-- Directory for input and output data
 │
 └── utils/
 ├── **init**.py
 ├── filters.py                \# \<-- Core image processing functions
+├── optimized\_processing.py  \# \<-- GPU/Multi-core/Single-core optimization
 ├── image\_utils.py
 └── mask\_refinement.py        \# \<-- Sandbox for finding new masks
 

@@ -102,6 +102,7 @@ class ImageToSignalGUI(QMainWindow):
             'WHITE_RATIO_OUTLIER_THRESHOLD': 0.8,
             'APPLY_MOVING_AVERAGE': True,
             'MOVING_AVERAGE_WINDOW': 5,
+            'OPTIMIZATION_METHOD': 'gpu',  # 'gpu', 'multicore', or 'single' - applies to ALL steps
         }
     
     def _setup_ui(self):
@@ -131,30 +132,71 @@ class ImageToSignalGUI(QMainWindow):
         main_layout.addWidget(self.status_label)
     
     def _create_header(self):
-        """Create header with title and tool selector."""
+        """Create header with title, tool selector, and optimization selector."""
         header = QFrame()
         header.setFrameStyle(QFrame.Shape.StyledPanel)
-        layout = QHBoxLayout(header)
+        layout = QVBoxLayout(header)
+        
+        # Top row: Title and Tool ID
+        top_row = QHBoxLayout()
         
         title = QLabel("🔧 Image-to-Signal Processing")
         title.setFont(QFont("Segoe UI", 20, QFont.Weight.Bold))
         title.setStyleSheet("color: #4CAF50;")
         
-        layout.addWidget(title)
-        layout.addStretch()
+        top_row.addWidget(title)
+        top_row.addStretch()
         
         # Tool ID selector
-        layout.addWidget(QLabel("Tool ID:"))
+        top_row.addWidget(QLabel("Tool ID:"))
         self.tool_id_input = QLineEdit(self.tool_id)
         self.tool_id_input.setMaximumWidth(200)
         self.tool_id_input.textChanged.connect(self._on_tool_id_changed)
-        layout.addWidget(self.tool_id_input)
+        top_row.addWidget(self.tool_id_input)
         
         # Multi-select button
         multi_select_btn = QPushButton("📋 Select Multiple")
         multi_select_btn.setMaximumWidth(120)
         multi_select_btn.clicked.connect(self._open_tool_selector)
-        layout.addWidget(multi_select_btn)
+        top_row.addWidget(multi_select_btn)
+        
+        layout.addLayout(top_row)
+        
+        # Bottom row: Optimization selector (applies to all steps)
+        opt_row = QHBoxLayout()
+        
+        opt_label = QLabel("🚀 Processing Mode:")
+        opt_label.setStyleSheet("font-weight: bold;")
+        opt_row.addWidget(opt_label)
+        
+        self.optimization_method = QComboBox()
+        self.optimization_method.addItems(['gpu', 'multicore', 'single'])
+        self.optimization_method.setCurrentText(self.config['OPTIMIZATION_METHOD'])
+        self.optimization_method.currentTextChanged.connect(self._on_optimization_changed)
+        self.optimization_method.setMaximumWidth(120)
+        opt_row.addWidget(self.optimization_method)
+        
+        # GPU status indicator
+        self.gpu_status_label = QLabel()
+        self.gpu_status_label.setStyleSheet("padding: 3px 8px; border-radius: 3px;")
+        opt_row.addWidget(self.gpu_status_label)
+        
+        # Hardware info label
+        self.hw_info_label = QLabel()
+        self.hw_info_label.setStyleSheet("color: #888; font-size: 10px;")
+        opt_row.addWidget(self.hw_info_label)
+        
+        opt_row.addStretch()
+        
+        # Help text
+        help_text = QLabel("<i>⚠️ GPU mode works best with Intel Iris Xe. Applies to all pipeline steps.</i>")
+        help_text.setStyleSheet("color: #888; font-size: 10px;")
+        opt_row.addWidget(help_text)
+        
+        layout.addLayout(opt_row)
+        
+        # Initialize GPU status
+        self._update_gpu_status()
         
         return header
     
@@ -607,10 +649,52 @@ class ImageToSignalGUI(QMainWindow):
         for key, label in self.path_labels.items():
             label.setText(self.config[key])
     
+    def _on_optimization_changed(self, method):
+        """Handle optimization method change."""
+        self._update_gpu_status()
+        if method == 'gpu':
+            self.status_label.setText("GPU acceleration selected (Intel Iris Xe recommended)")
+            self.status_label.setStyleSheet("padding: 5px; background: #2d2d2d; color: #4CAF50; border-radius: 3px;")
+        elif method == 'multicore':
+            import os
+            cores = os.cpu_count() or 1
+            self.status_label.setText(f"Multi-core processing selected ({cores} cores available)")
+            self.status_label.setStyleSheet("padding: 5px; background: #2d2d2d; color: #9b59b6; border-radius: 3px;")
+        else:
+            self.status_label.setText("Single-core processing selected (slowest)")
+            self.status_label.setStyleSheet("padding: 5px; background: #2d2d2d; color: #e67e22; border-radius: 3px;")
+    
+    def _update_gpu_status(self):
+        """Check and display GPU availability status."""
+        try:
+            from .utils.optimized_processing import check_gpu_available, get_optimization_info
+            gpu_available, device_name, message = check_gpu_available()
+            info = get_optimization_info()
+            
+            if gpu_available:
+                is_intel = info['gpu'].get('is_intel', False)
+                if is_intel:
+                    self.gpu_status_label.setText(f"✅ {device_name}")
+                    self.gpu_status_label.setStyleSheet("padding: 3px 8px; background: #1a3a1a; color: #4CAF50; border-radius: 3px;")
+                    self.hw_info_label.setText(f"Intel GPU Ready")
+                else:
+                    self.gpu_status_label.setText(f"⚠️ {device_name}")
+                    self.gpu_status_label.setStyleSheet("padding: 3px 8px; background: #3a3a1a; color: #FFA500; border-radius: 3px;")
+                    self.hw_info_label.setText("Non-Intel GPU (may not be optimal)")
+            else:
+                self.gpu_status_label.setText("❌ No GPU")
+                self.gpu_status_label.setStyleSheet("padding: 3px 8px; background: #3a1a1a; color: #e74c3c; border-radius: 3px;")
+                self.hw_info_label.setText("Will fallback to multi-core if GPU selected")
+        except Exception as e:
+            self.gpu_status_label.setText("⚠️ Unknown")
+            self.gpu_status_label.setStyleSheet("padding: 3px 8px; background: #3a3a1a; color: #FFA500; border-radius: 3px;")
+            self.hw_info_label.setText(f"Could not check GPU: {str(e)[:30]}")
+
     def _update_config_from_ui(self):
         """Update config dictionary from UI values."""
         self.config['blur_kernel'] = self.blur_kernel.value()
         self.config['closing_kernel'] = self.closing_kernel.value()
+        self.config['OPTIMIZATION_METHOD'] = self.optimization_method.currentText()
         self.config['BACKGROUND_SUBTRACTION_METHOD'] = self.bg_method.currentText()
         
         # Update background image path based on selection

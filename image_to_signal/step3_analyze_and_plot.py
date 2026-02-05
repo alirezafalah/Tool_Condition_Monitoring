@@ -1,28 +1,21 @@
 import os
 import json
 import csv
+import time
 from datetime import datetime
-import cv2
 import numpy as np
 import pandas as pd
-from PIL import Image
-from tqdm import tqdm
 import matplotlib.pyplot as plt
-from scipy.ndimage import convolve1d # For the wrap-around moving average
-
-def find_roi_and_calculate_area(mask_np, roi_height):
-    white_pixel_coords = np.where(mask_np == 255)
-    if white_pixel_coords[0].size == 0: return 0
-    last_row = white_pixel_coords[0].max()
-    first_row = max(0, last_row - roi_height)
-    roi = mask_np[first_row:last_row, :]
-    return np.sum(roi) / 255
+from scipy.ndimage import convolve1d
+from .utils.optimized_processing import analyze_roi, print_optimization_header
 
 def run(config):
     """
     Analyzes final masks within an ROI, saves data to CSV, filters, and plots.
+    Uses pipeline-wide optimization method.
     """
     input_dir = config['FINAL_MASKS_DIR']
+    optimization_method = config.get('OPTIMIZATION_METHOD', 'gpu')
     
     try:
         image_files = sorted([f for f in os.listdir(input_dir) if f.endswith(('.tiff', '.tif'))])
@@ -33,30 +26,26 @@ def run(config):
         print(f"Error: Final masks directory not found at '{input_dir}'.")
         return
 
-    # --- 1. Analyze ROI Area ---
-    results = []
-    print(f"Starting ROI analysis for {len(image_files)} masks...")
-    for filename in tqdm(image_files, desc="Analyzing ROI"):
-        try:
-            # Extract angle from filename
-            angle = float(filename.split('_')[0])
-            image_path = os.path.join(input_dir, filename)
-            mask_np = np.array(Image.open(image_path))
-            
-            # Count white pixels to detect bad segmentation
-            total_white_pixels = np.sum(mask_np == 255)
-            total_pixels = mask_np.size
-            white_ratio = total_white_pixels / total_pixels
-            
-            roi_area = find_roi_and_calculate_area(mask_np, config['roi_height'])
-            results.append({
-                'Angle (Degrees)': angle, 
-                'ROI Area (Pixels)': roi_area,
-                'white_ratio': white_ratio
-            })
-        except (ValueError, IndexError):
-            print(f"Could not parse angle from filename: {filename}. Skipping.")
-            continue
+    # Display optimization info
+    print_optimization_header(optimization_method, f"Step 3: ROI Analysis ({len(image_files)} masks)")
+
+    # --- 1. Analyze ROI Area with optimized processing ---
+    start_time = time.time()
+    
+    results, failed = analyze_roi(
+        image_files=image_files,
+        input_dir=input_dir,
+        roi_height=config['roi_height'],
+        method=optimization_method
+    )
+    
+    duration = time.time() - start_time
+    print(f"\n✅ ROI analysis complete: {len(results)}/{len(image_files)} masks in {duration:.2f}s")
+    
+    if failed:
+        print(f"⚠️ Failed: {len(failed)} files")
+        for error in failed[:3]:
+            print(f"   - {error}")
             
     if not results:
         print("No data was generated from ROI analysis.")

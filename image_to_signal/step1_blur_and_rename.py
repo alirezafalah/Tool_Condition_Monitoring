@@ -1,15 +1,16 @@
 import os
-from PIL import Image
-from tqdm import tqdm
-from .utils.filters import apply_median_blur
+import time
+from .utils.optimized_processing import blur_images, get_optimization_info, print_optimization_header
 
 def run(config):
     """
-    First, renames raw images to include their angle, then applies blur and saves them.
-    This is the slowest step and is designed to be run only once.
+    Applies blur to raw images and saves them.
+    Uses the pipeline-wide optimization method from config['OPTIMIZATION_METHOD'].
     """
     raw_dir = config['RAW_DIR']
     blurred_dir = config['BLURRED_DIR']
+    kernel_size = config.get('blur_kernel', 13)
+    optimization_method = config.get('OPTIMIZATION_METHOD', 'gpu')
     
     os.makedirs(blurred_dir, exist_ok=True)
 
@@ -22,24 +23,34 @@ def run(config):
         print(f"Error: Raw data directory not found at '{raw_dir}'.")
         return
 
-    # Renaming removed; use external script after determining 360 frame count.
     print("Using existing raw filenames (renaming handled by separate script).")
 
-    # --- Part 2: Blur Renamed Files ---
     # Check if blurred images already exist
-    if len(os.listdir(blurred_dir)) >= len(image_files):
+    existing_blurred = [f for f in os.listdir(blurred_dir) if f.endswith(('.tiff', '.tif'))]
+    if len(existing_blurred) >= len(image_files):
         print(f"Blurred images already exist in '{blurred_dir}'. Skipping blur step.")
         return
 
-    print(f"Applying blur to {len(image_files)} renamed images...")
-    for filename in tqdm(image_files, desc="Blurring Images"):
-        # The input is now the renamed file from the raw directory
-        input_path = os.path.join(raw_dir, filename)
-        output_path = os.path.join(blurred_dir, filename)
-        
-        # Apply blur
-        blurred_image = apply_median_blur(input_path, kernel_size=config['blur_kernel'])
-        
-        # Save the result with the same angle-based name
-        if blurred_image:
-            blurred_image.save(output_path, 'TIFF')
+    # Display optimization info
+    print_optimization_header(optimization_method, f"Step 1: Blur Processing ({len(image_files)} images)")
+
+    # Run the blur processing
+    start_time = time.time()
+    
+    success_count, failed_files = blur_images(
+        image_files=image_files,
+        input_dir=raw_dir,
+        output_dir=blurred_dir,
+        kernel_size=kernel_size,
+        method=optimization_method
+    )
+    
+    duration = time.time() - start_time
+    
+    # Print summary
+    print(f"\n✅ Blur complete: {success_count}/{len(image_files)} images in {duration:.2f}s")
+    print(f"📊 Throughput: {len(image_files)/duration:.2f} images/second")
+    if failed_files:
+        print(f"❌ Failed: {len(failed_files)} images")
+        for fname, error in failed_files[:5]:
+            print(f"   - {fname}: {error}")
