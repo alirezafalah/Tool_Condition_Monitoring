@@ -45,7 +45,8 @@ NUM_FRAMES = 90
 ROI_HEIGHT = 200
 
 # Threshold for classification (asymmetry ratio above this = Damaged)
-ASYMMETRY_THRESHOLD = 0.10
+# Set based on tool062 (fractured) with mean ratio 0.033583
+ASYMMETRY_THRESHOLD = 0.033
 
 # Output formats: Choose from 'png', 'svg', 'eps', 'jpg' or any combination
 OUTPUT_FORMATS = ['png']
