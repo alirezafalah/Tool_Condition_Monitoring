@@ -25,17 +25,17 @@ import matplotlib.pyplot as plt
 # ============================================================================
 BASE_DIR = r"c:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Dataset\CCD_DATA\DATA"
 MASKS_DIR = os.path.join(BASE_DIR, "masks")
-OUTPUT_DIR = os.path.join(BASE_DIR, "threshold_analysis", "left_right_method", "paper_figures")
+OUTPUT_DIR = "."
 
 TOOLS = [
-    {"id": "tool062", "label": "Tool062 (fractured)", "target_roi": 200},
-    {"id": "tool002", "label": "Tool002 (new)", "target_roi": 500},
+    {"id": "tool062", "label": "Wide drill tool (062)", "target_roi": 200, "frame_degree": 60},
+    {"id": "tool068", "label": "Narrow drill tool (068)", "target_roi": 200, "frame_degree": 2},
 ]
 
 # Dynamic ROI coefficient: roi_height = tool_width * ROI_WIDTH_COEFF
 ROI_WIDTH_COEFF = 0.45
 
-# Frame selection (use closest to these angles)
+# Frame selection (fallback if a tool has no explicit frame_degree)
 TARGET_DEGREES = [0, 30, 60, 90]
 
 # Outlier filter (same as analysis)
@@ -44,8 +44,10 @@ WHITE_RATIO_OUTLIER_THRESHOLD = 0.8
 # Styling
 COLOR_TOOL = (1.0, 1.0, 1.0)  # white mask
 COLOR_ROI = (0.2, 0.8, 0.2)   # green
-COLOR_WIDTH = (1.0, 0.8, 0.2) # yellow-orange
-COLOR_CENTER = (1.0, 0.0, 0.0)
+COLOR_WIDTH = (1.0, 0.2, 0.2) # red dashed width line
+COLOR_LEFT = (68/255, 114/255, 196/255)  # blue
+COLOR_RIGHT = (204/255, 68/255, 75/255)  # red
+COLOR_CENTER = (0.95, 0.80, 0.15)        # gold
 
 # ============================================================================
 # HELPERS
@@ -113,10 +115,13 @@ def find_global_roi_bottom(mask_files, roi_height):
     return int(np.median(bottoms)) if bottoms else 0
 
 
-def find_closest_frame(mask_files, target_degrees):
+def find_closest_frame(mask_files, target_degrees, preferred_degree=None):
     all_deg = [(f, extract_degree(f)) for f in mask_files]
-    # pick the one closest to 60 degrees for a representative frame
-    target = target_degrees[2] if len(target_degrees) >= 3 else target_degrees[0]
+    # pick the one closest to a preferred degree if provided
+    if preferred_degree is not None:
+        target = preferred_degree
+    else:
+        target = target_degrees[2] if len(target_degrees) >= 3 else target_degrees[0]
     return min(all_deg, key=lambda x: abs(x[1] - target))
 
 
@@ -127,6 +132,25 @@ def compute_tool_width(mask):
     min_x = int(np.min(wp[1]))
     max_x = int(np.max(wp[1]))
     return max_x - min_x, min_x, max_x
+
+
+def find_widest_row(mask):
+    """Find the row with the widest tool span; return (row, min_x, max_x, width)."""
+    rows = np.where(mask == 255)[0]
+    if rows.size == 0:
+        return None, 0, 0, 0
+    unique_rows = np.unique(rows)
+    best_row, best_min, best_max, best_w = None, 0, 0, 0
+    for r in unique_rows:
+        cols = np.where(mask[r] == 255)[0]
+        if cols.size == 0:
+            continue
+        min_x = int(cols.min())
+        max_x = int(cols.max())
+        w = max_x - min_x
+        if w > best_w:
+            best_row, best_min, best_max, best_w = r, min_x, max_x, w
+    return best_row, best_min, best_max, best_w
 
 
 # ============================================================================
@@ -149,7 +173,8 @@ def create_width_roi_figure(tool_cfg):
         return
 
     # Use closest-to-60° frame for a clean view
-    frame_path, deg = find_closest_frame(mask_files, TARGET_DEGREES)
+    preferred_degree = tool_cfg.get("frame_degree")
+    frame_path, deg = find_closest_frame(mask_files, TARGET_DEGREES, preferred_degree)
     raw = cv2.imread(frame_path, cv2.IMREAD_GRAYSCALE)
     if raw is None:
         print(f"Could not read frame for {tool_id}")
@@ -160,6 +185,7 @@ def create_width_roi_figure(tool_cfg):
 
     # Width from full tool
     tool_width, min_x, max_x = compute_tool_width(mask)
+    widest_row, widest_min, widest_max, widest_w = find_widest_row(mask)
     roi_height = int(tool_width * ROI_WIDTH_COEFF)
 
     # ROI bottom from all frames (median of bottom-most white pixel)
@@ -172,13 +198,32 @@ def create_width_roi_figure(tool_cfg):
     rgb = np.zeros((height, width, 3), dtype=np.float32)
     rgb[mask == 255] = COLOR_TOOL
 
+    # Color left/right within ROI based on ROI center
+    if tool_width > 0:
+        center_x = (min_x + max_x) // 2
+        roi_mask = mask[roi_top:roi_bottom + 1, :]
+        left_mask = np.zeros_like(roi_mask)
+        right_mask = np.zeros_like(roi_mask)
+        left_mask[:, :center_x] = roi_mask[:, :center_x]
+        right_mask[:, center_x + 1:] = roi_mask[:, center_x + 1:]
+        rgb_roi = rgb[roi_top:roi_bottom + 1, :]
+        rgb_roi[left_mask == 255] = COLOR_LEFT
+        rgb_roi[right_mask == 255] = COLOR_RIGHT
+        rgb[roi_top:roi_bottom + 1, :] = rgb_roi
+
     # Plot
     fig, ax = plt.subplots(figsize=(6, 9))
     ax.imshow(rgb, interpolation="nearest")
 
-    # Draw dashed width line at roi_bottom
-    ax.plot([min_x, max_x], [roi_bottom, roi_bottom],
-            color=COLOR_WIDTH, linewidth=2, linestyle=(0, (5, 4)))
+    # Draw dashed widest-width line
+    if widest_row is not None:
+        ax.plot([widest_min, widest_max], [widest_row, widest_row],
+                color=COLOR_WIDTH, linewidth=2, linestyle=(0, (3, 3)))
+        ax.text(
+            widest_max + 8, widest_row,
+            "width",
+            color=COLOR_WIDTH, fontsize=10, va="center", ha="left",
+        )
 
     # Draw ROI top/bottom lines
     ax.plot([min_x, max_x], [roi_top, roi_top], color=COLOR_ROI, linewidth=2)
@@ -188,18 +233,38 @@ def create_width_roi_figure(tool_cfg):
     ax.plot([min_x, min_x], [roi_top, roi_bottom], color=COLOR_ROI, linewidth=1.5)
     ax.plot([max_x, max_x], [roi_top, roi_bottom], color=COLOR_ROI, linewidth=1.5)
 
+    # Draw ROI center line (gold)
+    if tool_width > 0:
+        center_x = (min_x + max_x) // 2
+        ax.plot([center_x, center_x], [roi_top, roi_bottom], color=COLOR_CENTER, linewidth=2)
+
     # Annotations
     text = (
         f"Width = {tool_width}px\n"
-        f"ROI height = {roi_height}px\n"
-        f"Coeff = {ROI_WIDTH_COEFF:.2f}"
+        f"ROI height = {roi_height}px"
     )
     ax.text(0.03, 0.03, text, transform=ax.transAxes,
             fontsize=11, color="white",
             bbox=dict(boxstyle="round", facecolor="black", alpha=0.6))
 
-    ax.set_title(f"{label}  |  Frame {deg:.1f}°", fontsize=14, color="white", pad=10)
+    ax.set_title(f"{label}", fontsize=14, color="white", pad=10)
     ax.axis("off")
+    ax.legend(
+        handles=[
+            plt.Line2D([0], [0], color=COLOR_LEFT, linewidth=6, label="Left ROI"),
+            plt.Line2D([0], [0], color=COLOR_RIGHT, linewidth=6, label="Right ROI"),
+            plt.Line2D([0], [0], color=COLOR_CENTER, linewidth=2, label="ROI center"),
+            plt.Line2D([0], [0], color=COLOR_ROI, linewidth=2, label="ROI box"),
+            plt.Line2D([0], [0], color=COLOR_WIDTH, linewidth=2,
+                       linestyle=(0, (3, 3)), label="Tool width"),
+        ],
+        loc="upper right",
+        frameon=True,
+        facecolor="black",
+        edgecolor="white",
+        fontsize=9,
+        labelcolor="white",
+    )
     fig.patch.set_facecolor("black")
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
