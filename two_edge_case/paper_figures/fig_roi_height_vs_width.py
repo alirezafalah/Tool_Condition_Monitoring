@@ -28,8 +28,8 @@ MASKS_DIR = os.path.join(BASE_DIR, "masks")
 OUTPUT_DIR = "."
 
 TOOLS = [
-    {"id": "tool062", "label": "Wide drill tool (062)", "target_roi": 200, "frame_degree": 60},
-    {"id": "tool068", "label": "Narrow drill tool (068)", "target_roi": 200, "frame_degree": 2},
+    {"id": "tool062", "label": "Wide drill tool (062)", "frame_degree": 60},
+    {"id": "tool068", "label": "Narrow drill tool (068)", "frame_degree": 2},
 ]
 
 # Dynamic ROI coefficient: roi_height = tool_width * ROI_WIDTH_COEFF
@@ -44,7 +44,7 @@ WHITE_RATIO_OUTLIER_THRESHOLD = 0.8
 # Styling
 COLOR_TOOL = (1.0, 1.0, 1.0)  # white mask
 COLOR_ROI = (0.2, 0.8, 0.2)   # green
-COLOR_WIDTH = (1.0, 0.2, 0.2) # red dashed width line
+COLOR_WIDTH = (0.25, 0.85, 0.95) # cyan dashed width line
 COLOR_LEFT = (68/255, 114/255, 196/255)  # blue
 COLOR_RIGHT = (204/255, 68/255, 75/255)  # red
 COLOR_CENTER = (0.95, 0.80, 0.15)        # gold
@@ -160,7 +160,6 @@ def find_widest_row(mask):
 def create_width_roi_figure(tool_cfg):
     tool_id = tool_cfg["id"]
     label = tool_cfg["label"]
-    target_roi = tool_cfg["target_roi"]
 
     mask_folder = get_mask_folder(tool_id)
     if not mask_folder:
@@ -183,33 +182,42 @@ def create_width_roi_figure(tool_cfg):
     mask = get_largest_contour_mask(raw)
     height, width = mask.shape
 
-    # Width from full tool
+    # Width from full tool (for annotation and dashed line)
     tool_width, min_x, max_x = compute_tool_width(mask)
     widest_row, widest_min, widest_max, widest_w = find_widest_row(mask)
+
+    # Dynamic ROI height from tool width
     roi_height = int(tool_width * ROI_WIDTH_COEFF)
 
     # ROI bottom from all frames (median of bottom-most white pixel)
-    roi_bottom = find_global_roi_bottom(mask_files, target_roi)
+    roi_bottom = find_global_roi_bottom(mask_files, roi_height)
     if roi_bottom == 0:
         roi_bottom = int(np.max(np.where(mask == 255)[0])) if np.any(mask == 255) else height - 1
     roi_top = max(0, roi_bottom - roi_height)
+
+    # Find center from white pixels WITHIN the ROI (same as analysis)
+    roi_mask = mask[roi_top:roi_bottom + 1, :]
+    roi_white = np.where(roi_mask == 255)
+    if len(roi_white[1]) == 0:
+        print(f"No white pixels in ROI for {tool_id}")
+        return
+    left_col = int(np.min(roi_white[1]))
+    right_col = int(np.max(roi_white[1]))
+    center_x = (left_col + right_col) // 2
 
     # Build RGB image (white mask on black background)
     rgb = np.zeros((height, width, 3), dtype=np.float32)
     rgb[mask == 255] = COLOR_TOOL
 
-    # Color left/right within ROI based on ROI center
-    if tool_width > 0:
-        center_x = (min_x + max_x) // 2
-        roi_mask = mask[roi_top:roi_bottom + 1, :]
-        left_mask = np.zeros_like(roi_mask)
-        right_mask = np.zeros_like(roi_mask)
-        left_mask[:, :center_x] = roi_mask[:, :center_x]
-        right_mask[:, center_x + 1:] = roi_mask[:, center_x + 1:]
-        rgb_roi = rgb[roi_top:roi_bottom + 1, :]
-        rgb_roi[left_mask == 255] = COLOR_LEFT
-        rgb_roi[right_mask == 255] = COLOR_RIGHT
-        rgb[roi_top:roi_bottom + 1, :] = rgb_roi
+    # Color left/right within ROI based on ROI white-pixel center
+    left_mask = np.zeros_like(roi_mask)
+    right_mask = np.zeros_like(roi_mask)
+    left_mask[:, left_col:center_x] = roi_mask[:, left_col:center_x]
+    right_mask[:, center_x + 1:right_col + 1] = roi_mask[:, center_x + 1:right_col + 1]
+    rgb_roi = rgb[roi_top:roi_bottom + 1, :]
+    rgb_roi[left_mask == 255] = COLOR_LEFT
+    rgb_roi[right_mask == 255] = COLOR_RIGHT
+    rgb[roi_top:roi_bottom + 1, :] = rgb_roi
 
     # Plot
     fig, ax = plt.subplots(figsize=(6, 9))
@@ -218,30 +226,30 @@ def create_width_roi_figure(tool_cfg):
     # Draw dashed widest-width line
     if widest_row is not None:
         ax.plot([widest_min, widest_max], [widest_row, widest_row],
-                color=COLOR_WIDTH, linewidth=2, linestyle=(0, (3, 3)))
+                color=COLOR_WIDTH, linewidth=1.5, linestyle=(0, (1, 2)))
         ax.text(
             widest_max + 8, widest_row,
-            "width",
+            f"width = {widest_w}px",
             color=COLOR_WIDTH, fontsize=10, va="center", ha="left",
         )
 
-    # Draw ROI top/bottom lines
-    ax.plot([min_x, max_x], [roi_top, roi_top], color=COLOR_ROI, linewidth=2)
-    ax.plot([min_x, max_x], [roi_bottom, roi_bottom], color=COLOR_ROI, linewidth=2)
+    # Draw ROI top/bottom lines (span from ROI white pixel extents)
+    ax.plot([left_col, right_col], [roi_top, roi_top], color=COLOR_ROI, linewidth=2)
+    ax.plot([left_col, right_col], [roi_bottom, roi_bottom], color=COLOR_ROI, linewidth=2)
 
     # Draw vertical ROI sides
-    ax.plot([min_x, min_x], [roi_top, roi_bottom], color=COLOR_ROI, linewidth=1.5)
-    ax.plot([max_x, max_x], [roi_top, roi_bottom], color=COLOR_ROI, linewidth=1.5)
+    ax.plot([left_col, left_col], [roi_top, roi_bottom], color=COLOR_ROI, linewidth=1.5)
+    ax.plot([right_col, right_col], [roi_top, roi_bottom], color=COLOR_ROI, linewidth=1.5)
 
-    # Draw ROI center line (gold)
-    if tool_width > 0:
-        center_x = (min_x + max_x) // 2
-        ax.plot([center_x, center_x], [roi_top, roi_bottom], color=COLOR_CENTER, linewidth=2)
+    # Draw center line (gold, solid) — center of white pixels within the ROI
+    ax.plot([center_x, center_x], [roi_top, roi_bottom], color=COLOR_CENTER,
+            linewidth=1)
 
     # Annotations
     text = (
         f"Width = {tool_width}px\n"
-        f"ROI height = {roi_height}px"
+        f"ROI height = {roi_height}px\n"
+        # f"Coeff = {ROI_WIDTH_COEFF}"
     )
     ax.text(0.03, 0.03, text, transform=ax.transAxes,
             fontsize=11, color="white",
@@ -253,10 +261,11 @@ def create_width_roi_figure(tool_cfg):
         handles=[
             plt.Line2D([0], [0], color=COLOR_LEFT, linewidth=6, label="Left ROI"),
             plt.Line2D([0], [0], color=COLOR_RIGHT, linewidth=6, label="Right ROI"),
-            plt.Line2D([0], [0], color=COLOR_CENTER, linewidth=2, label="ROI center"),
+            plt.Line2D([0], [0], color=COLOR_CENTER, linewidth=1,
+                       label="Center in ROI"),
             plt.Line2D([0], [0], color=COLOR_ROI, linewidth=2, label="ROI box"),
-            plt.Line2D([0], [0], color=COLOR_WIDTH, linewidth=2,
-                       linestyle=(0, (3, 3)), label="Tool width"),
+            plt.Line2D([0], [0], color=COLOR_WIDTH, linewidth=1.5,
+                       linestyle=(0, (1, 2)), label="Tool width"),
         ],
         loc="upper right",
         frameon=True,

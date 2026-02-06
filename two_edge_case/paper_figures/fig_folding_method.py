@@ -28,6 +28,12 @@ TOOL_ID = "tool002"
 TOOL_LABEL = "New Tool (tool002)"
 TARGET_DEGREES = [0, 30, 60, 90]
 
+# Dynamic ROI coefficient: roi_height = tool_width * ROI_WIDTH_COEFF
+ROI_WIDTH_COEFF = 0.45
+
+# Outlier filter (same as analysis)
+WHITE_RATIO_OUTLIER_THRESHOLD = 0.8
+
 # Colors (RGB)
 COL_LEFT  = np.array([68, 114, 196]) / 255.0   # Steel Blue
 COL_RIGHT = np.array([204, 68, 75]) / 255.0    # Muted Red
@@ -67,28 +73,63 @@ def get_largest_contour_mask(mask):
     cv2.drawContours(out, [largest], -1, 255, -1)
     return out
 
-def create_split_image(mask):
+def find_global_roi_bottom(mask_files, roi_height):
+    """Find the median bottom-most white pixel across all frames (same as analysis)."""
+    bottoms = []
+    for fp in mask_files:
+        m = cv2.imread(fp, cv2.IMREAD_GRAYSCALE)
+        if m is None:
+            continue
+        m = get_largest_contour_mask(m)
+        h = m.shape[0]
+        check = m[max(0, h - roi_height * 2):, :]
+        ratio = np.sum(check == 255) / max(check.size, 1)
+        if ratio > WHITE_RATIO_OUTLIER_THRESHOLD:
+            continue
+        wp = np.where(m == 255)
+        if len(wp[0]) > 0:
+            bottoms.append(np.max(wp[0]))
+    return int(np.median(bottoms)) if bottoms else 0
+
+def create_split_image(mask, global_roi_bottom, roi_height):
+    """Color the tool halves based on center found from white pixels within the ROI."""
     mask = get_largest_contour_mask(mask)
     y_idxs, x_idxs = np.where(mask == 255)
     if len(x_idxs) == 0: return None
     
-    min_x, max_x = np.min(x_idxs), np.max(x_idxs)
-    center_x = (min_x + max_x) // 2
-    
     h, w = mask.shape
+    
+    # Define ROI (same logic as analysis)
+    roi_top = max(0, global_roi_bottom - roi_height)
+    roi_bottom = global_roi_bottom + 1
+    
+    # Find center from white pixels WITHIN the ROI
+    roi_mask = mask[roi_top:roi_bottom, :]
+    roi_white = np.where(roi_mask == 255)
+    if len(roi_white[1]) == 0:
+        return None
+    
+    left_col = np.min(roi_white[1])
+    right_col = np.max(roi_white[1])
+    center_x = (left_col + right_col) // 2
+    
+    # Full extent for cropping
+    min_x = np.min(x_idxs)
+    max_x = np.max(x_idxs)
+    
     img = np.zeros((h, w, 3), dtype=np.float32) # Black background
     
     # Color Left Blue
     left_mask = np.zeros_like(mask)
-    left_mask[:, min_x:center_x] = mask[:, min_x:center_x]
+    left_mask[:, left_col:center_x] = mask[:, left_col:center_x]
     img[left_mask == 255] = COL_LEFT
     
     # Color Right Red
     right_mask = np.zeros_like(mask)
-    right_mask[:, center_x+1:max_x+1] = mask[:, center_x+1:max_x+1]
+    right_mask[:, center_x+1:right_col+1] = mask[:, center_x+1:right_col+1]
     img[right_mask == 255] = COL_RIGHT
     
-    # Yellow Center Line
+    # Yellow Center Line (solid)
     img[:, center_x] = [1.0, 1.0, 0.0]
     
     # Crop
@@ -109,6 +150,27 @@ def main():
         print(f"Folder not found for {TOOL_ID}")
         return
 
+    # Compute tool width from first valid frame to derive dynamic ROI height
+    sample_files = sorted(glob.glob(os.path.join(folder, "*.tif*")))
+    tool_width = 0
+    for sf in sample_files:
+        sm = cv2.imread(sf, cv2.IMREAD_GRAYSCALE)
+        if sm is None:
+            continue
+        sm = get_largest_contour_mask(sm)
+        wp = np.where(sm == 255)
+        if len(wp[1]) > 0:
+            tool_width = int(np.max(wp[1])) - int(np.min(wp[1]))
+            break
+    roi_height = int(tool_width * ROI_WIDTH_COEFF) if tool_width > 0 else 200
+
+    # Compute global ROI bottom from all mask files (same as analysis)
+    all_mask_files = sorted(glob.glob(os.path.join(folder, "*.tif*")))
+    global_roi_bottom = find_global_roi_bottom(all_mask_files, roi_height)
+    if global_roi_bottom == 0:
+        print(f"Could not determine ROI bottom for {TOOL_ID}")
+        return
+
     # Create Figure: 1 Row, 4 Columns
     fig, axes = plt.subplots(1, 4, figsize=(12, 4), constrained_layout=False)
     fig.subplots_adjust(left=0.02, right=0.98, top=0.85, bottom=0.18, wspace=0.02)
@@ -119,7 +181,7 @@ def main():
         
         if fpath:
             raw = cv2.imread(fpath, cv2.IMREAD_GRAYSCALE)
-            viz = create_split_image(raw)
+            viz = create_split_image(raw, global_roi_bottom, roi_height)
             if viz is not None:
                 ax.imshow(viz)
                 ax.set_title(f"{target}°", fontsize=12, fontweight='bold')
@@ -131,7 +193,7 @@ def main():
     legend_elements = [
         Patch(facecolor=COL_LEFT, label='Left Hemisphere'),
         Patch(facecolor=COL_RIGHT, label='Right Hemisphere'),
-        Patch(facecolor='yellow', label='Central Axis'),
+        Patch(facecolor='yellow', label='Center in ROI'),
     ]
     fig.legend(handles=legend_elements, loc='lower center', ncol=3,
                frameon=True, fontsize=10, bbox_to_anchor=(0.5, 0.02))
