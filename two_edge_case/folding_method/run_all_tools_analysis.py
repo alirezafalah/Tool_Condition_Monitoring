@@ -19,6 +19,7 @@ Workflow:
 
 import os
 import glob
+import re
 import cv2
 import numpy as np
 import pandas as pd
@@ -41,12 +42,25 @@ START_FRAME = 0
 # Number of frames to analyze (90 degrees)
 NUM_FRAMES = 90
 
-# ROI height (rows above the bottom-most white pixel)
-ROI_HEIGHT = 200
+# ROI height configuration
+DEFAULT_ROI_HEIGHT = 200  # Default ROI height for most tools
+
+# Special ROI heights for specific tools (tool_id: roi_height)
+SPECIAL_ROI_TOOLS = {
+    'tool002': 500,
+    'tool028': 500,
+}
+
+# Tools to skip from analysis
+SKIP_TOOLS = ['tool016', 'tool069']
 
 # Threshold for classification (asymmetry ratio above this = Damaged)
 # Set based on tool062 (fractured) with mean ratio 0.033583
 ASYMMETRY_THRESHOLD = 0.033
+
+# Outlier threshold: skip frames where white_ratio > this value
+# (indicates over-segmentation / bad mask)
+WHITE_RATIO_OUTLIER_THRESHOLD = 0.8
 
 # Output formats: Choose from 'png', 'svg', 'eps', 'jpg' or any combination
 OUTPUT_FORMATS = ['png']
@@ -69,6 +83,9 @@ def get_two_edge_tools(tools_metadata):
     """Get list of tool IDs that have 2 edges AND have mask folders with images."""
     two_edge_tools = []
     for tool_id, meta in tools_metadata.items():
+        # Skip tools in SKIP_TOOLS list
+        if tool_id in SKIP_TOOLS:
+            continue
         edges = meta.get('edges', '')
         try:
             if int(edges) == 2:
@@ -98,7 +115,7 @@ def get_mask_folder(tool_id):
     return None
 
 def get_mask_files(mask_folder):
-    """Get all mask files from a folder, sorted by frame number."""
+    """Get all mask files from a folder, sorted by frame number/degree."""
     # Get all tiff files
     pattern = os.path.join(mask_folder, "*.tiff")
     files = glob.glob(pattern)
@@ -113,18 +130,91 @@ def get_mask_files(mask_folder):
     # Sort by frame number (extract number from filename)
     def extract_frame_num(filepath):
         basename = os.path.basename(filepath)
-        parts = basename.replace('.tiff', '').replace('.tif', '').split('_')
+        # Remove extension
+        name = basename.replace('.tiff', '').replace('.tif', '')
+        
+        # Try to extract the leading number (handles both "0000.00_degrees" and "frame_123" formats)
+        # First try: extract leading decimal/integer (e.g., "0000.00_degrees" -> 0.00)
+        import re
+        match = re.match(r'^(\d+\.?\d*)', name)
+        if match:
+            return float(match.group(1))
+        
+        # Second try: find any number in the filename
+        parts = name.split('_')
         for part in reversed(parts):
             if part.isdigit():
-                return int(part)
-        return 0
+                return float(part)
+            # Try parsing as float
+            try:
+                return float(part)
+            except ValueError:
+                continue
+        return 0.0
     
     files = sorted(files, key=extract_frame_num)
     return files
 
-def find_global_roi_bottom(mask_files, start_frame, num_frames):
-    """Find the most bottom white pixel across analyzed frames (global ROI)."""
-    global_bottom = 0
+def get_largest_contour_mask(mask):
+    """
+    Keep only the largest contour in the mask, removing small noise islands.
+    Returns the cleaned mask with only the largest connected component.
+    """
+    # Find all contours
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    if not contours:
+        return mask
+    
+    # Find the largest contour by area
+    largest_contour = max(contours, key=cv2.contourArea)
+    
+    # Create a new mask with only the largest contour
+    cleaned_mask = np.zeros_like(mask)
+    cv2.drawContours(cleaned_mask, [largest_contour], -1, 255, -1)
+    
+    return cleaned_mask
+
+def calculate_dynamic_roi_height(mask_files, start_frame, num_frames):
+    """
+    Calculate dynamic ROI height based on the median tool width.
+    Tool width is measured as the widest row of white pixels across frames.
+    ROI height = max(MIN_ROI_HEIGHT, median_width * ROI_WIDTH_MULTIPLIER)
+    """
+    widths = []
+    end_frame = min(start_frame + num_frames, len(mask_files))
+    
+    for i in range(start_frame, end_frame):
+        mask = cv2.imread(mask_files[i], cv2.IMREAD_GRAYSCALE)
+        if mask is None:
+            continue
+        
+        # Keep only largest contour
+        cleaned_mask = get_largest_contour_mask(mask)
+        
+        # Find tool width (rightmost - leftmost white pixel)
+        white_cols = np.where(cleaned_mask == 255)[1]
+        if len(white_cols) > 0:
+            width = np.max(white_cols) - np.min(white_cols)
+            widths.append(width)
+    
+    if not widths:
+        return MIN_ROI_HEIGHT
+    
+    median_width = np.median(widths)
+    dynamic_roi = int(median_width * ROI_WIDTH_MULTIPLIER)
+    
+    # Apply minimum threshold
+    return max(MIN_ROI_HEIGHT, dynamic_roi)
+
+def find_global_roi_bottom(mask_files, start_frame, num_frames, roi_height):
+    """
+    Find the most bottom white pixel across analyzed frames (global ROI).
+    Only considers the largest contour in each frame to avoid noise islands.
+    Uses median instead of max to be robust against outlier frames.
+    Skips frames that are over-segmented (white_ratio > threshold).
+    """
+    bottom_rows = []
     
     end_frame = min(start_frame + num_frames, len(mask_files))
     
@@ -133,12 +223,33 @@ def find_global_roi_bottom(mask_files, start_frame, num_frames):
         if mask is None:
             continue
         
-        white_pixels = np.where(mask == 255)
+        # Keep only the largest contour (remove noise islands)
+        cleaned_mask = get_largest_contour_mask(mask)
+        
+        # Check if this frame is an outlier (over-segmented)
+        # by checking the ratio of white pixels in the bottom portion
+        height = cleaned_mask.shape[0]
+        # Use bottom portion based on roi_height as a quick check area
+        check_area = cleaned_mask[max(0, height - roi_height * 2):, :]
+        check_total = check_area.shape[0] * check_area.shape[1]
+        check_white = np.sum(check_area == 255)
+        white_ratio = check_white / check_total if check_total > 0 else 0
+        
+        if white_ratio > WHITE_RATIO_OUTLIER_THRESHOLD:
+            # Skip this frame - it's over-segmented
+            continue
+        
+        white_pixels = np.where(cleaned_mask == 255)
         if len(white_pixels[0]) > 0:
             bottom_row = np.max(white_pixels[0])
-            global_bottom = max(global_bottom, bottom_row)
+            bottom_rows.append(bottom_row)
     
-    return global_bottom
+    if not bottom_rows:
+        return 0
+    
+    # Use median to be robust against outlier frames (e.g., over-segmented masks)
+    # that might extend to the bottom of the image
+    return int(np.median(bottom_rows))
 
 def analyze_left_right_symmetry(mask_path, global_roi_bottom, roi_height):
     """
@@ -146,10 +257,19 @@ def analyze_left_right_symmetry(mask_path, global_roi_bottom, roi_height):
     
     The center column is determined by the center of the tool's white pixel contour,
     not the image center. The ROI is defined as roi_height rows above global_roi_bottom.
+    Only the largest contour is considered (noise islands are removed).
+    
+    Returns None if:
+    - Mask cannot be read
+    - No white pixels in ROI
+    - Frame is an outlier (white_ratio > threshold, indicating over-segmentation)
     """
     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
     if mask is None:
         return None
+    
+    # Keep only the largest contour (remove noise islands)
+    mask = get_largest_contour_mask(mask)
     
     height, width = mask.shape
     
@@ -159,6 +279,15 @@ def analyze_left_right_symmetry(mask_path, global_roi_bottom, roi_height):
     
     # Extract ROI region
     roi_mask = mask[roi_top:roi_bottom, :]
+    
+    # Check for outlier: if white_ratio > threshold, skip this frame
+    roi_area = roi_mask.shape[0] * roi_mask.shape[1]
+    white_pixel_count = np.sum(roi_mask == 255)
+    white_ratio = white_pixel_count / roi_area if roi_area > 0 else 0
+    
+    if white_ratio > WHITE_RATIO_OUTLIER_THRESHOLD:
+        # This frame is over-segmented, skip it
+        return None
     
     # Find the center column of the tool's white pixels
     white_pixels = np.where(roi_mask == 255)
@@ -196,7 +325,7 @@ def analyze_left_right_symmetry(mask_path, global_roi_bottom, roi_height):
         'center_col': center_col
     }
 
-def analyze_tool(tool_id, mask_files, start_frame, num_frames, roi_height):
+def analyze_tool(tool_id, mask_files, start_frame, num_frames):
     """Analyze a single tool and return statistics and frame-by-frame data."""
     end_frame = min(start_frame + num_frames, len(mask_files))
     actual_frames = end_frame - start_frame
@@ -204,8 +333,11 @@ def analyze_tool(tool_id, mask_files, start_frame, num_frames, roi_height):
     if actual_frames < 10:
         return None
     
+    # Get ROI height - use special value for specific tools, otherwise default
+    roi_height = SPECIAL_ROI_TOOLS.get(tool_id, DEFAULT_ROI_HEIGHT)
+    
     # Find global ROI bottom for this tool's analyzed frames
-    global_roi_bottom = find_global_roi_bottom(mask_files, start_frame, num_frames)
+    global_roi_bottom = find_global_roi_bottom(mask_files, start_frame, num_frames, roi_height)
     
     if global_roi_bottom == 0:
         return None
@@ -238,6 +370,7 @@ def analyze_tool(tool_id, mask_files, start_frame, num_frames, roi_height):
         'mean_diff': np.mean(diffs),
         'frames_analyzed': len(frame_data),
         'global_roi_bottom': global_roi_bottom,
+        'roi_height': roi_height,  # Include dynamic ROI height
         'frame_data': frame_data  # For plotting
     }
 
@@ -294,12 +427,14 @@ def plot_tool_analysis(tool_id, stats, condition, output_dir):
     # Plot 4: Summary statistics
     ax4 = axes[1, 1]
     ax4.axis('off')
+    roi_height = stats.get('roi_height', 'N/A')
     stats_text = f"""
     Tool ID: {tool_id}
     Condition: {condition}
     
     Frame Range: {frames[0]} - {frames[-1]}
     Frames Analyzed: {stats['frames_analyzed']}
+    ROI Height: {roi_height} (dynamic)
     
     Mean Asymmetry Ratio: {stats['mean_ratio']:.4f}
     Max Asymmetry Ratio: {stats['max_ratio']:.4f}
@@ -314,7 +449,7 @@ def plot_tool_analysis(tool_id, stats, condition, output_dir):
              bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.5))
     ax4.set_title('Summary Statistics')
     
-    fig.suptitle(f'{tool_id} Left-Right Symmetry Analysis', fontsize=14, fontweight='bold')
+    fig.suptitle(f'{tool_id} Left-Right Symmetry Analysis (ROI={roi_height})', fontsize=14, fontweight='bold')
     plt.tight_layout()
     
     for fmt in OUTPUT_FORMATS:
@@ -402,6 +537,9 @@ def plot_sample_frames(mask_files, global_roi_bottom, roi_height, tool_id, outpu
         if mask is None:
             continue
         
+        # Keep only the largest contour (remove noise islands)
+        mask = get_largest_contour_mask(mask)
+        
         height, width = mask.shape
         
         # Find tool center from white pixels in ROI
@@ -486,8 +624,9 @@ def main():
     print("LEFT-RIGHT SYMMETRY ANALYSIS FOR ALL 2-EDGE TOOLS")
     print("=" * 70)
     print(f"Frame Range: {START_FRAME} to {START_FRAME + NUM_FRAMES - 1}")
-    print(f"ROI Height: {ROI_HEIGHT} rows")
+    print(f"ROI Height: {DEFAULT_ROI_HEIGHT} (default)")
     print(f"Asymmetry Threshold: {ASYMMETRY_THRESHOLD}")
+    print(f"Skipping Tools: {SKIP_TOOLS}")
     print(f"Output Directory: {OUTPUT_DIR}")
     print("=" * 70)
     
@@ -520,8 +659,8 @@ def main():
         
         print(f"Processing {tool_id} (Type: {tool_type}, Condition: {condition})...", end=" ")
         
-        # Analyze
-        stats = analyze_tool(tool_id, mask_files, START_FRAME, NUM_FRAMES, ROI_HEIGHT)
+        # Analyze (ROI height is calculated dynamically based on tool width)
+        stats = analyze_tool(tool_id, mask_files, START_FRAME, NUM_FRAMES)
         
         if stats is None:
             print("FAILED")
@@ -530,19 +669,20 @@ def main():
         # Classification
         prediction = "Damaged" if stats['mean_ratio'] > ASYMMETRY_THRESHOLD else "Good"
         
-        print(f"Mean Ratio: {stats['mean_ratio']:.4f} -> {prediction}")
+        print(f"ROI={stats['roi_height']}, Mean Ratio: {stats['mean_ratio']:.4f} -> {prediction}")
         
         # Generate individual tool plot
         plot_tool_analysis(tool_id, stats, condition, OUTPUT_DIR)
         
         # Generate sample frames visualization
-        plot_sample_frames(mask_files, stats['global_roi_bottom'], ROI_HEIGHT, 
+        plot_sample_frames(mask_files, stats['global_roi_bottom'], stats['roi_height'], 
                           tool_id, OUTPUT_DIR, START_FRAME, NUM_FRAMES)
         
         results.append({
             'Tool ID': tool_id,
             'Type': tool_type,
             'Condition': condition,
+            'ROI Height': stats['roi_height'],
             'Mean Ratio': round(stats['mean_ratio'], 6),
             'Max Ratio': round(stats['max_ratio'], 6),
             'Std Ratio': round(stats['std_ratio'], 6),
@@ -594,7 +734,9 @@ def main():
         'description': 'Compares left and right halves of tool within ROI for 90-degree range',
         'start_frame': START_FRAME,
         'num_frames': NUM_FRAMES,
-        'roi_height': ROI_HEIGHT,
+        'roi_height_default': DEFAULT_ROI_HEIGHT,
+        'special_roi_tools': SPECIAL_ROI_TOOLS,
+        'skipped_tools': SKIP_TOOLS,
         'threshold': ASYMMETRY_THRESHOLD,
         'accuracy': float(accuracy),
         'true_positives': int(tp),

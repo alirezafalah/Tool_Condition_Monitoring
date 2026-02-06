@@ -22,7 +22,7 @@ from datetime import datetime
 BASE_DIR = r"c:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Dataset\CCD_DATA\DATA"
 PROFILES_DIR = os.path.join(BASE_DIR, "1d_profiles")
 TOOLS_METADATA_PATH = os.path.join(BASE_DIR, "tools_metadata.csv")
-OUTPUT_DIR = os.path.join(BASE_DIR, "threshold_analysis", "symmetry_method")
+OUTPUT_DIR = os.path.join(BASE_DIR, "threshold_analysis", "subtracting_actual_functions")
 
 # Threshold for classification (can be tuned based on probability analysis)
 SYMMETRY_THRESHOLD = 0.035
