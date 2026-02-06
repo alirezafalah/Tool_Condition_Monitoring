@@ -175,38 +175,6 @@ def get_largest_contour_mask(mask):
     
     return cleaned_mask
 
-def calculate_dynamic_roi_height(mask_files, start_frame, num_frames):
-    """
-    Calculate dynamic ROI height based on the median tool width.
-    Tool width is measured as the widest row of white pixels across frames.
-    ROI height = max(MIN_ROI_HEIGHT, median_width * ROI_WIDTH_MULTIPLIER)
-    """
-    widths = []
-    end_frame = min(start_frame + num_frames, len(mask_files))
-    
-    for i in range(start_frame, end_frame):
-        mask = cv2.imread(mask_files[i], cv2.IMREAD_GRAYSCALE)
-        if mask is None:
-            continue
-        
-        # Keep only largest contour
-        cleaned_mask = get_largest_contour_mask(mask)
-        
-        # Find tool width (rightmost - leftmost white pixel)
-        white_cols = np.where(cleaned_mask == 255)[1]
-        if len(white_cols) > 0:
-            width = np.max(white_cols) - np.min(white_cols)
-            widths.append(width)
-    
-    if not widths:
-        return MIN_ROI_HEIGHT
-    
-    median_width = np.median(widths)
-    dynamic_roi = int(median_width * ROI_WIDTH_MULTIPLIER)
-    
-    # Apply minimum threshold
-    return max(MIN_ROI_HEIGHT, dynamic_roi)
-
 def find_global_roi_bottom(mask_files, start_frame, num_frames, roi_height):
     """
     Find the most bottom white pixel across analyzed frames (global ROI).
