@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 # ============================================================================
 BASE_DIR = r"c:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Dataset\CCD_DATA\DATA"
 MASKS_DIR = os.path.join(BASE_DIR, "masks")
-OUTPUT_DIR = "."
+OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 TOOLS = [
     {"id": "tool062", "label": "Wide drill tool (062)", "frame_degree": 60},
@@ -277,10 +277,12 @@ def create_width_roi_figure(tool_cfg):
     fig.patch.set_facecolor("black")
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    out_name = f"{tool_id}_roi_width_dynamic.png"
-    fig.savefig(os.path.join(OUTPUT_DIR, out_name), dpi=300, bbox_inches="tight", facecolor="black")
+    for ext in ["png", "svg"]:
+        out_name = f"{tool_id}_roi_width_dynamic.{ext}"
+        fig.savefig(os.path.join(OUTPUT_DIR, out_name), dpi=300,
+                    bbox_inches="tight", facecolor="black")
     plt.close(fig)
-    print(f"Saved: {out_name}")
+    print(f"Saved: {tool_id}_roi_width_dynamic.png/.svg")
 
 
 def main():

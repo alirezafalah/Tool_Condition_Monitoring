@@ -1,8 +1,5 @@
 # .gitignore for Python Projects
 
-# Ignore the entire data directory. This is the most important rule.
-data/
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.pyc

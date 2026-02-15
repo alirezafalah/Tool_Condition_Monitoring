@@ -21,8 +21,8 @@ from matplotlib.patches import Patch
 BASE_DIR = r"c:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Dataset\CCD_DATA\DATA"
 MASKS_DIR = os.path.join(BASE_DIR, "masks")
 
-# Output directory: "." means current folder where script is running
-OUTPUT_DIR = "."
+# Output directory (this script's folder)
+OUTPUT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 TOOL_ID = "tool002"
 TOOL_LABEL = "New Tool (tool002)"
@@ -33,6 +33,9 @@ ROI_WIDTH_COEFF = 0.45
 
 # Outlier filter (same as analysis)
 WHITE_RATIO_OUTLIER_THRESHOLD = 0.8
+
+# Output formats
+OUTPUT_FORMATS = ["png", "svg"]
 
 # Colors (RGB)
 COL_LEFT  = np.array([68, 114, 196]) / 255.0   # Steel Blue
@@ -198,11 +201,13 @@ def main():
     fig.legend(handles=legend_elements, loc='lower center', ncol=3,
                frameon=True, fontsize=10, bbox_to_anchor=(0.5, 0.02))
     
-    # Save to current directory
-    out_path = f"{TOOL_ID}_symmetry_series.png"
-    plt.savefig(out_path, dpi=300, bbox_inches='tight', facecolor='white')
-    print(f"Saved: {os.path.abspath(out_path)}")
-    plt.show()
+    # Save to output directory
+    for ext in OUTPUT_FORMATS:
+        out_name = f"{TOOL_ID}_symmetry_series.{ext}"
+        out_path = os.path.join(OUTPUT_DIR, out_name)
+        plt.savefig(out_path, dpi=300, bbox_inches='tight', facecolor='white')
+    print(f"Saved: {TOOL_ID}_symmetry_series.png/.svg")
+    plt.close(fig)
 
 if __name__ == "__main__":
     main()
