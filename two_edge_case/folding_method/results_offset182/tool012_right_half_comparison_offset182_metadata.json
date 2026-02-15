@@ -1,0 +1,13 @@
+{
+  "tool_id": "tool012",
+  "mask_folder": "c:\\Users\\alrfa\\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\\PhD\\Dataset\\CCD_DATA\\DATA\\masks\\tool012_final_masks",
+  "global_roi_bottom": 1838,
+  "roi_height": 200,
+  "num_frames": 90,
+  "rotation_angle_deg": 0.0,
+  "angle_offset": 182,
+  "analysis_type": "right_half_comparison",
+  "frame_range_1": "0-89 degrees",
+  "frame_range_2": "182-271 degrees",
+  "analysis_date": "2026-02-15 18:11:55"
+}

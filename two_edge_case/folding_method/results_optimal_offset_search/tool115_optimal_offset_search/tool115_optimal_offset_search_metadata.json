@@ -1,0 +1,12 @@
+{
+  "tool_id": "tool115",
+  "optimal_offset": 182,
+  "optimal_frame_range": "182-271",
+  "mean_difference": 185.2888888888889,
+  "mean_ratio": 0.0020695203095919415,
+  "roi_height": 200,
+  "num_frames": 90,
+  "rotation_angle_deg": 0.0,
+  "offset_range_tested": "176-186",
+  "analysis_date": "2026-02-15 18:06:08"
+}
