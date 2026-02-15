@@ -46,6 +46,9 @@ ROI_HEIGHT = 200
 # Output formats: Choose from 'png', 'svg', 'eps', 'jpg' or any combination
 OUTPUT_FORMATS = ['png']
 
+# Rotation angle in degrees (0.0 = no rotation, -1.0 = -1 degree, etc.)
+ROTATION_ANGLE_DEG = -1.0
+
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -104,6 +107,22 @@ def find_global_roi_bottom(mask_files, num_frames):
     
     return global_bottom
 
+def rotate_image(image, angle_deg):
+    """Rotate image around center, preserving size."""
+    if angle_deg == 0.0:
+        return image
+    h, w = image.shape[:2]
+    center = (w / 2.0, h / 2.0)
+    mat = cv2.getRotationMatrix2D(center, angle_deg, 1.0)
+    return cv2.warpAffine(
+        image,
+        mat,
+        (w, h),
+        flags=cv2.INTER_NEAREST,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=0,
+    )
+
 def analyze_left_right_symmetry(mask_path, global_roi_bottom, roi_height):
     """
     Analyze a single mask image for left-right symmetry.
@@ -117,6 +136,10 @@ def analyze_left_right_symmetry(mask_path, global_roi_bottom, roi_height):
     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
     if mask is None:
         return None
+    
+    # Apply rotation if configured
+    if ROTATION_ANGLE_DEG != 0.0:
+        mask = rotate_image(mask, ROTATION_ANGLE_DEG)
     
     height, width = mask.shape
     

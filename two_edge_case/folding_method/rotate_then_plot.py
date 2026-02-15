@@ -2,8 +2,8 @@
 Rotate tool mask images by a fixed angle, then run left-right symmetry plots.
 
 This script:
-- Rotates masks for selected tools by ROT_ANGLE_DEG
-- Saves rotated copies to a new folder
+- Optionally rotates masks for selected tools by ROTATION_ANGLE_DEG
+- Saves rotated copies to a new folder (if rotation enabled)
 - Runs the same analysis/plots on the rotated masks
 """
 
@@ -19,10 +19,9 @@ import matplotlib.pyplot as plt
 # ============================================================================
 BASE_DIR = r"c:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Dataset\CCD_DATA\DATA"
 MASKS_DIR = os.path.join(BASE_DIR, "masks")
-OUTPUT_DIR = os.path.join(BASE_DIR, "threshold_analysis", "left_right_method_rot_m2p0deg")
 
 TOOL_IDS = ["tool012", "tool115"]
-ROT_ANGLE_DEG = -2.0
+ROTATION_ANGLE_DEG = -1.0  # Set to 0.0 to disable rotation
 
 START_FRAME = 0
 NUM_FRAMES = 90
@@ -30,8 +29,9 @@ ROI_HEIGHT = 200
 
 OUTPUT_FORMATS = ["png"]
 
-# Rotated masks destination base
-ROTATED_MASKS_DIR = os.path.join(BASE_DIR, "masks_rotated", "rot_m2p0deg")
+# Rotated masks destination base (only used if ROTATION_ANGLE_DEG != 0.0)
+ROTATED_MASKS_DIR = os.path.join(BASE_DIR, "masks_rotated", f"rot_{ROTATION_ANGLE_DEG}deg")
+OUTPUT_DIR = os.path.join(BASE_DIR, "threshold_analysis", f"left_right_method_rot_{ROTATION_ANGLE_DEG}deg")
 
 
 def get_mask_folder(tool_id):
@@ -239,7 +239,7 @@ def plot_analysis_results(results_df, tool_id, output_dir):
 	mean_ratio = results_df["Ratio"].mean()
 	max_ratio = results_df["Ratio"].max()
 	fig.suptitle(
-		f"{tool_id} Left-Right Symmetry Analysis (rot {ROT_ANGLE_DEG} deg)\n"
+		f"{tool_id} Left-Right Symmetry Analysis (rot {ROTATION_ANGLE_DEG} deg)\n"
 		f"Mean Asymmetry Ratio: {mean_ratio:.4f}, Max: {max_ratio:.4f}",
 		fontsize=14,
 		fontweight="bold",
@@ -248,7 +248,7 @@ def plot_analysis_results(results_df, tool_id, output_dir):
 	plt.tight_layout()
 
 	for fmt in OUTPUT_FORMATS:
-		path = os.path.join(output_dir, f"{tool_id}_left_right_analysis_rot_m2p0deg.{fmt}")
+		path = os.path.join(output_dir, f"{tool_id}_left_right_analysis_rot_{ROTATION_ANGLE_DEG}deg.{fmt}")
 		plt.savefig(path, format=fmt, dpi=300)
 
 	plt.close()
@@ -295,13 +295,13 @@ def plot_sample_frames(mask_files, global_roi_bottom, roi_height, tool_id, outpu
 		axes[idx].axis("off")
 
 	fig.suptitle(
-		f"{tool_id}: Sample Frames (rot {ROT_ANGLE_DEG} deg)\nROI (green), Tool bounds (yellow), Center (red)",
+		f"{tool_id}: Sample Frames (rot {ROTATION_ANGLE_DEG} deg)\nROI (green), Tool bounds (yellow), Center (red)",
 		fontsize=12,
 	)
 	plt.tight_layout()
 
 	for fmt in OUTPUT_FORMATS:
-		path = os.path.join(output_dir, f"{tool_id}_sample_frames_rot_m2p0deg.{fmt}")
+		path = os.path.join(output_dir, f"{tool_id}_sample_frames_rot_{ROTATION_ANGLE_DEG}deg.{fmt}")
 		plt.savefig(path, format=fmt, dpi=300)
 
 	plt.close()
@@ -346,12 +346,20 @@ def analyze_tool(tool_id, mask_folder):
 
 def main():
 	os.makedirs(OUTPUT_DIR, exist_ok=True)
-	os.makedirs(ROTATED_MASKS_DIR, exist_ok=True)
+	if ROTATION_ANGLE_DEG != 0.0:
+		os.makedirs(ROTATED_MASKS_DIR, exist_ok=True)
 
 	for tool_id in TOOL_IDS:
-		print(f"Rotating {tool_id} masks by {ROT_ANGLE_DEG} deg...")
-		rotated_folder = rotate_and_save_masks(tool_id)
-		print(f"Saved rotated masks to: {rotated_folder}")
+		if ROTATION_ANGLE_DEG != 0.0:
+			print(f"Rotating {tool_id} masks by {ROTATION_ANGLE_DEG} deg...")
+			rotated_folder = rotate_and_save_masks(tool_id)
+			print(f"Saved rotated masks to: {rotated_folder}")
+		else:
+			print(f"Using original {tool_id} masks (rotation disabled)...")
+			src_folder = get_mask_folder(tool_id)
+			if not src_folder:
+				raise FileNotFoundError(f"No mask folder found for {tool_id}.")
+			rotated_folder = src_folder
 
 		print(f"Running analysis for {tool_id}...")
 		analyze_tool(tool_id, rotated_folder)

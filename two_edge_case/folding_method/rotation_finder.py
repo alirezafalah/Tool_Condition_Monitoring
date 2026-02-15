@@ -22,7 +22,7 @@ from matplotlib.widgets import Slider, TextBox, Button
 BASE_DIR = r"c:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Dataset\CCD_DATA\DATA"
 MASKS_DIR = os.path.join(BASE_DIR, "masks")
 
-TOOL_ID = "tool012"
+TOOL_ID = "tool115"
 START_FRAME = 0
 ROI_HEIGHT = 200
 

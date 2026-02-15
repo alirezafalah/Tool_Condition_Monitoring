@@ -21,6 +21,7 @@ from run_all_tools_analysis import (
     BASE_DIR, MASKS_DIR, TOOLS_METADATA_PATH, OUTPUT_DIR,
     START_FRAME, NUM_FRAMES, ASYMMETRY_THRESHOLD,
     WHITE_RATIO_OUTLIER_THRESHOLD, OUTPUT_FORMATS,
+    ROTATION_ANGLE_DEG,
     load_tools_metadata, get_mask_folder, get_mask_files,
     get_largest_contour_mask, find_global_roi_bottom,
     analyze_left_right_symmetry, plot_tool_analysis,
