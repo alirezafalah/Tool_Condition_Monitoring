@@ -58,6 +58,9 @@ SKIP_TOOLS = ['tool016', 'tool069']
 # Set based on tool062 (fractured) with mean ratio 0.033583
 ASYMMETRY_THRESHOLD = 0.033
 
+# Rotation angle in degrees (0.0 = no rotation, -1.0 = -1 degree, etc.)
+ROTATION_ANGLE_DEG = -1.0
+
 # Outlier threshold: skip frames where white_ratio > this value
 # (indicates over-segmentation / bad mask)
 WHITE_RATIO_OUTLIER_THRESHOLD = 0.8
@@ -175,6 +178,22 @@ def get_largest_contour_mask(mask):
     
     return cleaned_mask
 
+def rotate_image(image, angle_deg):
+    """Rotate image around center, preserving size."""
+    if angle_deg == 0.0:
+        return image
+    h, w = image.shape[:2]
+    center = (w / 2.0, h / 2.0)
+    mat = cv2.getRotationMatrix2D(center, angle_deg, 1.0)
+    return cv2.warpAffine(
+        image,
+        mat,
+        (w, h),
+        flags=cv2.INTER_NEAREST,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=0,
+    )
+
 def find_global_roi_bottom(mask_files, start_frame, num_frames, roi_height):
     """
     Find the most bottom white pixel across analyzed frames (global ROI).
@@ -190,6 +209,10 @@ def find_global_roi_bottom(mask_files, start_frame, num_frames, roi_height):
         mask = cv2.imread(mask_files[i], cv2.IMREAD_GRAYSCALE)
         if mask is None:
             continue
+        
+        # Apply rotation if configured
+        if ROTATION_ANGLE_DEG != 0.0:
+            mask = rotate_image(mask, ROTATION_ANGLE_DEG)
         
         # Keep only the largest contour (remove noise islands)
         cleaned_mask = get_largest_contour_mask(mask)
@@ -235,6 +258,10 @@ def analyze_left_right_symmetry(mask_path, global_roi_bottom, roi_height):
     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
     if mask is None:
         return None
+    
+    # Apply rotation if configured
+    if ROTATION_ANGLE_DEG != 0.0:
+        mask = rotate_image(mask, ROTATION_ANGLE_DEG)
     
     # Keep only the largest contour (remove noise islands)
     mask = get_largest_contour_mask(mask)

@@ -40,6 +40,9 @@ ASYMMETRY_THRESHOLD = 0.033
 # Output formats
 OUTPUT_FORMATS = ['png']
 
+# Rotation angle in degrees (0.0 = no rotation, -1.0 = -1 degree, etc.)
+ROTATION_ANGLE_DEG = -1.0
+
 # ============================================================================
 # TOOLS TO TEST - CONFIGURE HERE
 # ============================================================================
@@ -101,6 +104,22 @@ def get_mask_files(mask_folder):
     
     return sorted(files, key=extract_frame_num)
 
+def rotate_image(image, angle_deg):
+    """Rotate image around center, preserving size."""
+    if angle_deg == 0.0:
+        return image
+    h, w = image.shape[:2]
+    center = (w / 2.0, h / 2.0)
+    mat = cv2.getRotationMatrix2D(center, angle_deg, 1.0)
+    return cv2.warpAffine(
+        image,
+        mat,
+        (w, h),
+        flags=cv2.INTER_NEAREST,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=0,
+    )
+
 def find_global_roi_bottom(mask_files, start_frame, num_frames, roi_height):
     """Find ROI bottom using median, skipping outliers."""
     bottom_rows = []
@@ -110,6 +129,10 @@ def find_global_roi_bottom(mask_files, start_frame, num_frames, roi_height):
         mask = cv2.imread(mask_files[i], cv2.IMREAD_GRAYSCALE)
         if mask is None:
             continue
+        
+        # Apply rotation if configured
+        if ROTATION_ANGLE_DEG != 0.0:
+            mask = rotate_image(mask, ROTATION_ANGLE_DEG)
         
         cleaned_mask = get_largest_contour_mask(mask)
         
@@ -136,6 +159,10 @@ def analyze_frame(mask_path, global_roi_bottom, roi_height):
     mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
     if mask is None:
         return None
+    
+    # Apply rotation if configured
+    if ROTATION_ANGLE_DEG != 0.0:
+        mask = rotate_image(mask, ROTATION_ANGLE_DEG)
     
     mask = get_largest_contour_mask(mask)
     height, width = mask.shape
