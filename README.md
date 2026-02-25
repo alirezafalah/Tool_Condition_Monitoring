@@ -6,6 +6,7 @@ This repository provides a complete pipeline for analyzing CNC tool wear through
 
 * **`image_to_signal/`**: Main processing pipeline that converts tool images into 1D profile signals for wear analysis
 * **`mask_refiner/`**: Standalone interactive OpenGL mask refinement tool for editing masks against blurred frames
+* **`3D_reconstruction/`**: Visual Hull (Shape from Silhouette) reconstruction with GPU-accelerated engine and GUI
 * **`tool_profile_viz/`**: Modern PyQt6 GUI application for visualizing tool profiles, managing metadata, and reviewing inspection results
 * **`signal_processing/`** and **`tool_monitoring/`**: Legacy versions, kept for historical reference
 * **`old/`**: Proof of concept implementations and experimental data
@@ -39,6 +40,18 @@ python -m image_to_signal.gui_main
 ```bash
 cd Tool_Condition_Monitoring
 python -m mask_refiner.main
+```
+
+### Run 3D Reconstructor (Visual Hull GUI)
+```bash
+cd Tool_Condition_Monitoring/3D_reconstruction
+python visual_hull_gui.py
+```
+
+Optional legacy CLI:
+```bash
+cd Tool_Condition_Monitoring/3D_reconstruction
+python visual_hull.py
 ```
 
 Optional startup with a tool preselected:
