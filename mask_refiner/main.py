@@ -31,6 +31,7 @@ import glob
 import os
 import re
 import sys
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -107,6 +108,29 @@ from OpenGL.GL import (
 
 
 IMAGE_EXTS = (".tiff", ".tif", ".png", ".jpg", ".jpeg", ".bmp")
+
+# --- Performance: use half of CPU cores (capped at 8) for OpenCV internal threading,
+#     and a small thread pool to offload heavy CV ops from the GUI thread. ---
+_NUM_CV_THREADS = min(8, max(4, (os.cpu_count() or 8) // 2))
+_worker_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="cv_worker")
+
+
+def _configure_cv_performance():
+    """Set up OpenCV multi-threading and GPU (OpenCL) acceleration."""
+    cv2.setNumThreads(_NUM_CV_THREADS)
+    try:
+        cv2.ocl.setUseOpenCL(True)
+    except Exception:
+        pass
+    # Report configuration
+    ocl_status = "enabled" if cv2.ocl.useOpenCL() else "disabled"
+    print(f"[perf] OpenCV threads: {_NUM_CV_THREADS}, OpenCL: {ocl_status}")
+    try:
+        dev = cv2.ocl.Device.getDefault()
+        if dev and dev.name():
+            print(f"[perf] OpenCL device: {dev.name()}")
+    except Exception:
+        pass
 
 
 def build_composite_rgba(cv_image: np.ndarray, mask: np.ndarray, mask_blend: float = 1.0) -> np.ndarray:
@@ -248,6 +272,10 @@ class GLCanvas(QOpenGLWidget):
         self._brush_last: Optional[QPoint] = None
 
         self._cursor_pos: Optional[QPoint] = None
+
+        # GrabCut async state
+        self._grabcut_future: Optional[Future] = None
+        self._grabcut_timer: Optional[QTimer] = None
 
     def mark_texture_dirty(self):
         self._texture_dirty = True
@@ -592,33 +620,63 @@ class GLCanvas(QOpenGLWidget):
             return
 
         self.main_window.statusBar().showMessage("Running GrabCut... please wait")
-        QApplication.processEvents()
-
-        rect = (x1, y1, w, h)
-        gc_mask = np.zeros(self.cv_image.shape[:2], dtype=np.uint8)
-
-        if np.any(self.mask > 0):
-            gc_mask[self.mask > 0] = cv2.GC_PR_FGD
-            gc_mask[self.mask == 0] = cv2.GC_PR_BGD
-            outside = np.ones_like(gc_mask, dtype=bool)
-            outside[y1:y1 + h, x1:x1 + w] = False
-            gc_mask[outside] = cv2.GC_BGD
-            mode = cv2.GC_INIT_WITH_MASK
-        else:
-            mode = cv2.GC_INIT_WITH_RECT
-
-        bgd = np.zeros((1, 65), np.float64)
-        fgd = np.zeros((1, 65), np.float64)
-
-        try:
-            cv2.grabCut(self.cv_image, gc_mask, rect, bgd, fgd, 5, mode)
-            result = np.where((gc_mask == cv2.GC_FGD) | (gc_mask == cv2.GC_PR_FGD), 255, 0).astype(np.uint8)
-            self._apply_to_mask(result)
-            self.main_window.statusBar().showMessage("GrabCut done", 3000)
-        except cv2.error as exc:
-            self.main_window.statusBar().showMessage(f"GrabCut failed: {exc}", 5000)
-
         self._rect_start = self._rect_end = None
+
+        # Prepare data copies so the worker thread doesn't touch GUI-owned arrays
+        image_copy = self.cv_image.copy()
+        mask_copy = self.mask.copy()
+        rect = (x1, y1, w, h)
+
+        def _grabcut_worker() -> Optional[np.ndarray]:
+            gc_mask = np.zeros(image_copy.shape[:2], dtype=np.uint8)
+            if np.any(mask_copy > 0):
+                gc_mask[mask_copy > 0] = cv2.GC_PR_FGD
+                gc_mask[mask_copy == 0] = cv2.GC_PR_BGD
+                outside = np.ones_like(gc_mask, dtype=bool)
+                outside[y1:y1 + h, x1:x1 + w] = False
+                gc_mask[outside] = cv2.GC_BGD
+                mode = cv2.GC_INIT_WITH_MASK
+            else:
+                mode = cv2.GC_INIT_WITH_RECT
+            bgd = np.zeros((1, 65), np.float64)
+            fgd = np.zeros((1, 65), np.float64)
+            try:
+                cv2.grabCut(image_copy, gc_mask, rect, bgd, fgd, 5, mode)
+                return np.where(
+                    (gc_mask == cv2.GC_FGD) | (gc_mask == cv2.GC_PR_FGD), 255, 0
+                ).astype(np.uint8)
+            except cv2.error:
+                return None
+
+        self._grabcut_future = _worker_pool.submit(_grabcut_worker)
+
+        # Poll for completion without blocking the GUI
+        self._grabcut_timer = QTimer()
+        self._grabcut_timer.setInterval(40)
+        self._grabcut_timer.timeout.connect(self._poll_grabcut)
+        self._grabcut_timer.start()
+
+    def _poll_grabcut(self):
+        """Check if the background GrabCut has finished."""
+        if self._grabcut_future is None or not self._grabcut_future.done():
+            return
+        self._grabcut_timer.stop()
+        self._grabcut_timer = None
+
+        result = self._grabcut_future.result()
+        self._grabcut_future = None
+
+        if result is not None:
+            self._apply_to_mask(result)
+            if self.main_window:
+                self.main_window.statusBar().showMessage("GrabCut done", 3000)
+        else:
+            if self.main_window:
+                self.main_window.statusBar().showMessage("GrabCut failed", 5000)
+
+        self.mark_texture_dirty()
+        if self.main_window:
+            self.main_window._update_mask_info()
 
     def _apply_magic_wand(self, pt: QPoint):
         if self.cv_image is None or self.mask is None or self.main_window is None:
@@ -1165,6 +1223,11 @@ class MaskRefinerWindow(QMainWindow):
         self._redo_stack.clear()
         self._dirty = False
 
+        # Immediately rebuild texture so current mask_blend is applied
+        # (visibility / blend slider persists across navigation)
+        self.canvas._img_h, self.canvas._img_w = h, w
+        self.canvas.mark_texture_dirty()
+
         self._img_label.setText(frame_name)
         self._counter_label.setText(f"Image {idx + 1} / {len(self.image_paths)}")
         self._btn_prev.setEnabled(idx > 0)
@@ -1321,6 +1384,9 @@ def main():
     data_dir = os.path.abspath(args.data_dir)
     if not os.path.isdir(data_dir):
         raise FileNotFoundError(f"DATA directory not found: {data_dir}")
+
+    # Configure OpenCV multi-threading + OpenCL (Intel Iris Xe)
+    _configure_cv_performance()
 
     app = QApplication(sys.argv)
     app.setStyleSheet(
