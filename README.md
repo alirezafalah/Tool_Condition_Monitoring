@@ -5,6 +5,7 @@ This repository provides a complete pipeline for analyzing CNC tool wear through
 ## Project Structure
 
 * **`image_to_signal/`**: Main processing pipeline that converts tool images into 1D profile signals for wear analysis
+* **`mask_refiner/`**: Standalone interactive OpenGL mask refinement tool for editing masks against blurred frames
 * **`tool_profile_viz/`**: Modern PyQt6 GUI application for visualizing tool profiles, managing metadata, and reviewing inspection results
 * **`signal_processing/`** and **`tool_monitoring/`**: Legacy versions, kept for historical reference
 * **`old/`**: Proof of concept implementations and experimental data
@@ -34,6 +35,26 @@ cd Tool_Condition_Monitoring
 python -m image_to_signal.gui_main
 ```
 
+### Run Mask Refiner (Standalone)
+```bash
+cd Tool_Condition_Monitoring
+python -m mask_refiner.main
+```
+
+Optional startup with a tool preselected:
+```bash
+python -m mask_refiner.main --tool tool002
+```
+
+Optional custom DATA root:
+```bash
+python -m mask_refiner.main --data-dir "C:/path/to/DATA"
+```
+
+Inside the refiner you can either:
+- pick a tool from the dropdown (auto-resolves `DATA/blurred` + `DATA/masks`), or
+- manually choose `Blurred Folder` and `Masks Folder` from the Dataset panel.
+
 ### Run Profile Visualization Tool
 ```bash
 cd Tool_Condition_Monitoring/tool_profile_viz
@@ -53,3 +74,8 @@ cd Tool_Condition_Monitoring
 python -m image_to_signal.rename_by_angle --tool tool002 --frames360 363
 ```
 Then run the GUI or pipeline steps.
+
+### Launch Mask Refiner from Pipeline GUI
+In `python -m image_to_signal.gui_main`, open the `🎭 Mask Refiner` tab and launch it either:
+- with current Tool ID, or
+- in manual selection mode.
