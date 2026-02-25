@@ -67,3 +67,7 @@ coverage.xml
 # Jupyter Notebook Checkpoints
 .ipynb_checkpoints
 
+# 3D mesh outputs
+*.obj
+*.ply
+

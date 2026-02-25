@@ -1,0 +1,43 @@
+{
+  "tool_id": "tool002",
+  "mask_dir": "C:\\Users\\alrfa\\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\\PhD\\Dataset\\CCD_DATA\\DATA\\masks\\tool002_final_masks",
+  "output_dir": "C:\\Users\\alrfa\\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\\PhD\\Dataset\\CCD_DATA\\Tool_Condition_Monitoring\\3D_reconstruction\\output\\tool002",
+  "angle_mode": "uniform_360",
+  "resolution": 200,
+  "skip_views": 1,
+  "mask_scale": 0.5,
+  "flip_rotation": false,
+  "smooth_sigma": 0.5,
+  "tilt_correction": "auto",
+  "tilt_meta_dir": "C:\\Users\\alrfa\\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\\PhD\\Dataset\\CCD_DATA\\DATA\\threshold_analysis\\master_mask_perspective\\tool_metadata",
+  "symmetry_half": true,
+  "export_mesh": true,
+  "export_pointcloud": true,
+  "export_viz": true,
+  "use_gpu": true,
+  "n_workers": 12,
+  "tilt_angle_applied_deg": -7.524758387008225e-14,
+  "grid_shape": [
+    200,
+    288,
+    200
+  ],
+  "volume_bounds": [
+    [
+      -1.15,
+      1.15
+    ],
+    [
+      -1.658877086494689,
+      1.658877086494689
+    ],
+    [
+      -1.15,
+      1.15
+    ]
+  ],
+  "occupied_voxels": 4486184,
+  "total_voxels": 11520000,
+  "carve_elapsed_s": 2.1,
+  "run_date": "2026-02-25 18:08:42"
+}
