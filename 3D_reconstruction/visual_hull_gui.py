@@ -12,6 +12,7 @@ Requirements (all in standard Anaconda / pip):
 """
 
 import os
+import re
 import sys
 import subprocess
 import threading
@@ -94,20 +95,18 @@ class VisualHullApp(tk.Tk):
         super().__init__()
         self.title("Visual Hull — Shape from Silhouette")
         self.configure(bg=BG)
-        self.minsize(820, 720)
-        self.geometry("880x820")
+        self.minsize(1000, 720)
+        self.geometry("1280x880")
         self._center_window()
 
         # State
         self._running = False
         self._result = None
+        self._results = []        # batch results
+        self._folder_list = []    # list of dicts: {mask_dir, tool_id, output_dir}
 
         # Variables (tk vars)
-        self._tools = discover_tools()
-
-        self.var_tool      = tk.StringVar(value=self._tools[0] if self._tools else "tool002")
-        self.var_mask_dir  = tk.StringVar()
-        self.var_output_dir= tk.StringVar()
+        self.var_output_base = tk.StringVar(value=OUTPUT_ROOT)
         self.var_angle     = tk.StringVar(value="filename")
         self.var_resolution= tk.IntVar(value=200)
         self.var_skip      = tk.IntVar(value=1)
@@ -127,7 +126,6 @@ class VisualHullApp(tk.Tk):
         self._gpu_info = get_gpu_info()
 
         self._build_ui()
-        self._on_tool_changed()  # populate paths
 
     # -------------------------------------------------------------------
     #  Window helpers
@@ -135,7 +133,7 @@ class VisualHullApp(tk.Tk):
 
     def _center_window(self):
         self.update_idletasks()
-        w, h = 880, 820
+        w, h = 1280, 880
         x = (self.winfo_screenwidth()  - w) // 2
         y = (self.winfo_screenheight() - h) // 2
         self.geometry(f"{w}x{h}+{x}+{y}")
@@ -196,6 +194,18 @@ class VisualHullApp(tk.Tk):
         style.map("Small.TButton",
                   background=[("active", BORDER)])
 
+        # Treeview (folder list)
+        style.configure("Treeview",
+                         background=BG_INPUT, foreground=FG,
+                         fieldbackground=BG_INPUT, font=FONT_SMALL,
+                         rowheight=24)
+        style.configure("Treeview.Heading",
+                         background=BG_CARD, foreground=FG_ACCENT,
+                         font=FONT_BOLD)
+        style.map("Treeview",
+                  background=[("selected", "#45475a")],
+                  foreground=[("selected", FG)])
+
         # Progress bar
         style.configure("green.Horizontal.TProgressbar",
                          troughcolor=BG_INPUT, background=FG_GREEN,
@@ -219,9 +229,14 @@ class VisualHullApp(tk.Tk):
         self._content = content = tk.Frame(canvas, bg=BG)
         content.bind("<Configure>",
                      lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=content, anchor="nw")
+        self._canvas_win_id = canvas.create_window((0, 0), window=content, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side="left", fill="both", expand=True, padx=(10, 0))
+
+        # Stretch content frame to fill the full canvas width
+        def _on_canvas_resize(event):
+            canvas.itemconfigure(self._canvas_win_id, width=event.width)
+        canvas.bind("<Configure>", _on_canvas_resize)
         scrollbar.pack(side="right", fill="y")
 
         # Mouse wheel scrolling
@@ -231,7 +246,7 @@ class VisualHullApp(tk.Tk):
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         # --- Cards ---
-        self._build_tool_card(content)
+        self._build_folder_card(content)
         self._build_angles_card(content)
         self._build_carving_card(content)
         self._build_tilt_card(content)
@@ -241,41 +256,69 @@ class VisualHullApp(tk.Tk):
         self._build_log_card(content)
         self._build_results_card(content)
 
-    # --- Tool selection card ---
-    def _build_tool_card(self, parent):
-        frame = ttk.LabelFrame(parent, text="  Tool Selection  ",
+    # --- Folder selection card (multi-folder) ---
+    def _build_folder_card(self, parent):
+        frame = ttk.LabelFrame(parent, text="  Mask Folders  ",
                                 style="Card.TLabelframe", padding=12)
         frame.pack(fill="x", padx=8, pady=(8, 4))
 
-        row = ttk.Frame(frame, style="Card.TFrame")
-        row.pack(fill="x")
+        # Button row
+        btn_row = ttk.Frame(frame, style="Card.TFrame")
+        btn_row.pack(fill="x", pady=(0, 8))
 
-        ttk.Label(row, text="Tool:").pack(side="left", padx=(0, 8))
-        cb = ttk.Combobox(row, textvariable=self.var_tool,
-                          values=self._tools, state="readonly", width=14)
-        cb.pack(side="left", padx=(0, 16))
-        cb.bind("<<ComboboxSelected>>", lambda e: self._on_tool_changed())
-        ToolTip(cb, "Select the tool whose masks you want to reconstruct.")
+        ttk.Button(btn_row, text="+ Add Folder", style="Accent.TButton",
+                   command=self._add_folder).pack(side="left", padx=(0, 8))
+        ttk.Button(btn_row, text="Auto-detect All", style="Small.TButton",
+                   command=self._auto_detect_all).pack(side="left", padx=(0, 8))
+        ttk.Button(btn_row, text="Remove Selected", style="Small.TButton",
+                   command=self._remove_selected).pack(side="left", padx=(0, 8))
+        ttk.Button(btn_row, text="Clear All", style="Small.TButton",
+                   command=self._clear_all).pack(side="left")
 
-        ttk.Label(row, text="Mask dir:").pack(side="left", padx=(0, 4))
-        mask_entry = ttk.Entry(row, textvariable=self.var_mask_dir, width=44,
-                               font=FONT_SMALL)
-        mask_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
-        ttk.Button(row, text="…", style="Small.TButton", width=3,
-                   command=self._browse_mask_dir).pack(side="left")
-        ToolTip(mask_entry, "Path to the folder containing binary mask images (.tiff).\nAuto-filled when you pick a tool.")
+        self._folder_count_lbl = ttk.Label(btn_row, text="0 folder(s)",
+                                           style="Dim.TLabel")
+        self._folder_count_lbl.pack(side="right")
 
-        row2 = ttk.Frame(frame, style="Card.TFrame")
-        row2.pack(fill="x", pady=(6, 0))
-        ttk.Label(row2, text="Output dir:").pack(side="left", padx=(0, 4))
-        out_entry = ttk.Entry(row2, textvariable=self.var_output_dir, width=54,
-                              font=FONT_SMALL)
+        # Treeview
+        tree_frame = ttk.Frame(frame, style="Card.TFrame")
+        tree_frame.pack(fill="x")
+
+        cols = ("tool", "mask", "output")
+        self._folder_tree = tree = ttk.Treeview(
+            tree_frame, columns=cols, show="headings", height=6,
+            selectmode="extended")
+        tree.heading("tool",   text="Tool ID",       anchor="w")
+        tree.heading("mask",   text="Mask Folder",   anchor="w")
+        tree.heading("output", text="Output Folder",  anchor="w")
+        tree.column("tool",   width=100,  minwidth=80,  stretch=False)
+        tree.column("mask",   width=450,  minwidth=200)
+        tree.column("output", width=350,  minwidth=150)
+        tree.pack(side="left", fill="x", expand=True)
+
+        tree_sb = ttk.Scrollbar(tree_frame, orient="vertical",
+                                command=tree.yview)
+        tree.configure(yscrollcommand=tree_sb.set)
+        tree_sb.pack(side="right", fill="y")
+
+        ToolTip(tree,
+            "Select one or more mask folders to reconstruct.\n"
+            "Tool ID and output path are auto-detected from the folder name.\n"
+            "Use 'Add Folder' to browse, or 'Auto-detect All' to find all tools.")
+
+        # Output base dir
+        out_row = ttk.Frame(frame, style="Card.TFrame")
+        out_row.pack(fill="x", pady=(8, 0))
+        ttk.Label(out_row, text="Output base:").pack(side="left", padx=(0, 4))
+        out_entry = ttk.Entry(out_row, textvariable=self.var_output_base,
+                              width=60, font=FONT_SMALL)
         out_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
-        ttk.Button(row2, text="…", style="Small.TButton", width=3,
-                   command=self._browse_output_dir).pack(side="left")
-        ttk.Button(row2, text="Open", style="Small.TButton", width=5,
+        ttk.Button(out_row, text="…", style="Small.TButton", width=3,
+                   command=self._browse_output_base).pack(side="left")
+        ttk.Button(out_row, text="Open", style="Small.TButton", width=5,
                    command=self._open_output_dir).pack(side="left", padx=(4, 0))
-        ToolTip(out_entry, "Where results will be saved.  Auto-set to output/<tool_id>/.")
+        ToolTip(out_entry,
+            "Base folder for outputs.  Subfolders are created automatically\n"
+            "per tool, e.g. output/tool002/, output/tool010/.")
 
     # --- Angle mode card ---
     def _build_angles_card(self, parent):
@@ -541,10 +584,86 @@ class VisualHullApp(tk.Tk):
     #  Callbacks
     # -------------------------------------------------------------------
 
-    def _on_tool_changed(self):
-        tid = self.var_tool.get()
-        self.var_mask_dir.set(os.path.join(MASKS_DIR, f"{tid}_final_masks"))
-        self.var_output_dir.set(os.path.join(OUTPUT_ROOT, tid))
+    @staticmethod
+    def _extract_tool_id(folder_path):
+        """Extract tool ID from folder name, e.g. 'tool002_final_masks' → 'tool002'."""
+        name = os.path.basename(folder_path.rstrip('/\\'))
+        m = re.match(r'(tool\d+)', name)
+        if m:
+            return m.group(1)
+        return name  # fallback: use the folder name itself
+
+    def _add_folder(self):
+        d = filedialog.askdirectory(initialdir=MASKS_DIR,
+                                    title="Select Mask Folder")
+        if d:
+            d = os.path.normpath(d)
+            tool_id = self._extract_tool_id(d)
+            output_dir = os.path.join(self.var_output_base.get(), tool_id)
+            # Avoid duplicates
+            for item in self._folder_list:
+                if item["mask_dir"] == d:
+                    return
+            self._folder_list.append({
+                "mask_dir": d, "tool_id": tool_id, "output_dir": output_dir
+            })
+            self._refresh_folder_tree()
+
+    def _auto_detect_all(self):
+        tools = discover_tools()
+        if not tools:
+            messagebox.showinfo("Auto-detect",
+                                f"No tool mask folders found in:\n{MASKS_DIR}")
+            return
+        existing = {item["mask_dir"] for item in self._folder_list}
+        added = 0
+        for tid in tools:
+            mask_dir = os.path.normpath(
+                os.path.join(MASKS_DIR, f"{tid}_final_masks"))
+            if mask_dir not in existing:
+                output_dir = os.path.join(self.var_output_base.get(), tid)
+                self._folder_list.append({
+                    "mask_dir": mask_dir, "tool_id": tid,
+                    "output_dir": output_dir
+                })
+                added += 1
+        self._refresh_folder_tree()
+        self._log(f"Auto-detected {added} new tool(s) "
+                  f"(total: {len(self._folder_list)})")
+
+    def _remove_selected(self):
+        selected = self._folder_tree.selection()
+        if not selected:
+            return
+        indices = {self._folder_tree.index(iid) for iid in selected}
+        self._folder_list = [
+            item for i, item in enumerate(self._folder_list)
+            if i not in indices
+        ]
+        self._refresh_folder_tree()
+
+    def _clear_all(self):
+        self._folder_list.clear()
+        self._refresh_folder_tree()
+
+    def _refresh_folder_tree(self):
+        tree = self._folder_tree
+        tree.delete(*tree.get_children())
+        for item in self._folder_list:
+            # Refresh output dir in case the base changed
+            item["output_dir"] = os.path.join(
+                self.var_output_base.get(), item["tool_id"])
+            tree.insert("", "end", values=(
+                item["tool_id"], item["mask_dir"], item["output_dir"]))
+        self._folder_count_lbl.configure(
+            text=f"{len(self._folder_list)} folder(s)")
+
+    def _browse_output_base(self):
+        d = filedialog.askdirectory(initialdir=self.var_output_base.get(),
+                                    title="Select Output Base Folder")
+        if d:
+            self.var_output_base.set(d)
+            self._refresh_folder_tree()
 
     def _on_tilt_mode_changed(self):
         mode = self.var_tilt_mode.get()
@@ -553,20 +672,8 @@ class VisualHullApp(tk.Tk):
         else:
             self._tilt_spin.configure(state="disabled")
 
-    def _browse_mask_dir(self):
-        d = filedialog.askdirectory(initialdir=MASKS_DIR,
-                                    title="Select Mask Folder")
-        if d:
-            self.var_mask_dir.set(d)
-
-    def _browse_output_dir(self):
-        d = filedialog.askdirectory(initialdir=OUTPUT_ROOT,
-                                    title="Select Output Folder")
-        if d:
-            self.var_output_dir.set(d)
-
     def _open_output_dir(self):
-        d = self.var_output_dir.get()
+        d = self.var_output_base.get()
         if os.path.isdir(d):
             os.startfile(d)
         else:
@@ -576,7 +683,7 @@ class VisualHullApp(tk.Tk):
     #  Build config from GUI state
     # -------------------------------------------------------------------
 
-    def _build_config(self) -> EngineConfig:
+    def _build_config(self, tool_id, mask_dir, output_dir) -> EngineConfig:
         tilt_mode = self.var_tilt_mode.get()
         if tilt_mode == "off":
             tilt_val = "off"
@@ -586,9 +693,9 @@ class VisualHullApp(tk.Tk):
             tilt_val = str(self.var_tilt_angle.get())
 
         cfg = EngineConfig(
-            tool_id         = self.var_tool.get(),
-            mask_dir        = self.var_mask_dir.get(),
-            output_dir      = self.var_output_dir.get(),
+            tool_id         = tool_id,
+            mask_dir        = mask_dir,
+            output_dir      = output_dir,
             angle_mode      = self.var_angle.get(),
             resolution      = self.var_resolution.get(),
             skip_views      = max(1, self.var_skip.get()),
@@ -626,21 +733,26 @@ class VisualHullApp(tk.Tk):
         self.after(0, _do)
 
     # -------------------------------------------------------------------
-    #  Run reconstruction
+    #  Run reconstruction (batch)
     # -------------------------------------------------------------------
 
     def _on_run(self):
         if self._running:
             return
 
-        # Validate
-        mask_dir = self.var_mask_dir.get()
-        if not os.path.isdir(mask_dir):
+        if not self._folder_list:
             messagebox.showerror("Error",
-                f"Mask directory not found:\n{mask_dir}")
+                "No mask folders selected.\n"
+                "Click 'Add Folder' or 'Auto-detect All' first.")
             return
 
-        cfg = self._build_config()
+        # Validate all folders exist
+        for item in self._folder_list:
+            if not os.path.isdir(item["mask_dir"]):
+                messagebox.showerror("Error",
+                    f"Mask directory not found:\n{item['mask_dir']}")
+                return
+
         self._running = True
         self.btn_run.configure(state="disabled")
         self.btn_meshlab.configure(state="disabled")
@@ -653,49 +765,92 @@ class VisualHullApp(tk.Tk):
         self.log_text.delete("1.0", "end")
         self.log_text.configure(state="disabled")
 
-        self._log(f"Starting reconstruction for {cfg.tool_id} ...")
-        self._log(f"  Resolution: {cfg.resolution}  Skip: {cfg.skip_views}  "
-                  f"Scale: {cfg.mask_scale}  Workers: {cfg.n_workers}")
-        self._log(f"  Angle mode: {cfg.angle_mode}  "
-                  f"Tilt: {cfg.tilt_correction}  Flip: {cfg.flip_rotation}  "
-                  f"Symmetry: {cfg.symmetry_half}")
-        self._log("")
+        # Refresh output dirs in case base changed
+        self._refresh_folder_tree()
+        # Take a snapshot of the folder list
+        jobs = [dict(item) for item in self._folder_list]
+        total = len(jobs)
+
+        self._log(f"Starting batch reconstruction: {total} tool(s)")
+        self._log("=" * 60)
 
         def _worker():
-            result = run_visual_hull(
-                cfg,
-                progress_cb=self._set_progress,
-                log_cb=self._log,
-            )
-            self.after(0, lambda: self._on_run_done(result))
+            results = []
+            for i, item in enumerate(jobs):
+                self._log(f"\n[{i+1}/{total}] {item['tool_id']}  —  "
+                          f"{item['mask_dir']}")
+                cfg = self._build_config(
+                    item["tool_id"], item["mask_dir"], item["output_dir"])
+                self._log(f"  Resolution: {cfg.resolution}  "
+                          f"Skip: {cfg.skip_views}  "
+                          f"Scale: {cfg.mask_scale}  "
+                          f"Workers: {cfg.n_workers}")
+                self._log(f"  Angle mode: {cfg.angle_mode}  "
+                          f"Tilt: {cfg.tilt_correction}  "
+                          f"Flip: {cfg.flip_rotation}  "
+                          f"Symmetry: {cfg.symmetry_half}")
+
+                def _sub_progress(pct, msg="", _i=i):
+                    overall = ((_i + pct / 100.0) / total) * 100
+                    self._set_progress(
+                        overall,
+                        f"[{_i+1}/{total}] {item['tool_id']}: {msg}")
+
+                result = run_visual_hull(
+                    cfg, progress_cb=_sub_progress, log_cb=self._log)
+                results.append(result)
+
+                if result.get("error"):
+                    self._log(f"  ERROR: {result['error']}")
+                else:
+                    gs = result.get("grid_shape", (0, 0, 0))
+                    self._log(
+                        f"  Done: {result.get('n_occupied', 0):,} voxels "
+                        f"({gs[0]}×{gs[1]}×{gs[2]}) "
+                        f"in {result.get('elapsed', 0):.1f}s")
+
+            self.after(0, lambda: self._on_batch_done(results))
 
         threading.Thread(target=_worker, daemon=True).start()
 
-    def _on_run_done(self, result):
+    def _on_batch_done(self, results):
         self._running = False
-        self._result = result
+        self._results = results
         self.btn_run.configure(state="normal")
 
-        if result.get("error"):
-            self.lbl_status.configure(text="Error!")
-            self._log(f"\nERROR: {result['error']}")
-            messagebox.showerror("Reconstruction Error", result["error"])
-            return
+        # Find last successful result for viewer buttons
+        last_ok = None
+        errors = 0
+        for r in results:
+            if r.get("error"):
+                errors += 1
+            else:
+                last_ok = r
 
-        self.lbl_status.configure(text="Done!")
+        self._result = last_ok
+        if last_ok:
+            if (last_ok.get("obj_path")
+                    and os.path.isfile(last_ok["obj_path"])):
+                self.btn_meshlab.configure(state="normal")
+            if (last_ok.get("preview_path")
+                    and os.path.isfile(last_ok["preview_path"])):
+                self.btn_preview.configure(state="normal")
 
-        # Enable viewer buttons
-        if result.get("obj_path") and os.path.isfile(result["obj_path"]):
-            self.btn_meshlab.configure(state="normal")
+        total = len(results)
+        ok = total - errors
+        self._set_progress(100, "")
 
-        if result.get("preview_path") and os.path.isfile(result["preview_path"]):
-            self.btn_preview.configure(state="normal")
+        if errors == 0:
+            self.lbl_status.configure(text=f"Done! {ok}/{total} succeeded")
+            info = f"Batch complete: {ok} tool(s) reconstructed successfully"
+        else:
+            self.lbl_status.configure(
+                text=f"Done with {errors} error(s)")
+            info = f"Batch: {ok}/{total} succeeded, {errors} failed"
 
-        gs = result.get("grid_shape", (0, 0, 0))
-        info = (f"{result.get('n_occupied', 0):,} voxels  "
-                f"({gs[0]}×{gs[1]}×{gs[2]})  "
-                f"in {result.get('elapsed', 0):.1f}s")
         self.lbl_result_info.configure(text=info)
+        self._log(f"\n{'=' * 60}")
+        self._log(info)
 
     # -------------------------------------------------------------------
     #  Viewers

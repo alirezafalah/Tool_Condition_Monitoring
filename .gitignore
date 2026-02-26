@@ -71,3 +71,5 @@ coverage.xml
 *.obj
 *.ply
 
+
+3D_reconstruction/output/
