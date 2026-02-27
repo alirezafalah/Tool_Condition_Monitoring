@@ -90,6 +90,29 @@ class ToolTip:
 #  Main Application
 # ═══════════════════════════════════════════════════════════════════════════
 
+# Mask image extensions to look for when scanning folders
+MASK_EXTENSIONS = {".tiff", ".tif", ".png", ".bmp"}
+
+
+def _find_leaf_mask_folders(parent_dir: str) -> list:
+    """Recursively find all leaf folders under *parent_dir* that contain mask images.
+
+    Returns a list of absolute paths (normalised).
+    A 'leaf' folder is one containing at least one image file with a known
+    mask extension and no child directories that themselves contain masks.
+    In practice we collect every directory that has image files directly in it.
+    """
+    results = []
+    parent_dir = os.path.normpath(parent_dir)
+    for root, dirs, files in os.walk(parent_dir):
+        has_masks = any(
+            os.path.splitext(f)[1].lower() in MASK_EXTENSIONS for f in files
+        )
+        if has_masks:
+            results.append(os.path.normpath(root))
+    return sorted(results)
+
+
 class VisualHullApp(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -103,11 +126,11 @@ class VisualHullApp(tk.Tk):
         self._running = False
         self._result = None
         self._results = []        # batch results
-        self._folder_list = []    # list of dicts: {mask_dir, tool_id, output_dir}
+        self._folder_list = []    # list of dicts: {mask_dir, tool_id, output_dir, rel_path}
 
         # Variables (tk vars)
         self.var_output_base = tk.StringVar(value=OUTPUT_ROOT)
-        self.var_angle     = tk.StringVar(value="filename")
+        self.var_angle     = tk.StringVar(value="uniform_360")
         self.var_resolution= tk.IntVar(value=200)
         self.var_skip      = tk.IntVar(value=1)
         self.var_scale     = tk.DoubleVar(value=0.5)
@@ -116,9 +139,9 @@ class VisualHullApp(tk.Tk):
         self.var_sigma     = tk.DoubleVar(value=0.5)
         self.var_tilt_mode = tk.StringVar(value="off")
         self.var_tilt_angle= tk.DoubleVar(value=0.0)
-        self.var_mesh      = tk.BooleanVar(value=True)
-        self.var_ply       = tk.BooleanVar(value=True)
-        self.var_viz       = tk.BooleanVar(value=True)
+        self.var_mesh      = tk.BooleanVar(value=False)
+        self.var_ply       = tk.BooleanVar(value=False)
+        self.var_viz       = tk.BooleanVar(value=False)
         self.var_workers   = tk.IntVar(value=MAX_WORKERS)
         self.var_gpu       = tk.BooleanVar(value=True)
 
@@ -268,6 +291,8 @@ class VisualHullApp(tk.Tk):
 
         ttk.Button(btn_row, text="+ Add Folder", style="Accent.TButton",
                    command=self._add_folder).pack(side="left", padx=(0, 8))
+        ttk.Button(btn_row, text="+ Add Parent Folder", style="Accent.TButton",
+                   command=self._add_parent_folder).pack(side="left", padx=(0, 8))
         ttk.Button(btn_row, text="Auto-detect All", style="Small.TButton",
                    command=self._auto_detect_all).pack(side="left", padx=(0, 8))
         ttk.Button(btn_row, text="Remove Selected", style="Small.TButton",
@@ -303,7 +328,9 @@ class VisualHullApp(tk.Tk):
         ToolTip(tree,
             "Select one or more mask folders to reconstruct.\n"
             "Tool ID and output path are auto-detected from the folder name.\n"
-            "Use 'Add Folder' to browse, or 'Auto-detect All' to find all tools.")
+            "Use 'Add Folder' for a single folder, 'Add Parent Folder' to\n"
+            "recursively discover all subfolders with mask images, or\n"
+            "'Auto-detect All' to find tools in the default masks directory.")
 
         # Output base dir
         out_row = ttk.Frame(frame, style="Card.TFrame")
@@ -586,12 +613,18 @@ class VisualHullApp(tk.Tk):
 
     @staticmethod
     def _extract_tool_id(folder_path):
-        """Extract tool ID from folder name, e.g. 'tool002_final_masks' → 'tool002'."""
-        name = os.path.basename(folder_path.rstrip('/\\'))
-        m = re.match(r'(tool\d+)', name)
+        """Extract tool ID from folder name.
+
+        For legacy folders like 'tool002_final_masks' → 'tool002'.
+        For arbitrary folders like '3030A11_Carbide' → '3030A11_Carbide'.
+        The folder name itself is the tool ID.
+        """
+        name = os.path.basename(os.path.normpath(folder_path))
+        # Strip known suffixes from legacy naming
+        m = re.match(r'(tool\d+)_final_masks$', name)
         if m:
             return m.group(1)
-        return name  # fallback: use the folder name itself
+        return name  # use the folder name as-is
 
     def _add_folder(self):
         d = filedialog.askdirectory(initialdir=MASKS_DIR,
@@ -605,9 +638,48 @@ class VisualHullApp(tk.Tk):
                 if item["mask_dir"] == d:
                     return
             self._folder_list.append({
-                "mask_dir": d, "tool_id": tool_id, "output_dir": output_dir
+                "mask_dir": d, "tool_id": tool_id,
+                "output_dir": output_dir, "rel_path": tool_id,
             })
             self._refresh_folder_tree()
+
+    def _add_parent_folder(self):
+        """Browse for a parent folder, recursively discover all subfolders
+        containing mask images, and add them preserving relative structure."""
+        d = filedialog.askdirectory(
+            title="Select Parent Folder (subfolders will be scanned recursively)")
+        if not d:
+            return
+        d = os.path.normpath(d)
+        leaf_folders = _find_leaf_mask_folders(d)
+        if not leaf_folders:
+            messagebox.showinfo(
+                "No Masks Found",
+                f"No subfolders with mask images found under:\n{d}\n\n"
+                f"Looking for: {', '.join(sorted(MASK_EXTENSIONS))}")
+            return
+
+        existing = {item["mask_dir"] for item in self._folder_list}
+        added = 0
+        for folder in leaf_folders:
+            if folder in existing:
+                continue
+            # Relative path from the parent to this leaf folder
+            rel = os.path.relpath(folder, d)
+            tool_id = os.path.basename(folder)
+            output_dir = os.path.join(self.var_output_base.get(), rel)
+            self._folder_list.append({
+                "mask_dir": folder,
+                "tool_id": tool_id,
+                "output_dir": output_dir,
+                "rel_path": rel,
+            })
+            added += 1
+
+        self._refresh_folder_tree()
+        self._log(f"Scanned parent folder: {d}")
+        self._log(f"  Found {added} new mask folder(s) "
+                  f"(total: {len(self._folder_list)})")
 
     def _auto_detect_all(self):
         tools = discover_tools()
@@ -624,7 +696,7 @@ class VisualHullApp(tk.Tk):
                 output_dir = os.path.join(self.var_output_base.get(), tid)
                 self._folder_list.append({
                     "mask_dir": mask_dir, "tool_id": tid,
-                    "output_dir": output_dir
+                    "output_dir": output_dir, "rel_path": tid,
                 })
                 added += 1
         self._refresh_folder_tree()
@@ -651,8 +723,10 @@ class VisualHullApp(tk.Tk):
         tree.delete(*tree.get_children())
         for item in self._folder_list:
             # Refresh output dir in case the base changed
+            # Use rel_path to preserve nested structure
+            rel = item.get("rel_path", item["tool_id"])
             item["output_dir"] = os.path.join(
-                self.var_output_base.get(), item["tool_id"])
+                self.var_output_base.get(), rel)
             tree.insert("", "end", values=(
                 item["tool_id"], item["mask_dir"], item["output_dir"]))
         self._folder_count_lbl.configure(

@@ -680,6 +680,7 @@ def _export_ply(voxel_grid, bounds, path):
 
 
 def _save_npz(voxel_grid, bounds, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     np.savez_compressed(path, voxel_grid=voxel_grid,
                         volume_bounds=np.array(bounds))
     return path
@@ -689,6 +690,7 @@ def _save_preview(voxel_grid, bounds, out_dir, tool_id, max_pts=50000):
     """4-panel scatter preview → PNG."""
     if not HAS_MATPLOTLIB:
         return None
+    os.makedirs(out_dir, exist_ok=True)
     nx, ny, nz = voxel_grid.shape
     (xlo, xhi), (ylo, yhi), (zlo, zhi) = bounds
     x = np.linspace(xlo, xhi, nx)
@@ -731,6 +733,7 @@ def _save_preview(voxel_grid, bounds, out_dir, tool_id, max_pts=50000):
 def _save_cross_sections(voxel_grid, bounds, out_dir, tool_id, n_slices=5):
     if not HAS_MATPLOTLIB:
         return None
+    os.makedirs(out_dir, exist_ok=True)
     nx, ny, nz = voxel_grid.shape
     (xlo, xhi), (ylo, yhi), (zlo, zhi) = bounds
     si = np.linspace(0, ny - 1, n_slices + 2, dtype=int)[1:-1]
