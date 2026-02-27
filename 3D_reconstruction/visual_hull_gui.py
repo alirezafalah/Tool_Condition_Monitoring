@@ -131,7 +131,7 @@ class VisualHullApp(tk.Tk):
         # Variables (tk vars)
         self.var_output_base = tk.StringVar(value=OUTPUT_ROOT)
         self.var_angle     = tk.StringVar(value="uniform_360")
-        self.var_resolution= tk.IntVar(value=200)
+        self.var_resolution= tk.IntVar(value=128)
         self.var_skip      = tk.IntVar(value=1)
         self.var_scale     = tk.DoubleVar(value=0.5)
         self.var_flip      = tk.BooleanVar(value=False)
@@ -397,14 +397,16 @@ class VisualHullApp(tk.Tk):
         grid.pack(fill="x")
 
         # Resolution
-        ttk.Label(grid, text="Resolution (voxels):").grid(row=0, column=0,
+        ttk.Label(grid, text="Grid size (N³):").grid(row=0, column=0,
                    sticky="w", padx=(0, 8), pady=2)
         res_spin = ttk.Spinbox(grid, textvariable=self.var_resolution,
-                               from_=50, to=600, increment=50, width=8)
+                               from_=32, to=256, increment=32, width=8)
         res_spin.grid(row=0, column=1, sticky="w", pady=2)
         ToolTip(res_spin,
-            "Voxels per X/Z axis.  Higher = finer detail but slower.\n"
-            "100 = fast preview  |  200 = good  |  400 = high detail")
+            "Fixed voxel grid size: N×N×N (cubic).\n"
+            "64 = fast preview  |  128 = ML default  |  256 = high detail\n"
+            "All tools get the same grid shape for ML compatibility.\n"
+            "Tool is centered in the cube; empty space is zero-padded.")
 
         # Skip views
         ttk.Label(grid, text="Skip views (every N-th):").grid(row=0, column=2,

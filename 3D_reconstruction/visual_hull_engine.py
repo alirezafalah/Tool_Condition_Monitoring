@@ -81,6 +81,38 @@ MESHLAB_EXE = r"C:\Program Files\VCG\MeshLab\meshlab.exe"
 # Hardware
 MAX_WORKERS = 12   # ≤ 16 logical cores; leaves 4 for OS + GUI
 
+# ── Camera optics (must match render_engine.py / real VS-LDV75 rig) ──────
+CAMERA_FOCAL_LENGTH_MM      = 75.0      # lens focal length
+CAMERA_SENSOR_W_MM          = 6.4       # 1/2" sensor width
+CAMERA_SENSOR_H_MM          = 4.8       # 1/2" sensor height
+CAMERA_WORKING_DISTANCE_MM  = 250.0     # lens-to-object distance
+
+# Derived: visible area at the object plane
+_VISIBLE_W_MM = CAMERA_SENSOR_W_MM * CAMERA_WORKING_DISTANCE_MM / CAMERA_FOCAL_LENGTH_MM  # ≈21.33 mm
+_VISIBLE_H_MM = CAMERA_SENSOR_H_MM * CAMERA_WORKING_DISTANCE_MM / CAMERA_FOCAL_LENGTH_MM  # ≈16.00 mm
+
+# ── Global fixed bounding cube (mm) ──────────────────────────────────────
+#   20 mm cube (±10 mm) fits comfortably inside the camera FOV
+#   (visible: 21.33 × 16.00 mm) and accommodates any drill/tool.
+#   This MUST be identical for every tool so that the 3D CNN sees a
+#   consistent physical-to-voxel mapping across the entire dataset.
+GLOBAL_CUBE_HALF_MM = 10.0
+GLOBAL_BOUNDS_MM = (
+    (-GLOBAL_CUBE_HALF_MM, GLOBAL_CUBE_HALF_MM),
+    (-GLOBAL_CUBE_HALF_MM, GLOBAL_CUBE_HALF_MM),
+    (-GLOBAL_CUBE_HALF_MM, GLOBAL_CUBE_HALF_MM),
+)
+
+
+def _camera_scale_px_per_mm(img_w_px: int) -> float:
+    """Pixels per mm at the object plane for our camera, at the given image width.
+
+    This is the GLOBAL projection scale — identical for every tool.
+    It accounts for image downscaling (img_w_px is the *actual* downscaled width).
+    """
+    return (CAMERA_FOCAL_LENGTH_MM * img_w_px
+            / (CAMERA_SENSOR_W_MM * CAMERA_WORKING_DISTANCE_MM))
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 #  OpenCL / GPU helpers  (Intel Iris Xe optimised)
@@ -118,10 +150,11 @@ __kernel void carve(
     // Inside image bounds?
     if (u >= 0 && u < mask_w && v >= 0 && v < mask_h) {
         if (mask[v * mask_w + u] == 0) {
-            occupied[i] = 0;              // carve!
+            occupied[i] = 0;              // carve — outside silhouette
         }
+    } else {
+        occupied[i] = 0;                  // carve — outside camera FOV
     }
-    // Voxels projecting outside the image are NOT carved (conservative)
 }
 """
 
@@ -176,7 +209,7 @@ class EngineConfig:
     mask_dir:         str   = ""          # auto-resolved if empty
     output_dir:       str   = ""          # auto-resolved if empty
     angle_mode:       str   = "filename"  # filename | uniform_360 | uniform_363
-    resolution:       int   = 200         # voxels per XZ axis
+    resolution:       int   = 128         # fixed grid size (128 = 128x128x128)
     skip_views:       int   = 1           # 1 = all views
     mask_scale:       float = 0.5         # downscale factor
     flip_rotation:    bool  = False
@@ -341,6 +374,19 @@ def _analyze_silhouettes(file_list, tilt_deg, mask_scale, n_workers,
     }
 
 
+def _compute_cubic_bounds(params):
+    """Return the GLOBAL fixed bounding cube (mm).
+
+    This is a dataset-wide constant derived from the camera optics.
+    Every tool is carved inside the exact same physical volume so that
+    the mm-per-voxel ratio is identical across all .npz files.
+
+    The 'params' argument is accepted for interface compatibility but
+    is NOT used — the bounds are purely camera-derived constants.
+    """
+    return GLOBAL_BOUNDS_MM
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  Voxel carving — GPU path  (Intel Iris Xe via OpenCL)
 # ═══════════════════════════════════════════════════════════════════════════
@@ -365,17 +411,13 @@ def _carve_gpu(
 
     cx_s = params["cx"]
     cy_s = params["cy"]
-    sc_s = params["scale"]
-    R    = params["max_radius"]
-    ymin = params["y_min"]
-    ymax = params["y_max"]
+    sc_s = _camera_scale_px_per_mm(params["img_w"])   # global camera scale
 
-    pad = R * 0.15
-    bounds = ((-R - pad, R + pad), (ymin, ymax), (-R - pad, R + pad))
+    bounds = _compute_cubic_bounds(params)
     (xlo, xhi), (ylo, yhi), (zlo, zhi) = bounds
 
-    nx = nz = cfg.resolution
-    ny = max(int(cfg.resolution * (yhi - ylo) / (xhi - xlo)), 10)
+    N = cfg.resolution   # fixed grid: NxNxN
+    nx = ny = nz = N
 
     x = np.linspace(xlo, xhi, nx, dtype=np.float32)
     y = np.linspace(ylo, yhi, ny, dtype=np.float32)
@@ -493,7 +535,7 @@ def _carve_gpu(
     pool.shutdown(wait=False)
 
     elapsed = time.time() - t0
-    voxel_grid = occupied_host.astype(bool).reshape(nx, ny, nz)
+    voxel_grid = occupied_host.astype(np.bool_).reshape(nx, ny, nz)
     return voxel_grid, bounds, (nx, ny, nz), elapsed
 
 
@@ -508,17 +550,13 @@ def _carve(
     """Voxel carving with parallel mask loading and vectorised projection."""
     cx_s  = params["cx"]   # already at mask_scale via _analyze_silhouettes
     cy_s  = params["cy"]
-    sc_s  = params["scale"]
-    R     = params["max_radius"]
-    ymin  = params["y_min"]
-    ymax  = params["y_max"]
+    sc_s  = _camera_scale_px_per_mm(params["img_w"])   # global camera scale
 
-    pad = R * 0.15
-    bounds = ((-R - pad, R + pad), (ymin, ymax), (-R - pad, R + pad))
+    bounds = _compute_cubic_bounds(params)
     (xlo, xhi), (ylo, yhi), (zlo, zhi) = bounds
 
-    nx = nz = cfg.resolution
-    ny = max(int(cfg.resolution * (yhi - ylo) / (xhi - xlo)), 10)
+    N = cfg.resolution   # fixed grid: NxNxN
+    nx = ny = nz = N
 
     x = np.linspace(xlo, xhi, nx, dtype=np.float32)
     y = np.linspace(ylo, yhi, ny, dtype=np.float32)
@@ -593,7 +631,8 @@ def _carve(
         if len(ib_where) > 0:
             in_sil[ib_where] = mask[v[ib_where], u[ib_where]]
 
-        carved = ib & ~in_sil
+        # Carve: outside silhouette OR outside image frame
+        carved = ~in_sil
         occupied[occ_idx[carved]] = False
 
         # Progress reporting
@@ -611,7 +650,7 @@ def _carve(
     pool.shutdown(wait=False)
 
     elapsed = time.time() - t0
-    voxel_grid = occupied.reshape(nx, ny, nz)
+    voxel_grid = occupied.reshape(nx, ny, nz).astype(np.bool_)
     return voxel_grid, bounds, (nx, ny, nz), elapsed
 
 
@@ -681,8 +720,11 @@ def _export_ply(voxel_grid, bounds, path):
 
 def _save_npz(voxel_grid, bounds, path):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    np.savez_compressed(path, voxel_grid=voxel_grid,
-                        volume_bounds=np.array(bounds))
+    # Save as bool (1 byte per voxel) — not float32/64 — for ML training RAM
+    grid = voxel_grid.astype(np.bool_)
+    np.savez_compressed(path, voxel_grid=grid,
+                        volume_bounds=np.array(bounds, dtype=np.float32),
+                        grid_shape=np.array(grid.shape, dtype=np.int32))
     return path
 
 
@@ -836,7 +878,11 @@ def run_visual_hull(
                                        cfg.n_workers)
         _log(f"Image {params['img_w']}×{params['img_h']}  "
              f"cx={params['cx']:.0f}  cy={params['cy']:.0f}  "
-             f"scale={params['scale']:.0f} px/unit")
+             f"scale(sil)={params['scale']:.0f} px/unit  "
+             f"scale(cam)={_camera_scale_px_per_mm(params['img_w']):.1f} px/mm")
+        _log(f"Global bounds: {GLOBAL_BOUNDS_MM[0]} × "
+             f"{GLOBAL_BOUNDS_MM[1]} × {GLOBAL_BOUNDS_MM[2]} mm  "
+             f"({2*GLOBAL_CUBE_HALF_MM:.0f} mm cube)")
 
         # 5. Carving (GPU → CPU auto-fallback)
         use_gpu = cfg.use_gpu
@@ -913,8 +959,11 @@ def run_visual_hull(
             "tilt_angle_applied_deg": tilt_deg,
             "grid_shape": list(shape),
             "volume_bounds": [list(b) for b in bounds],
+            "volume_bounds_labels": ["[x_min, x_max]", "[y_min, y_max]", "[z_min, z_max]"],
+            "voxel_dtype": "bool",
             "occupied_voxels": n_occ,
             "total_voxels": int(np.prod(shape)),
+            "occupancy_ratio": round(n_occ / max(int(np.prod(shape)), 1), 6),
             "carve_elapsed_s": round(carve_elapsed, 2),
             "run_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }

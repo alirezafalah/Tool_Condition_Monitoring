@@ -1,0 +1,86 @@
+{
+  "_description": "Canonical voxel grid specification for Visual Hull reconstruction pipeline. All .npz files produced by this pipeline conform to this spec. Use this file to configure downstream ML training and ground-truth scripts.",
+
+  "grid_shape": [128, 128, 128],
+  "grid_shape_description": "Fixed N×N×N cubic voxel grid. Every tool is reconstructed into the same shape regardless of its physical dimensions.",
+
+  "voxel_dtype": "bool",
+  "voxel_dtype_description": "Each voxel is True (occupied / inside tool) or False (empty / air). Stored as numpy bool_ in the .npz file. 1 byte per voxel → 128³ = 2.1 MB uncompressed, ~10-60 KB compressed per tool.",
+
+  "global_volume_bounds_mm": [[-10.0, 10.0], [-10.0, 10.0], [-10.0, 10.0]],
+  "global_volume_bounds_description": "FIXED physical bounding cube in mm: [[x_min, x_max], [y_min, y_max], [z_min, z_max]]. This is a DATASET-WIDE CONSTANT — identical in every .npz file. Derived from the camera optics (see camera_parameters). All tools are carved inside this exact same 20×20×20 mm cube. Smaller tools simply have more False (zero) voxels around them.",
+
+  "voxel_size_mm": 0.15625,
+  "voxel_size_description": "Physical size of one voxel: 20.0 mm / 128 = 0.15625 mm per voxel. Identical for every tool in the dataset.",
+
+  "camera_parameters": {
+    "focal_length_mm": 75.0,
+    "sensor_width_mm": 6.4,
+    "sensor_height_mm": 4.8,
+    "working_distance_mm": 250.0,
+    "visible_width_mm": 21.33,
+    "visible_height_mm": 16.0,
+    "description": "VS-LDV75 lens on a 1/2\" sensor at 250 mm working distance. These parameters define the projection scale (px/mm) used during voxel carving and are the basis for the global bounding cube."
+  },
+
+  "coordinate_system": {
+    "axes": "X = lateral (left-right), Y = axial (along tool shaft, up in image), Z = depth (front-back)",
+    "origin": "Center of the global bounding cube, which corresponds to the rotation axis center in the camera frame",
+    "units": "Millimetres (mm). 1 voxel = 0.15625 mm."
+  },
+
+  "bounding_box_logic": {
+    "step_1": "Camera optics define the visible area at the object plane: 21.33 × 16.00 mm.",
+    "step_2": "A fixed 20×20×20 mm cube (±10 mm) is used as the global bounding volume. This fits within the camera FOV on all axes.",
+    "step_3": "The projection scale (pixels per mm) is computed from camera parameters: scale = focal_length_mm × img_width_px / (sensor_width_mm × working_distance_mm). This is a GLOBAL constant, not derived from the tool's silhouette.",
+    "step_4": "The cube is discretised into exactly 128×128×128 voxels. Every tool uses this same grid.",
+    "step_5": "During carving, voxels that project outside the camera frame are automatically carved to False (they cannot be part of the tool).",
+    "result": "Every tool's .npz has identical grid_shape and volume_bounds. Smaller tools occupy fewer voxels; the rest is zero-padded. The mm-per-voxel ratio is constant across the entire dataset."
+  },
+
+  "npz_file_contents": {
+    "voxel_grid": {
+      "shape": [128, 128, 128],
+      "dtype": "bool",
+      "description": "3D occupancy grid. True = occupied, False = empty."
+    },
+    "volume_bounds": {
+      "shape": [3, 2],
+      "dtype": "float32",
+      "description": "Global physical bounds: [[-10, 10], [-10, 10], [-10, 10]] mm. IDENTICAL for every tool in the dataset."
+    },
+    "grid_shape": {
+      "shape": [3],
+      "dtype": "int32",
+      "description": "Always [128, 128, 128]. Included for self-documentation."
+    }
+  },
+
+  "loading_example_python": [
+    "import numpy as np",
+    "",
+    "data = np.load('tool_visual_hull_voxels.npz')",
+    "voxel_grid   = data['voxel_grid']        # shape (128, 128, 128), dtype bool",
+    "bounds       = data['volume_bounds']      # [[-10, 10], [-10, 10], [-10, 10]] mm — SAME for all tools",
+    "grid_shape   = data['grid_shape']         # [128, 128, 128]",
+    "",
+    "# For TensorFlow / PyTorch: add channel dimension",
+    "tensor = voxel_grid[np.newaxis, ...].astype(np.float32)  # (1, 128, 128, 128)",
+    "",
+    "# Physical coordinates of voxel [i, j, k]:",
+    "# x_mm = -10.0 + i * 20.0 / 128",
+    "# y_mm = -10.0 + j * 20.0 / 128",
+    "# z_mm = -10.0 + k * 20.0 / 128",
+    "",
+    "# To batch 1800 tools at bool (2.1 MB each): ~3.8 GB RAM total",
+    "# At float32 (8.4 MB each): ~15 GB RAM — avoid this during loading!"
+  ],
+
+  "notes": [
+    "The resolution (N) is configurable in the GUI but defaults to 128.",
+    "If you change N, update this spec and retrain — all grids in a dataset must be the same shape.",
+    "volume_bounds is IDENTICAL for every tool — this is critical for the 3D CNN to learn consistent geometry.",
+    "The global cube (±10 mm) is derived from the camera FOV. Do NOT change it without reprocessing all data.",
+    "The projection scale (px/mm) is a camera constant, NOT fitted per tool."
+  ]
+}
