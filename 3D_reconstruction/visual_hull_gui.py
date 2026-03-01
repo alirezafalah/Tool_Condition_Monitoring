@@ -16,9 +16,12 @@ import re
 import sys
 import subprocess
 import threading
+import time as _time
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
+
+import numpy as np
 
 # Ensure the engine module is importable
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -145,6 +148,14 @@ class VisualHullApp(tk.Tk):
         self.var_workers   = tk.IntVar(value=MAX_WORKERS)
         self.var_gpu       = tk.BooleanVar(value=True)
 
+        # Taubin smoothing variables
+        self.var_taubin_input  = tk.StringVar(value="")
+        self.var_taubin_output = tk.StringVar(value="")
+        self.var_taubin_lambda = tk.DoubleVar(value=0.5)
+        self.var_taubin_mu     = tk.DoubleVar(value=-0.53)
+        self.var_taubin_iters  = tk.IntVar(value=10)
+        self._taubin_running   = False
+
         # Probe GPU once at startup
         self._gpu_info = get_gpu_info()
 
@@ -234,7 +245,19 @@ class VisualHullApp(tk.Tk):
                          troughcolor=BG_INPUT, background=FG_GREEN,
                          thickness=18)
 
-        # Main scroll canvas
+        # ── Notebook style ─────────────────────────────────────────
+        style.configure("Dark.TNotebook", background=BG,
+                         borderwidth=0)
+        style.configure("Dark.TNotebook.Tab",
+                         background=BG_CARD, foreground=FG_DIM,
+                         font=(FONT_FAMILY, 11, "bold"),
+                         padding=(18, 8))
+        style.map("Dark.TNotebook.Tab",
+                  background=[("selected", BG_INPUT)],
+                  foreground=[("selected", FG_ACCENT)],
+                  expand=[("selected", [0, 0, 0, 2])])
+
+        # Main outer frame
         outer = tk.Frame(self, bg=BG)
         outer.pack(fill="both", expand=True)
 
@@ -246,26 +269,48 @@ class VisualHullApp(tk.Tk):
         ttk.Label(title_frame, text="3D Reconstruction",
                   style="Dim.TLabel").pack(side="left", padx=(0, 10))
 
-        # Scrollable content
-        canvas = tk.Canvas(outer, bg=BG, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
-        self._content = content = tk.Frame(canvas, bg=BG)
+        # ── Notebook (tabs) ──────────────────────────────────────────
+        self._notebook = ttk.Notebook(outer, style="Dark.TNotebook")
+        self._notebook.pack(fill="both", expand=True, padx=6, pady=(0, 6))
+
+        # Tab 1: Reconstruction
+        recon_tab = self._build_reconstruction_tab()
+        self._notebook.add(recon_tab,
+                           text="  \u2699  Reconstruction  ")
+
+        # Tab 2: Taubin Smoothing
+        taubin_tab = self._build_taubin_tab()
+        self._notebook.add(taubin_tab,
+                           text="  \u2728  Mesh Smoothing  ")
+
+    # -------------------------------------------------------------------
+    #  Tab builders
+    # -------------------------------------------------------------------
+
+    def _build_reconstruction_tab(self):
+        """Build the main reconstruction tab with scrollable cards."""
+        tab_frame = tk.Frame(self._notebook, bg=BG)
+
+        # Scrollable content inside the tab
+        canvas = tk.Canvas(tab_frame, bg=BG, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(tab_frame, orient="vertical",
+                                  command=canvas.yview)
+        content = tk.Frame(canvas, bg=BG)
         content.bind("<Configure>",
-                     lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        self._canvas_win_id = canvas.create_window((0, 0), window=content, anchor="nw")
+                     lambda e: canvas.configure(
+                         scrollregion=canvas.bbox("all")))
+        win_id = canvas.create_window((0, 0), window=content, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side="left", fill="both", expand=True, padx=(10, 0))
 
-        # Stretch content frame to fill the full canvas width
         def _on_canvas_resize(event):
-            canvas.itemconfigure(self._canvas_win_id, width=event.width)
+            canvas.itemconfigure(win_id, width=event.width)
         canvas.bind("<Configure>", _on_canvas_resize)
         scrollbar.pack(side="right", fill="y")
 
-        # Mouse wheel scrolling
+        # Mouse wheel scrolling — scoped to this canvas
         def _on_mousewheel(event):
             canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         # --- Cards ---
@@ -278,6 +323,8 @@ class VisualHullApp(tk.Tk):
         self._build_run_card(content)
         self._build_log_card(content)
         self._build_results_card(content)
+
+        return tab_frame
 
     # --- Folder selection card (multi-folder) ---
     def _build_folder_card(self, parent):
@@ -959,6 +1006,433 @@ class VisualHullApp(tk.Tk):
         path = self._result["preview_path"]
         if os.path.isfile(path):
             os.startfile(path)
+
+    # ═══════════════════════════════════════════════════════════════════
+    #  Taubin Smoothing Tab
+    # ═══════════════════════════════════════════════════════════════════
+
+    def _build_taubin_tab(self):
+        """Build the standalone Taubin mesh-smoothing tab."""
+        tab_frame = tk.Frame(self._notebook, bg=BG)
+
+        # Scrollable content
+        canvas = tk.Canvas(tab_frame, bg=BG, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(tab_frame, orient="vertical",
+                                  command=canvas.yview)
+        content = tk.Frame(canvas, bg=BG)
+        content.bind("<Configure>",
+                     lambda e: canvas.configure(
+                         scrollregion=canvas.bbox("all")))
+        win_id = canvas.create_window((0, 0), window=content, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True, padx=(10, 0))
+
+        def _on_canvas_resize(event):
+            canvas.itemconfigure(win_id, width=event.width)
+        canvas.bind("<Configure>", _on_canvas_resize)
+        scrollbar.pack(side="right", fill="y")
+
+        # ── Description card ─────────────────────────────────────────
+        desc_frame = ttk.LabelFrame(content, text="  About  ",
+                                     style="Card.TLabelframe", padding=12)
+        desc_frame.pack(fill="x", padx=8, pady=(8, 4))
+        ttk.Label(desc_frame, text=(
+            "Standalone Taubin smoothing for OBJ meshes.\n\n"
+            "Reduces staircase / bumpy artifacts from marching-cubes "
+            "mesh extraction without shrinking the mesh.\n"
+            "This tab is independent of the reconstruction pipeline — "
+            "load any .obj file, smooth it, and save."),
+            wraplength=900, justify="left").pack(anchor="w")
+
+        # ── Input / Output card ──────────────────────────────────────
+        io_frame = ttk.LabelFrame(content, text="  Input / Output  ",
+                                   style="Card.TLabelframe", padding=12)
+        io_frame.pack(fill="x", padx=8, pady=4)
+
+        # Input file
+        row_in = ttk.Frame(io_frame, style="Card.TFrame")
+        row_in.pack(fill="x", pady=(0, 6))
+        ttk.Label(row_in, text="Input OBJ:").pack(side="left", padx=(0, 8))
+        ttk.Entry(row_in, textvariable=self.var_taubin_input,
+                  width=70, font=FONT_SMALL).pack(side="left", fill="x",
+                                                   expand=True, padx=(0, 4))
+        ttk.Button(row_in, text="Browse \u2026", style="Accent.TButton",
+                   command=self._browse_taubin_input).pack(side="left")
+
+        # Output file
+        row_out = ttk.Frame(io_frame, style="Card.TFrame")
+        row_out.pack(fill="x")
+        ttk.Label(row_out, text="Output OBJ:").pack(side="left", padx=(0, 8))
+        out_entry = ttk.Entry(row_out, textvariable=self.var_taubin_output,
+                              width=70, font=FONT_SMALL)
+        out_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        ToolTip(out_entry,
+            "Leave empty to auto-generate: <input>_taubin_smoothed.obj")
+
+        # ── Parameters card ──────────────────────────────────────────
+        param_frame = ttk.LabelFrame(content, text="  Smoothing Parameters  ",
+                                      style="Card.TLabelframe", padding=12)
+        param_frame.pack(fill="x", padx=8, pady=4)
+
+        grid = ttk.Frame(param_frame, style="Card.TFrame")
+        grid.pack(fill="x")
+
+        # Lambda
+        ttk.Label(grid, text="\u03bb (shrink factor):").grid(
+            row=0, column=0, sticky="w", padx=(0, 8), pady=4)
+        lam_spin = ttk.Spinbox(grid, textvariable=self.var_taubin_lambda,
+                               from_=0.01, to=1.0, increment=0.05,
+                               width=10, format="%.2f")
+        lam_spin.grid(row=0, column=1, sticky="w", pady=4)
+        ToolTip(lam_spin, "Positive smoothing factor (shrink step).\n"
+                          "Typical: 0.3 \u2013 0.7.  Default 0.5.")
+
+        # Mu
+        ttk.Label(grid, text="\u03bc (inflate factor):").grid(
+            row=0, column=2, sticky="w", padx=(32, 8), pady=4)
+        mu_spin = ttk.Spinbox(grid, textvariable=self.var_taubin_mu,
+                              from_=-1.0, to=-0.01, increment=0.05,
+                              width=10, format="%.2f")
+        mu_spin.grid(row=0, column=3, sticky="w", pady=4)
+        ToolTip(mu_spin, "Negative un-shrink factor (inflate step).\n"
+                         "Must satisfy |\u03bc| > \u03bb to prevent shrinkage.\n"
+                         "Default -0.53.")
+
+        # Iterations
+        ttk.Label(grid, text="Iterations:").grid(
+            row=1, column=0, sticky="w", padx=(0, 8), pady=4)
+        iter_spin = ttk.Spinbox(grid, textvariable=self.var_taubin_iters,
+                                from_=1, to=200, increment=5, width=10)
+        iter_spin.grid(row=1, column=1, sticky="w", pady=4)
+        ToolTip(iter_spin, "Number of Taubin (\u03bb, \u03bc) iteration pairs.\n"
+                           "More = smoother.  10 \u2013 30 is usually enough.")
+
+        # Help text
+        ttk.Label(grid, text=(
+            "Each iteration: shrink (+\u03bb) then inflate (\u03bc).  "
+            "This removes noise while preserving volume."),
+            style="Dim.TLabel").grid(
+            row=1, column=2, columnspan=2, sticky="w", padx=(32, 0), pady=4)
+
+        # ── Run card ─────────────────────────────────────────────────
+        run_frame = ttk.Frame(content, style="Dark.TFrame")
+        run_frame.pack(fill="x", padx=8, pady=(12, 4))
+
+        self.btn_taubin_run = ttk.Button(
+            run_frame, text="\u25b6  Smooth Mesh",
+            style="Run.TButton", command=self._on_taubin_run)
+        self.btn_taubin_run.pack(side="left", padx=(0, 16))
+
+        self.taubin_progress_var = tk.DoubleVar(value=0)
+        self.taubin_progress_bar = ttk.Progressbar(
+            run_frame, variable=self.taubin_progress_var, maximum=100,
+            style="green.Horizontal.TProgressbar", length=300)
+        self.taubin_progress_bar.pack(side="left", fill="x",
+                                      expand=True, padx=(0, 8))
+
+        self.lbl_taubin_status = ttk.Label(run_frame, text="Ready",
+                                           style="Dim.TLabel")
+        self.lbl_taubin_status.configure(background=BG)
+        self.lbl_taubin_status.pack(side="left")
+
+        # ── Log card ─────────────────────────────────────────────────
+        log_frame = ttk.LabelFrame(content, text="  Smoothing Log  ",
+                                    style="Card.TLabelframe", padding=8)
+        log_frame.pack(fill="x", padx=8, pady=4)
+
+        self.taubin_log_text = tk.Text(
+            log_frame, height=10, bg="#181825", fg=FG,
+            insertbackground=FG, font=FONT_MONO,
+            relief="flat", borderwidth=0, wrap="word", state="disabled")
+        self.taubin_log_text.pack(fill="both", expand=True)
+        sb = ttk.Scrollbar(log_frame, orient="vertical",
+                           command=self.taubin_log_text.yview)
+        self.taubin_log_text.configure(yscrollcommand=sb.set)
+        sb.place(relx=1.0, rely=0, relheight=1.0, anchor="ne")
+
+        # ── Results card ─────────────────────────────────────────────
+        res_frame = ttk.LabelFrame(content, text="  Result  ",
+                                    style="Card.TLabelframe", padding=12)
+        res_frame.pack(fill="x", padx=8, pady=(4, 12))
+
+        res_row = ttk.Frame(res_frame, style="Card.TFrame")
+        res_row.pack(fill="x")
+
+        self.btn_taubin_meshlab = ttk.Button(
+            res_row, text="Open in MeshLab", style="Accent.TButton",
+            command=self._open_taubin_meshlab, state="disabled")
+        self.btn_taubin_meshlab.pack(side="left", padx=(0, 8))
+        ToolTip(self.btn_taubin_meshlab,
+            "Open the smoothed .obj mesh in MeshLab for interactive viewing.")
+
+        self.btn_taubin_open_folder = ttk.Button(
+            res_row, text="Open Output Folder", style="Small.TButton",
+            command=self._open_taubin_folder)
+        self.btn_taubin_open_folder.pack(side="left", padx=(0, 8))
+
+        self.lbl_taubin_result = ttk.Label(res_row, text="",
+                                           style="Dim.TLabel")
+        self.lbl_taubin_result.pack(side="left", fill="x", expand=True)
+
+        return tab_frame
+
+    # -------------------------------------------------------------------
+    #  Taubin Smoothing Callbacks
+    # -------------------------------------------------------------------
+
+    def _taubin_log(self, text):
+        """Append text to the taubin log widget (thread-safe)."""
+        def _do():
+            self.taubin_log_text.configure(state="normal")
+            self.taubin_log_text.insert("end", text + "\n")
+            self.taubin_log_text.see("end")
+            self.taubin_log_text.configure(state="disabled")
+        self.after(0, _do)
+
+    def _browse_taubin_input(self):
+        f = filedialog.askopenfilename(
+            title="Select OBJ Mesh",
+            filetypes=[("OBJ files", "*.obj"), ("All files", "*.*")])
+        if f:
+            f = os.path.normpath(f)
+            self.var_taubin_input.set(f)
+            base, ext = os.path.splitext(f)
+            self.var_taubin_output.set(
+                os.path.normpath(base + "_taubin_smoothed" + ext))
+
+    def _open_taubin_meshlab(self):
+        out = self.var_taubin_output.get()
+        if not out or not os.path.isfile(out):
+            messagebox.showinfo("Taubin", "Smoothed file not found.")
+            return
+        if os.path.isfile(MESHLAB_EXE):
+            subprocess.Popen([MESHLAB_EXE, out])
+        else:
+            try:
+                os.startfile(out)
+            except Exception:
+                messagebox.showinfo(
+                    "MeshLab",
+                    f"MeshLab not found at:\n{MESHLAB_EXE}\n\n"
+                    f"Open manually:\n{out}")
+
+    def _open_taubin_folder(self):
+        out = self.var_taubin_output.get()
+        if out:
+            d = os.path.dirname(out)
+            if os.path.isdir(d):
+                os.startfile(d)
+                return
+        messagebox.showinfo("Taubin", "Output folder does not exist yet.")
+
+    def _on_taubin_run(self):
+        if self._taubin_running:
+            return
+
+        input_path = self.var_taubin_input.get().strip()
+        if not input_path or not os.path.isfile(input_path):
+            messagebox.showerror("Error",
+                "Please select a valid input OBJ file.")
+            return
+
+        output_path = self.var_taubin_output.get().strip()
+        if not output_path:
+            base, ext = os.path.splitext(input_path)
+            output_path = base + "_taubin_smoothed" + ext
+            self.var_taubin_output.set(output_path)
+
+        lam    = self.var_taubin_lambda.get()
+        mu     = self.var_taubin_mu.get()
+        n_iter = max(1, self.var_taubin_iters.get())
+
+        self._taubin_running = True
+        self.btn_taubin_run.configure(state="disabled")
+        self.btn_taubin_meshlab.configure(state="disabled")
+        self.lbl_taubin_result.configure(text="")
+        self.taubin_progress_var.set(0)
+
+        # Clear log
+        self.taubin_log_text.configure(state="normal")
+        self.taubin_log_text.delete("1.0", "end")
+        self.taubin_log_text.configure(state="disabled")
+
+        self._taubin_log(f"Input:  {input_path}")
+        self._taubin_log(f"Output: {output_path}")
+        self._taubin_log(f"\u03bb={lam}  \u03bc={mu}  iterations={n_iter}")
+        self._taubin_log("")
+        self.lbl_taubin_status.configure(text="Smoothing\u2026")
+
+        def _progress(pct, msg=""):
+            def _do():
+                self.taubin_progress_var.set(pct)
+                if msg:
+                    self.lbl_taubin_status.configure(text=msg)
+            self.after(0, _do)
+
+        def _worker():
+            try:
+                result = taubin_smooth_obj(
+                    input_path, output_path, lam, mu, n_iter,
+                    progress_cb=_progress, log_cb=self._taubin_log)
+                self.after(0, lambda: self._on_taubin_done(result))
+            except Exception as exc:
+                self.after(0, lambda: self._on_taubin_done(
+                    {"error": str(exc)}))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_taubin_done(self, result):
+        self._taubin_running = False
+        self.btn_taubin_run.configure(state="normal")
+
+        if result.get("error"):
+            self.lbl_taubin_status.configure(text="Error")
+            self.lbl_taubin_result.configure(
+                text=f"Error: {result['error']}")
+            self._taubin_log(f"ERROR: {result['error']}")
+            return
+
+        self.taubin_progress_var.set(100)
+        self.btn_taubin_meshlab.configure(state="normal")
+        msg = (f"Done \u2014 {result['n_verts']:,} verts, "
+               f"{result['n_faces']:,} faces  "
+               f"({result['elapsed']:.2f}s)")
+        self.lbl_taubin_status.configure(text="Done!")
+        self.lbl_taubin_result.configure(text=msg)
+        self._taubin_log(msg)
+        self._taubin_log(f"Saved \u2192 {result['output_path']}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  Taubin Smoothing Algorithm (standalone, operates on OBJ files)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _parse_obj(path):
+    """Parse a Wavefront OBJ file.
+
+    Returns (vertices, faces, normals_list, header_lines).
+    vertices : np.ndarray (N, 3) float64
+    faces    : np.ndarray (M, 3) int  \u2014 0-based vertex indices
+    normals  : list[str]             \u2014 raw vn lines to preserve
+    header   : list[str]             \u2014 comment / material lines
+    """
+    verts, faces, normals, header = [], [], [], []
+    with open(path, "r") as f:
+        for line in f:
+            s = line.strip()
+            if s.startswith("v "):
+                parts = s.split()
+                verts.append([float(parts[1]),
+                              float(parts[2]),
+                              float(parts[3])])
+            elif s.startswith("vn "):
+                normals.append(s)
+            elif s.startswith("f "):
+                parts = s.split()[1:]
+                idx = [int(p.split("/")[0]) - 1 for p in parts]
+                for i in range(1, len(idx) - 1):
+                    faces.append([idx[0], idx[i], idx[i + 1]])
+            elif (s.startswith("#") or s.startswith("mtllib")
+                  or s.startswith("usemtl")):
+                header.append(s)
+    return (np.array(verts, dtype=np.float64),
+            np.array(faces, dtype=np.int64),
+            normals, header)
+
+
+def _write_obj(path, verts, faces, header=None):
+    """Write a Wavefront OBJ file."""
+    with open(path, "w") as f:
+        if header:
+            for h in header:
+                f.write(h + "\n")
+        f.write(f"# Taubin smoothed \u2014 {len(verts)} verts, "
+                f"{len(faces)} faces\n")
+        for v in verts:
+            f.write(f"v {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}\n")
+        for face in faces:
+            f.write(f"f {face[0]+1} {face[1]+1} {face[2]+1}\n")
+
+
+def _build_adjacency(faces, n_verts):
+    """Build a vertex adjacency list from the face array."""
+    neighbors = [set() for _ in range(n_verts)]
+    for f in faces:
+        a, b, c = int(f[0]), int(f[1]), int(f[2])
+        neighbors[a].update((b, c))
+        neighbors[b].update((a, c))
+        neighbors[c].update((a, b))
+    return [np.array(list(s), dtype=np.int64) for s in neighbors]
+
+
+def _laplacian_step(verts, adj, factor):
+    """One Laplacian smoothing step:  v += factor * (avg_neighbors - v)."""
+    new_verts = verts.copy()
+    for i in range(len(verts)):
+        nbrs = adj[i]
+        if len(nbrs) == 0:
+            continue
+        avg = verts[nbrs].mean(axis=0)
+        new_verts[i] = verts[i] + factor * (avg - verts[i])
+    return new_verts
+
+
+def taubin_smooth_obj(input_path, output_path,
+                      lam=0.5, mu=-0.53, n_iter=10,
+                      progress_cb=None, log_cb=None):
+    """Apply Taubin smoothing to an OBJ mesh and save the result.
+
+    Alternates:  1) Laplacian shrink (+\u03bb)   2) Laplacian inflate (\u03bc)
+    This removes high-frequency noise while preserving volume.
+
+    Returns dict with: output_path, n_verts, n_faces, elapsed, error
+    """
+    log = log_cb or (lambda _: None)
+    prog = progress_cb or (lambda *_: None)
+
+    t0 = _time.perf_counter()
+
+    # ── Parse ────────────────────────────────────────────────────────
+    log("Parsing OBJ\u2026")
+    prog(5, "Parsing OBJ\u2026")
+    try:
+        verts, faces, normals, header = _parse_obj(input_path)
+    except Exception as e:
+        return {"error": f"Failed to parse OBJ: {e}"}
+
+    if len(verts) == 0 or len(faces) == 0:
+        return {"error": "OBJ file contains no vertices or faces."}
+
+    log(f"  {len(verts):,} vertices, {len(faces):,} faces")
+
+    # ── Build adjacency ──────────────────────────────────────────────
+    log("Building adjacency\u2026")
+    prog(10, "Building adjacency\u2026")
+    adj = _build_adjacency(faces, len(verts))
+
+    # ── Iterate ──────────────────────────────────────────────────────
+    log(f"Running {n_iter} Taubin iterations\u2026")
+    for it in range(n_iter):
+        verts = _laplacian_step(verts, adj, lam)   # shrink
+        verts = _laplacian_step(verts, adj, mu)    # inflate
+        pct = 10 + (it + 1) / n_iter * 80
+        prog(pct, f"Iteration {it+1}/{n_iter}")
+
+    # ── Write ────────────────────────────────────────────────────────
+    log("Writing smoothed OBJ\u2026")
+    prog(95, "Writing OBJ\u2026")
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    _write_obj(output_path, verts, faces, header)
+
+    elapsed = _time.perf_counter() - t0
+    prog(100, "Done!")
+    return {
+        "output_path": output_path,
+        "n_verts": len(verts),
+        "n_faces": len(faces),
+        "elapsed": elapsed,
+        "error": None,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════
