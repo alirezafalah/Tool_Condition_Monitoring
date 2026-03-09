@@ -145,6 +145,8 @@ class VisualHullApp(tk.Tk):
         self.var_mesh      = tk.BooleanVar(value=False)
         self.var_ply       = tk.BooleanVar(value=False)
         self.var_viz       = tk.BooleanVar(value=False)
+        self.var_hq_mesh   = tk.BooleanVar(value=False)
+        self.var_hq_resolution = tk.IntVar(value=384)
         self.var_workers   = tk.IntVar(value=MAX_WORKERS)
         self.var_gpu       = tk.BooleanVar(value=True)
 
@@ -587,6 +589,25 @@ class VisualHullApp(tk.Tk):
         ttk.Label(row, text="(Voxel grid .npz is always saved)",
                   style="Dim.TLabel").pack(side="right")
 
+        # --- HQ mesh row ---
+        row2 = ttk.Frame(frame, style="Card.TFrame")
+        row2.pack(fill="x", pady=(6, 0))
+
+        ttk.Checkbutton(
+            row2, text="HQ Mesh (.obj) \u2014 high-res visualisation",
+            variable=self.var_hq_mesh
+        ).pack(side="left", padx=(0, 12))
+
+        ttk.Label(row2, text="Resolution:").pack(side="left", padx=(8, 4))
+        hq_spin = ttk.Spinbox(
+            row2, textvariable=self.var_hq_resolution,
+            from_=128, to=512, increment=64, width=6)
+        hq_spin.pack(side="left")
+        ToolTip(hq_spin,
+                "Grid resolution for the HQ mesh (separate carving pass).\n"
+                "Uses a tight bounding box around the tool for maximum\n"
+                "detail.  256 = moderate  |  384 = good  |  512 = best")
+
     # --- Run card ---
     def _build_run_card(self, parent):
         frame = ttk.Frame(parent, style="Dark.TFrame")
@@ -830,6 +851,8 @@ class VisualHullApp(tk.Tk):
             export_mesh     = self.var_mesh.get(),
             export_pointcloud = self.var_ply.get(),
             export_viz      = self.var_viz.get(),
+            export_hq_mesh  = self.var_hq_mesh.get(),
+            hq_resolution   = self.var_hq_resolution.get(),
             use_gpu         = self.var_gpu.get(),
             n_workers       = max(1, self.var_workers.get()),
         )
@@ -952,7 +975,11 @@ class VisualHullApp(tk.Tk):
 
         self._result = last_ok
         if last_ok:
-            if (last_ok.get("obj_path")
+            # Prefer HQ mesh for MeshLab button if available
+            hq = last_ok.get("hq_obj_path")
+            if hq and os.path.isfile(hq):
+                self.btn_meshlab.configure(state="normal")
+            elif (last_ok.get("obj_path")
                     and os.path.isfile(last_ok["obj_path"])):
                 self.btn_meshlab.configure(state="normal")
             if (last_ok.get("preview_path")
@@ -980,9 +1007,14 @@ class VisualHullApp(tk.Tk):
     # -------------------------------------------------------------------
 
     def _open_meshlab(self):
-        if not self._result or not self._result.get("obj_path"):
+        if not self._result:
             return
-        obj = self._result["obj_path"]
+        # Prefer HQ mesh when available
+        hq = self._result.get("hq_obj_path")
+        obj = (hq if hq and os.path.isfile(hq)
+               else self._result.get("obj_path"))
+        if not obj:
+            return
         if not os.path.isfile(obj):
             messagebox.showinfo("MeshLab", f"OBJ file not found:\n{obj}")
             return

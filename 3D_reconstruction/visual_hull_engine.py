@@ -25,7 +25,7 @@ import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
@@ -220,6 +220,8 @@ class EngineConfig:
     export_mesh:      bool  = True
     export_pointcloud:bool  = True
     export_viz:       bool  = True
+    export_hq_mesh:   bool  = False      # high-quality mesh (separate carving pass)
+    hq_resolution:    int   = 384        # grid size for HQ mesh (256–512)
     use_gpu:          bool  = True       # try OpenCL GPU; auto-fallback to CPU
     n_workers:        int   = MAX_WORKERS
 
@@ -387,6 +389,29 @@ def _compute_cubic_bounds(params):
     return GLOBAL_BOUNDS_MM
 
 
+def _compute_tight_bounds(params):
+    """Tight bounding box from silhouette analysis (for high-quality mesh).
+
+    Unlike the global fixed cube, this adapts to the tool's actual extent
+    in the camera frame, so more voxel resolution is spent on the tool.
+    """
+    cam_scale = _camera_scale_px_per_mm(params["img_w"])
+    # Tool radius in mm from max half-width in pixels
+    radius_mm = params["max_half_width_px"] / cam_scale
+    # Vertical extent in mm
+    sil_scale = params["scale"]  # px per normalised unit
+    y_min_mm = params["y_min"] * sil_scale / cam_scale
+    y_max_mm = params["y_max"] * sil_scale / cam_scale
+    # Padding (12% radial, 5% vertical)
+    pad_r = radius_mm * 0.12
+    pad_y = (y_max_mm - y_min_mm) * 0.05
+    return (
+        (-radius_mm - pad_r, radius_mm + pad_r),
+        (y_min_mm - pad_y, y_max_mm + pad_y),
+        (-radius_mm - pad_r, radius_mm + pad_r),
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  Voxel carving — GPU path  (Intel Iris Xe via OpenCL)
 # ═══════════════════════════════════════════════════════════════════════════
@@ -394,6 +419,7 @@ def _compute_cubic_bounds(params):
 def _carve_gpu(
     file_list, angles_deg, params, cfg: EngineConfig, tilt_deg: float,
     progress_cb: Optional[Callable] = None,
+    bounds_override=None,
 ):
     """GPU-accelerated voxel carving via OpenCL.
 
@@ -413,7 +439,7 @@ def _carve_gpu(
     cy_s = params["cy"]
     sc_s = _camera_scale_px_per_mm(params["img_w"])   # global camera scale
 
-    bounds = _compute_cubic_bounds(params)
+    bounds = bounds_override if bounds_override is not None else _compute_cubic_bounds(params)
     (xlo, xhi), (ylo, yhi), (zlo, zhi) = bounds
 
     N = cfg.resolution   # fixed grid: NxNxN
@@ -546,13 +572,14 @@ def _carve_gpu(
 def _carve(
     file_list, angles_deg, params, cfg: EngineConfig, tilt_deg: float,
     progress_cb: Optional[Callable] = None,
+    bounds_override=None,
 ):
     """Voxel carving with parallel mask loading and vectorised projection."""
     cx_s  = params["cx"]   # already at mask_scale via _analyze_silhouettes
     cy_s  = params["cy"]
     sc_s  = _camera_scale_px_per_mm(params["img_w"])   # global camera scale
 
-    bounds = _compute_cubic_bounds(params)
+    bounds = bounds_override if bounds_override is not None else _compute_cubic_bounds(params)
     (xlo, xhi), (ylo, yhi), (zlo, zhi) = bounds
 
     N = cfg.resolution   # fixed grid: NxNxN
@@ -830,6 +857,7 @@ def run_visual_hull(
 
     result = {
         "obj_path": None, "ply_path": None, "npz_path": None,
+        "hq_obj_path": None,
         "preview_path": None, "cross_path": None, "run_config_path": None,
         "elapsed": 0, "grid_shape": None, "n_occupied": 0, "error": None,
     }
@@ -922,9 +950,9 @@ def run_visual_hull(
         result["npz_path"] = npz_path
         _log(f"Voxels → {npz_path}")
 
-        # 7. Mesh
+        # 7. Mesh (from ML voxel grid)
         if cfg.export_mesh:
-            _prog(92, "Extracting mesh (marching cubes) …")
+            _prog(91, "Extracting mesh (marching cubes) …")
             mesh_path = os.path.join(cfg.output_dir, f"{prefix}.obj")
             mesh_res = _export_mesh(voxel_grid, bounds, mesh_path,
                                     sigma=cfg.smooth_sigma)
@@ -934,6 +962,63 @@ def run_visual_hull(
                      f"({mesh_res[1]:,} verts, {mesh_res[2]:,} faces)")
             else:
                 _log("Mesh export skipped (scikit-image not available)")
+
+        # 7b. High-quality mesh (separate carving pass with tight bounds)
+        if cfg.export_hq_mesh:
+            hq_N = cfg.hq_resolution
+            _prog(92, f"HQ mesh: carving at {hq_N}³ with tight bounds …")
+            tight_bounds = _compute_tight_bounds(params)
+            _log(f"HQ tight bounds (mm): X={tight_bounds[0]}, "
+                 f"Y={tight_bounds[1]}, Z={tight_bounds[2]}")
+            hq_cfg = replace(cfg, resolution=hq_N, skip_views=1)
+
+            try:
+                if gpu_ctx is not None:
+                    try:
+                        hq_grid, hq_bounds, hq_shape, hq_elapsed = _carve_gpu(
+                            file_list, angles, params, hq_cfg, tilt_deg,
+                            progress_cb=lambda p, m: _prog(
+                                92 + int(p * 0.03), f"[HQ] {m}"),
+                            bounds_override=tight_bounds,
+                        )
+                    except Exception as hq_gpu_err:
+                        _log(f"HQ GPU carving failed ({hq_gpu_err}), "
+                             f"falling back to CPU …")
+                        hq_grid, hq_bounds, hq_shape, hq_elapsed = _carve(
+                            file_list, angles, params, hq_cfg, tilt_deg,
+                            progress_cb=lambda p, m: _prog(
+                                92 + int(p * 0.03), f"[HQ] {m}"),
+                            bounds_override=tight_bounds,
+                        )
+                else:
+                    hq_grid, hq_bounds, hq_shape, hq_elapsed = _carve(
+                        file_list, angles, params, hq_cfg, tilt_deg,
+                        progress_cb=lambda p, m: _prog(
+                            92 + int(p * 0.03), f"[HQ] {m}"),
+                        bounds_override=tight_bounds,
+                    )
+
+                hq_occ = int(np.sum(hq_grid))
+                _log(f"HQ carving done in {hq_elapsed:.1f}s — "
+                     f"{hq_occ:,} / {int(np.prod(hq_shape)):,} voxels")
+
+                _prog(95, "HQ mesh: extracting (marching cubes) …")
+                hq_mesh_path = os.path.join(
+                    cfg.output_dir, f"{prefix}_hq.obj")
+                hq_mesh_res = _export_mesh(
+                    hq_grid, hq_bounds, hq_mesh_path,
+                    sigma=cfg.smooth_sigma)
+                if hq_mesh_res:
+                    result["hq_obj_path"] = hq_mesh_res[0]
+                    _log(f"HQ Mesh → {hq_mesh_res[0]}  "
+                         f"({hq_mesh_res[1]:,} verts, "
+                         f"{hq_mesh_res[2]:,} faces)")
+                else:
+                    _log("HQ mesh extraction failed "
+                         "(scikit-image not available)")
+                del hq_grid  # free memory
+            except Exception as hq_err:
+                _log(f"HQ mesh failed: {hq_err}")
 
         # 8. Point cloud
         if cfg.export_pointcloud:
