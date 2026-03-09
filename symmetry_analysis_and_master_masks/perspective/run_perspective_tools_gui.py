@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import re
@@ -105,6 +106,12 @@ class MatrixPerspectiveGUI(tk.Tk):
         self.selected_count_var = tk.StringVar(value="Selected: 0")
 
         self.folder_names = []
+        self.roi_preview_canvas = None
+        self.roi_preview_fig = None
+        self.roi_current_context = None
+        self.roi_current_geo = None
+        self.roi_edit_target_var = tk.StringVar(value="centerline")
+        self.roi_step_var = tk.IntVar(value=1)
 
         self._build_ui()
         self._load_mask_subfolders()
@@ -276,12 +283,73 @@ class MatrixPerspectiveGUI(tk.Tk):
 
         row3 = tk.Frame(wrapper, bg=BG_PANEL)
         row3.pack(fill=tk.X, padx=10, pady=(6, 4))
-        make_button(row3, "Preview ROI (Both Methods)", self._preview_roi_both_methods, width=30, fg=FG_WARN).pack(side=tk.LEFT, padx=(0, 8))
-        make_button(row3, "Save ROI Figure (Method 1)", self._generate_roi_figure, width=28).pack(side=tk.LEFT, padx=(0, 8))
+        make_button(row3, "Preview ROI", self._preview_roi, width=18, fg=FG_WARN).pack(side=tk.LEFT, padx=(0, 8))
+        make_button(row3, "Save ROI + Metadata", self._save_roi_and_metadata, width=24).pack(side=tk.LEFT)
+
+        row4 = tk.Frame(wrapper, bg=BG_PANEL)
+        row4.pack(fill=tk.X, padx=10, pady=(2, 6))
+        make_label(row4, "Manual Edit").pack(side=tk.LEFT, padx=(0, 8))
+        self.roi_target_menu = tk.OptionMenu(
+            row4,
+            self.roi_edit_target_var,
+            "top", "bottom", "left", "right", "centerline",
+            command=lambda _v: self._update_adjust_buttons_state(),
+        )
+        self.roi_target_menu.config(
+            bg=BG_ENTRY,
+            fg=FG_MAIN,
+            activebackground=BG_BTN_ACTIVE,
+            activeforeground="#dcffdc",
+            relief=tk.FLAT,
+            highlightbackground=BORDER,
+            highlightthickness=1,
+            font=("Consolas", 10),
+        )
+        self.roi_target_menu["menu"].config(bg=BG_ENTRY, fg=FG_MAIN, font=("Consolas", 10))
+        self.roi_target_menu.pack(side=tk.LEFT, padx=(0, 10))
+
+        make_label(row4, "Step(px)").pack(side=tk.LEFT, padx=(0, 6))
+        self.roi_step_spin = tk.Spinbox(
+            row4,
+            from_=1,
+            to=50,
+            textvariable=self.roi_step_var,
+            width=5,
+            bg=BG_ENTRY,
+            fg=FG_MAIN,
+            insertbackground=FG_MAIN,
+            buttonbackground="#0b2a0f",
+            relief=tk.FLAT,
+            font=("Consolas", 10),
+        )
+        self.roi_step_spin.pack(side=tk.LEFT, padx=(0, 12))
+
+        self.btn_move_left = make_button(row4, "<- Left", lambda: self._move_selected_edge(dx=-self._get_move_step(), dy=0), width=9)
+        self.btn_move_left.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_move_right = make_button(row4, "Right ->", lambda: self._move_selected_edge(dx=self._get_move_step(), dy=0), width=9)
+        self.btn_move_right.pack(side=tk.LEFT, padx=(0, 12))
+        self.btn_move_up = make_button(row4, "Up", lambda: self._move_selected_edge(dx=0, dy=-self._get_move_step()), width=7)
+        self.btn_move_up.pack(side=tk.LEFT, padx=(0, 6))
+        self.btn_move_down = make_button(row4, "Down", lambda: self._move_selected_edge(dx=0, dy=self._get_move_step()), width=7)
+        self.btn_move_down.pack(side=tk.LEFT)
+
+        self._update_adjust_buttons_state()
+
+        make_label(wrapper, "ROI PREVIEW").pack(anchor="w", padx=10, pady=(6, 2))
+        self.roi_preview_frame = tk.Frame(
+            wrapper,
+            bg=BG_ENTRY,
+            highlightbackground=BORDER,
+            highlightthickness=1,
+            height=360,
+        )
+        self.roi_preview_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 8))
+        self.roi_preview_frame.pack_propagate(False)
+        self.roi_preview_frame.bind("<Configure>", self._on_roi_preview_resize)
 
         make_label(wrapper, "ROI LOG").pack(anchor="w", padx=10, pady=(6, 2))
-        self.roi_log = make_log(wrapper, height=22)
-        self.roi_log.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        self.roi_log = make_log(wrapper, height=8)
+        self.roi_log.pack(fill=tk.X, expand=False, padx=10, pady=(0, 10))
         self._roi_log("ROI tab ready. Load tools from masks_tilted directory.\n")
 
     # ================================================================
@@ -467,8 +535,8 @@ class MatrixPerspectiveGUI(tk.Tk):
             )
             return None
 
-        import json
-        with open(os.path.join(info_dir, meta_files[0]), "r", encoding="utf-8") as mf:
+        meta_path = os.path.join(info_dir, meta_files[0])
+        with open(meta_path, "r", encoding="utf-8") as mf:
             meta = json.load(mf)
 
         frame_files = sorted(
@@ -497,6 +565,7 @@ class MatrixPerspectiveGUI(tk.Tk):
             "tool_folder_name": tool_folder_name,
             "tool_dir": tool_dir,
             "info_dir": info_dir,
+            "meta_path": meta_path,
             "meta": meta,
             "master_bin": master_bin,
             "frame_bin": frame_bin,
@@ -515,44 +584,6 @@ class MatrixPerspectiveGUI(tk.Tk):
         geo["width"] = geo["roi_right"] - geo["roi_left"]
         geo["height"] = geo["roi_bottom"] - geo["roi_top"]
         return geo
-
-    def _roi_method1_geo(self, master_bin, meta):
-        required_geo_keys = ["master_mask_width_px", "roi_height_px", "centerline_column_px"]
-        missing_geo_keys = [k for k in required_geo_keys if meta.get(k) is None]
-        if missing_geo_keys:
-            self._roi_log(
-                "Metadata is missing ROI geometry fields "
-                f"{missing_geo_keys}. Re-run Tab 1 processing with the updated script.\n"
-            )
-            return None
-
-        ys_mm = np.where(master_bin.any(axis=1))[0]
-        if len(ys_mm) == 0:
-            self._roi_log("Master mask appears empty.\n")
-            return None
-        bottom_y = int(ys_mm[-1])
-
-        white_cols = np.where(master_bin.any(axis=0))[0]
-        if len(white_cols) < 2:
-            self._roi_log("Master mask too narrow.\n")
-            return None
-
-        mask_width = int(meta["master_mask_width_px"])
-        roi_height = int(meta["roi_height_px"])
-        center_x = int(meta["centerline_column_px"])
-
-        geo = {
-            "method": "ROI1",
-            "roi_top": int(meta.get("roi_top_px", max(0, bottom_y - roi_height))),
-            "roi_bottom": int(meta.get("roi_bottom_px", bottom_y)),
-            "roi_left": int(meta.get("roi_left_px", int(white_cols[0]))),
-            "roi_right": int(meta.get("roi_right_px", int(white_cols[-1]))),
-            "center_x": center_x,
-            "mask_width": mask_width,
-            "roi_height_formula": "from metadata (0.45 * master width)",
-        }
-        h, w = master_bin.shape
-        return self._clamp_geo(geo, h, w)
 
     def _roi_method2_geo(self, frame_bin):
         ys = np.where(frame_bin.any(axis=1))[0]
@@ -626,75 +657,78 @@ class MatrixPerspectiveGUI(tk.Tk):
         vis[rm] = vis[rm] * (1 - alpha) + red_mask[rm] * alpha
         return vis
 
-    def _preview_roi_both_methods(self):
-        ctx = self._load_roi_context()
-        if ctx is None:
-            return
-
-        geo1 = self._roi_method1_geo(ctx["master_bin"], ctx["meta"])
-        geo2 = self._roi_method2_geo(ctx["frame_bin"])
-        if geo1 is None or geo2 is None:
-            return
-
-        import matplotlib.pyplot as plt
+    @staticmethod
+    def _draw_roi_guides(ax, geo):
         from matplotlib.patches import Rectangle as MplRect
 
-        fig, axes = plt.subplots(1, 2, figsize=(13, 8), dpi=120)
-        for ax, geo, title in [
-            (axes[0], geo1, "ROI1: Metadata-based"),
-            (axes[1], geo2, "ROI2: Frame-dependent"),
-        ]:
-            vis = self._render_overlay(ctx["frame_bin"], geo)
-            ax.imshow(vis, origin="upper")
-            rect = MplRect(
-                (geo["roi_left"], geo["roi_top"]),
-                geo["roi_right"] - geo["roi_left"],
-                geo["roi_bottom"] - geo["roi_top"],
-                linewidth=2.2,
-                edgecolor="lime",
-                facecolor="none",
-            )
-            ax.add_patch(rect)
-            ax.plot([geo["center_x"], geo["center_x"]], [geo["roi_top"], geo["roi_bottom"]],
-                    color="yellow", linewidth=2.2)
-            ax.set_title(
-                f"{title}\n"
-                f"W={geo['width']} px, H={geo['height']} px, CX={geo['center_x']}\n"
-                f"{geo['roi_height_formula']}",
-                fontsize=11,
-            )
-            ax.set_axis_off()
-
-        caption = self.roi_caption_var.get().strip() or ctx["tool_folder_name"]
-        fig.suptitle(
-            f"ROI Preview | {caption} | frame: {ctx['frame_name']} (index {ctx['frame_idx']})",
-            fontsize=13,
+        rect = MplRect(
+            (geo["roi_left"], geo["roi_top"]),
+            geo["roi_right"] - geo["roi_left"],
+            geo["roi_bottom"] - geo["roi_top"],
+            linewidth=2.2,
+            edgecolor="lime",
+            facecolor="none",
         )
-        fig.tight_layout(rect=[0, 0, 1, 0.95])
-        plt.show(block=False)
-
-        self._roi_log(
-            f"Preview opened for {ctx['tool_folder_name']} | frame {ctx['frame_name']} (index {ctx['frame_idx']})\n"
-            f"  ROI1 -> width={geo1['width']}px, height={geo1['height']}px, center_x={geo1['center_x']}\n"
-            f"  ROI2 -> width={geo2['width']}px, height={geo2['height']}px, center_x={geo2['center_x']}\n"
+        ax.add_patch(rect)
+        ax.plot(
+            [geo["center_x"], geo["center_x"]],
+            [geo["roi_top"], geo["roi_bottom"]],
+            color="yellow",
+            linewidth=2.2,
         )
 
-    def _generate_roi_figure(self):
-        ctx = self._load_roi_context()
-        if ctx is None:
-            return
-        tool_folder_name = ctx["tool_folder_name"]
-        info_dir = ctx["info_dir"]
-        frame_files = ctx["frame_files"]
-        frame_idx = ctx["frame_idx"]
-        frame_bin = ctx["frame_bin"]
-        meta = ctx["meta"]
+    def _render_roi_preview_in_frame(self, frame_bin, geo):
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
-        geo = self._roi_method1_geo(ctx["master_bin"], meta)
-        if geo is None:
+        if self.roi_preview_canvas is not None:
+            self.roi_preview_canvas.get_tk_widget().destroy()
+            self.roi_preview_canvas = None
+            self.roi_preview_fig = None
+
+        fig = Figure(figsize=(8, 6), dpi=100)
+        ax = fig.subplots(1, 1)
+        vis = self._render_overlay(frame_bin, geo)
+        ax.imshow(vis, origin="upper")
+        self._draw_roi_guides(ax, geo)
+        ax.set_axis_off()
+
+        fig.subplots_adjust(left=0.01, right=0.99, bottom=0.01, top=0.99)
+
+        canvas = FigureCanvasTkAgg(fig, master=self.roi_preview_frame)
+        canvas_widget = canvas.get_tk_widget()
+        canvas_widget.pack(fill=tk.BOTH, expand=True)
+        canvas.draw_idle()
+
+        self.roi_preview_canvas = canvas
+        self.roi_preview_fig = fig
+
+    def _on_roi_preview_resize(self, event):
+        if self.roi_preview_canvas is None or self.roi_preview_fig is None:
+            return
+        if event.width < 80 or event.height < 80:
             return
 
-        # Build figure
+        dpi = self.roi_preview_fig.get_dpi()
+        self.roi_preview_fig.set_size_inches(event.width / dpi, event.height / dpi, forward=True)
+        self.roi_preview_canvas.draw_idle()
+
+    def _save_roi_image_no_text(self, frame_bin, geo, out_path):
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        vis = self._render_overlay(frame_bin, geo)
+        h, w = frame_bin.shape
+        fig, ax = plt.subplots(figsize=(max(2, w / 140.0), max(2, h / 140.0)), dpi=140)
+        ax.imshow(vis, origin="upper")
+        self._draw_roi_guides(ax, geo)
+        ax.set_axis_off()
+        fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
+        fig.savefig(out_path, dpi=140)
+        plt.close(fig)
+
+    def _save_roi_image_with_legend(self, frame_bin, geo, out_path, caption):
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
@@ -702,23 +736,24 @@ class MatrixPerspectiveGUI(tk.Tk):
         from matplotlib.lines import Line2D
 
         vis = self._render_overlay(frame_bin, geo)
-
-        caption = self.roi_caption_var.get().strip()
-        tool_type = meta.get("tool_type", "")
-        match = re.search(r"(tool\d+)", tool_folder_name, re.IGNORECASE)
-        tid = match.group(1) if match else tool_folder_name
-        if not caption:
-            ttype = (tool_type or "Tool").capitalize()
-            tid_num = re.sub(r"[^0-9]", "", tid)
-            caption = f"{ttype} Tool ({tid_num})"
-
         fig, ax = plt.subplots(figsize=(8, 10), dpi=300)
         ax.imshow(vis, origin="upper")
-        rect = MplRect((geo["roi_left"], geo["roi_top"]), geo["roi_right"] - geo["roi_left"], geo["roi_bottom"] - geo["roi_top"],
-                        linewidth=2.5, edgecolor="lime", facecolor="none")
+
+        rect = MplRect(
+            (geo["roi_left"], geo["roi_top"]),
+            geo["roi_right"] - geo["roi_left"],
+            geo["roi_bottom"] - geo["roi_top"],
+            linewidth=2.5,
+            edgecolor="lime",
+            facecolor="none",
+        )
         ax.add_patch(rect)
-        ax.plot([geo["center_x"], geo["center_x"]], [geo["roi_top"], geo["roi_bottom"]],
-                color="yellow", linewidth=2.5)
+        ax.plot(
+            [geo["center_x"], geo["center_x"]],
+            [geo["roi_top"], geo["roi_bottom"]],
+            color="yellow",
+            linewidth=2.5,
+        )
 
         legend_handles = [
             MplRect((0, 0), 1, 1, facecolor="blue", alpha=0.5, label="Left ROI"),
@@ -730,19 +765,137 @@ class MatrixPerspectiveGUI(tk.Tk):
         ax.set_title(caption, fontsize=18)
         ax.set_axis_off()
         fig.tight_layout(pad=0.15)
-
-        out_path = os.path.join(info_dir, f"{tid}_roi_visualization.png")
-        os.makedirs(info_dir, exist_ok=True)
         fig.savefig(out_path, dpi=300, bbox_inches="tight", pad_inches=0.02)
         plt.close(fig)
 
+    def _get_move_step(self):
+        try:
+            return max(1, int(self.roi_step_var.get()))
+        except Exception:
+            return 1
+
+    def _update_adjust_buttons_state(self):
+        target = self.roi_edit_target_var.get()
+        horizontal = target in {"left", "right", "centerline"}
+        vertical = target in {"top", "bottom"}
+        self.btn_move_left.config(state=tk.NORMAL if horizontal else tk.DISABLED)
+        self.btn_move_right.config(state=tk.NORMAL if horizontal else tk.DISABLED)
+        self.btn_move_up.config(state=tk.NORMAL if vertical else tk.DISABLED)
+        self.btn_move_down.config(state=tk.NORMAL if vertical else tk.DISABLED)
+
+    def _move_selected_edge(self, dx, dy):
+        if self.roi_current_context is None or self.roi_current_geo is None:
+            self._roi_log("No ROI loaded yet. Click Preview ROI first.\n")
+            return
+
+        target = self.roi_edit_target_var.get()
+        if target in {"left", "right", "centerline"} and dy != 0:
+            return
+        if target in {"top", "bottom"} and dx != 0:
+            return
+
+        geo = dict(self.roi_current_geo)
+        if target == "left":
+            geo["roi_left"] += dx
+        elif target == "right":
+            geo["roi_right"] += dx
+        elif target == "centerline":
+            geo["center_x"] += dx
+        elif target == "top":
+            geo["roi_top"] += dy
+        elif target == "bottom":
+            geo["roi_bottom"] += dy
+
+        h, w = self.roi_current_context["frame_bin"].shape
+        geo = self._clamp_geo(geo, h, w)
+        self.roi_current_geo = geo
+        self._render_roi_preview_in_frame(self.roi_current_context["frame_bin"], self.roi_current_geo)
         self._roi_log(
-            f"ROI figure saved: {out_path}\n"
-            f"  Frame used: {frame_files[frame_idx]} (index {frame_idx})\n"
-            f"  ROI height: {geo['height']}px (Method 1 metadata-based)\n"
-            f"  Caption: {caption}\n"
+            f"Adjusted {target}: left={geo['roi_left']}, right={geo['roi_right']}, "
+            f"top={geo['roi_top']}, bottom={geo['roi_bottom']}, center={geo['center_x']}\n"
         )
 
+    def _persist_current_geo_to_metadata(self):
+        if self.roi_current_context is None or self.roi_current_geo is None:
+            return False
+
+        ctx = self.roi_current_context
+        meta = dict(ctx["meta"])
+        geo = self.roi_current_geo
+
+        meta["master_mask_width_px"] = int(geo["width"])
+        meta["roi_height_px"] = int(geo["height"])
+        meta["centerline_column_px"] = int(geo["center_x"])
+        meta["roi_top_px"] = int(geo["roi_top"])
+        meta["roi_bottom_px"] = int(geo["roi_bottom"])
+        meta["roi_left_px"] = int(geo["roi_left"])
+        meta["roi_right_px"] = int(geo["roi_right"])
+        meta["roi_method"] = "ROI2_frame_dependent_manual"
+        meta["roi_height_formula"] = "manual_adjusted_from_method2"
+        meta["centerline_definition"] = "manual_adjusted_centerline_column"
+
+        with open(ctx["meta_path"], "w", encoding="utf-8") as file:
+            json.dump(meta, file, indent=2)
+
+        self.roi_current_context["meta"] = meta
+        return True
+
+    def _preview_roi(self):
+        ctx = self._load_roi_context()
+        if ctx is None:
+            return
+
+        geo = self._roi_method2_geo(ctx["frame_bin"])
+        if geo is None:
+            return
+
+        self.roi_current_context = ctx
+        self.roi_current_geo = geo
+        self._render_roi_preview_in_frame(ctx["frame_bin"], geo)
+        self._roi_log(
+            f"Preview loaded for {ctx['tool_folder_name']} | frame {ctx['frame_name']} (index {ctx['frame_idx']})\n"
+            f"  width={geo['width']}px, height={geo['height']}px, center_x={geo['center_x']}\n"
+        )
+
+    def _save_roi_and_metadata(self):
+        if self.roi_current_context is None or self.roi_current_geo is None:
+            self._roi_log("No ROI loaded yet. Click Preview ROI first.\n")
+            return
+
+        ctx = self.roi_current_context
+        geo = self.roi_current_geo
+        tool_folder_name = ctx["tool_folder_name"]
+        info_dir = ctx["info_dir"]
+        frame_name = ctx["frame_name"]
+        meta = ctx["meta"]
+
+        match = re.search(r"(tool\d+)", tool_folder_name, re.IGNORECASE)
+        tid = match.group(1) if match else tool_folder_name
+        frame_stem = os.path.splitext(frame_name)[0]
+
+        caption = self.roi_caption_var.get().strip()
+        if not caption:
+            tool_type = meta.get("tool_type", "")
+            tid_num = re.sub(r"[^0-9]", "", tid)
+            caption = f"{(tool_type or 'Tool').capitalize()} Tool ({tid_num})"
+
+        roi2_dir = os.path.join(info_dir, "ROI2")
+        os.makedirs(roi2_dir, exist_ok=True)
+        out2 = os.path.join(roi2_dir, f"{tid}_{frame_stem}_roi2.png")
+
+        main_out = os.path.join(info_dir, f"{tid}_roi_visualization.png")
+        self._save_roi_image_with_legend(ctx["frame_bin"], geo, out2, caption)
+        self._save_roi_image_with_legend(ctx["frame_bin"], geo, main_out, caption)
+
+        saved_meta = self._persist_current_geo_to_metadata()
+        if saved_meta:
+            self._roi_log(
+                f"Saved ROI image: {out2}\n"
+                f"Saved ROI image: {main_out}\n"
+                f"Updated metadata: {ctx['meta_path']}\n"
+                f"  left={geo['roi_left']}, right={geo['roi_right']}, "
+                f"top={geo['roi_top']}, bottom={geo['roi_bottom']}, center={geo['center_x']}\n"
+            )
 
 if __name__ == "__main__":
     # Add script dir to path so ROI tab can import processing functions
