@@ -276,7 +276,8 @@ class MatrixPerspectiveGUI(tk.Tk):
 
         row3 = tk.Frame(wrapper, bg=BG_PANEL)
         row3.pack(fill=tk.X, padx=10, pady=(6, 4))
-        make_button(row3, "Generate ROI Figure", self._generate_roi_figure, width=26, fg=FG_WARN).pack(side=tk.LEFT, padx=(0, 8))
+        make_button(row3, "Preview ROI (Both Methods)", self._preview_roi_both_methods, width=30, fg=FG_WARN).pack(side=tk.LEFT, padx=(0, 8))
+        make_button(row3, "Save ROI Figure (Method 1)", self._generate_roi_figure, width=28).pack(side=tk.LEFT, padx=(0, 8))
 
         make_label(wrapper, "ROI LOG").pack(anchor="w", padx=10, pady=(6, 2))
         self.roi_log = make_log(wrapper, height=22)
@@ -429,11 +430,12 @@ class MatrixPerspectiveGUI(tk.Tk):
         if sel:
             self.roi_tool_var.set(self.roi_tool_combo.get(sel[0]))
 
-    def _generate_roi_figure(self):
+    def _load_roi_context(self):
         sel = self.roi_tool_combo.curselection()
         if not sel:
             messagebox.showwarning("Selection", "Select a tool folder first.")
-            return
+            return None
+
         tool_folder_name = self.roi_tool_combo.get(sel[0])
         tilted_root = self.roi_tilted_var.get().strip()
         tool_dir = os.path.join(tilted_root, tool_folder_name)
@@ -441,45 +443,42 @@ class MatrixPerspectiveGUI(tk.Tk):
 
         if not os.path.isdir(tool_dir):
             self._roi_log(f"Tool directory missing: {tool_dir}\n")
-            return
+            return None
 
-        # Load master mask
         master_files = [
             f for f in os.listdir(info_dir)
             if "MASTER_MASK" in f.upper() and f.lower().endswith(".png")
         ] if os.path.isdir(info_dir) else []
-
         if not master_files:
             self._roi_log(f"No master mask PNG found in {info_dir}\n")
-            return
+            return None
 
         master_path = os.path.join(info_dir, master_files[0])
         master = cv2.imread(master_path, cv2.IMREAD_GRAYSCALE)
         if master is None:
             self._roi_log(f"Cannot read master mask: {master_path}\n")
-            return
-
+            return None
         _, master_bin = cv2.threshold(master, 127, 255, cv2.THRESH_BINARY)
 
-        # Load metadata for centerline
         meta_files = [f for f in os.listdir(info_dir) if f.endswith("_tilt_metadata.json")]
-        tool_type = ""
-        if meta_files:
-            import json
-            with open(os.path.join(info_dir, meta_files[0]), "r") as mf:
-                meta = json.load(mf)
-            tool_type = meta.get("tool_type", "")
+        if not meta_files:
+            self._roi_log(
+                "No *_tilt_metadata.json found. Run Tab 1 first so ROI geometry is saved.\n"
+            )
+            return None
 
-        # Get tilted frame PNGs (exclude information folder)
+        import json
+        with open(os.path.join(info_dir, meta_files[0]), "r", encoding="utf-8") as mf:
+            meta = json.load(mf)
+
         frame_files = sorted(
             f for f in os.listdir(tool_dir)
             if f.lower().endswith(".png") and os.path.isfile(os.path.join(tool_dir, f))
         )
         if not frame_files:
             self._roi_log("No tilted PNG frames found.\n")
-            return
+            return None
 
-        # Pick frame
         frame_idx_str = self.roi_frame_var.get().strip()
         if frame_idx_str.isdigit():
             frame_idx = int(frame_idx_str)
@@ -491,39 +490,209 @@ class MatrixPerspectiveGUI(tk.Tk):
         frame_img = cv2.imread(frame_path, cv2.IMREAD_GRAYSCALE)
         if frame_img is None:
             self._roi_log(f"Cannot read frame: {frame_path}\n")
-            return
-
+            return None
         _, frame_bin = cv2.threshold(frame_img, 127, 255, cv2.THRESH_BINARY)
 
-        # Compute centerline on master
-        h, w = master_bin.shape
-        from build_master_masks_all_two_edge_tools import get_boundaries, select_widest_rows, fit_lines
-        ys, lx, rx = get_boundaries(master_bin)
-        if ys is None:
-            self._roi_log("Cannot compute boundaries on master mask.\n")
-            return
-        ys_f, lx_f, rx_f = select_widest_rows(ys, lx, rx)
-        ll, lr, lc = fit_lines(ys_f, lx_f, rx_f)
+        return {
+            "tool_folder_name": tool_folder_name,
+            "tool_dir": tool_dir,
+            "info_dir": info_dir,
+            "meta": meta,
+            "master_bin": master_bin,
+            "frame_bin": frame_bin,
+            "frame_files": frame_files,
+            "frame_idx": frame_idx,
+            "frame_name": frame_files[frame_idx],
+        }
 
-        # ROI geometry
+    @staticmethod
+    def _clamp_geo(geo, h, w):
+        geo["roi_top"] = max(0, min(int(geo["roi_top"]), h - 1))
+        geo["roi_bottom"] = max(geo["roi_top"] + 1, min(int(geo["roi_bottom"]), h))
+        geo["roi_left"] = max(0, min(int(geo["roi_left"]), w - 1))
+        geo["roi_right"] = max(geo["roi_left"] + 1, min(int(geo["roi_right"]), w))
+        geo["center_x"] = max(geo["roi_left"], min(int(geo["center_x"]), geo["roi_right"] - 1))
+        geo["width"] = geo["roi_right"] - geo["roi_left"]
+        geo["height"] = geo["roi_bottom"] - geo["roi_top"]
+        return geo
+
+    def _roi_method1_geo(self, master_bin, meta):
+        required_geo_keys = ["master_mask_width_px", "roi_height_px", "centerline_column_px"]
+        missing_geo_keys = [k for k in required_geo_keys if meta.get(k) is None]
+        if missing_geo_keys:
+            self._roi_log(
+                "Metadata is missing ROI geometry fields "
+                f"{missing_geo_keys}. Re-run Tab 1 processing with the updated script.\n"
+            )
+            return None
+
         ys_mm = np.where(master_bin.any(axis=1))[0]
         if len(ys_mm) == 0:
             self._roi_log("Master mask appears empty.\n")
-            return
+            return None
         bottom_y = int(ys_mm[-1])
+
         white_cols = np.where(master_bin.any(axis=0))[0]
         if len(white_cols) < 2:
             self._roi_log("Master mask too narrow.\n")
-            return
-        mask_width = int(white_cols[-1] - white_cols[0])
-        roi_height = int(round(0.45 * mask_width))
-        roi_top = max(0, bottom_y - roi_height)
-        roi_bottom = bottom_y
-        roi_left = int(white_cols[0])
-        roi_right = int(white_cols[-1])
+            return None
 
-        m_c, b_c = lc
-        center_x = int(round(m_c * ((roi_top + roi_bottom) / 2.0) + b_c))
+        mask_width = int(meta["master_mask_width_px"])
+        roi_height = int(meta["roi_height_px"])
+        center_x = int(meta["centerline_column_px"])
+
+        geo = {
+            "method": "ROI1",
+            "roi_top": int(meta.get("roi_top_px", max(0, bottom_y - roi_height))),
+            "roi_bottom": int(meta.get("roi_bottom_px", bottom_y)),
+            "roi_left": int(meta.get("roi_left_px", int(white_cols[0]))),
+            "roi_right": int(meta.get("roi_right_px", int(white_cols[-1]))),
+            "center_x": center_x,
+            "mask_width": mask_width,
+            "roi_height_formula": "from metadata (0.45 * master width)",
+        }
+        h, w = master_bin.shape
+        return self._clamp_geo(geo, h, w)
+
+    def _roi_method2_geo(self, frame_bin):
+        ys = np.where(frame_bin.any(axis=1))[0]
+        if len(ys) == 0:
+            self._roi_log("Selected frame is empty after thresholding.\n")
+            return None
+
+        bottom_y = int(ys[-1])
+        cols_full = np.where(frame_bin.any(axis=0))[0]
+        if len(cols_full) < 2:
+            self._roi_log("Selected frame is too narrow for ROI2.\n")
+            return None
+
+        # Iterative frame-dependent ROI: width -> height -> ROI rows -> width.
+        width = int(cols_full[-1] - cols_full[0])
+        roi_height = max(1, int(round(0.45 * width)))
+
+        for _ in range(3):
+            roi_top = max(0, bottom_y - roi_height)
+            roi_slice = frame_bin[roi_top:bottom_y, :]
+            if roi_slice.size == 0:
+                break
+            cols_roi = np.where(roi_slice.any(axis=0))[0]
+            if len(cols_roi) < 2:
+                break
+            width_new = int(cols_roi[-1] - cols_roi[0])
+            roi_height_new = max(1, int(round(0.45 * width_new)))
+            if width_new == width and roi_height_new == roi_height:
+                width = width_new
+                roi_height = roi_height_new
+                break
+            width = width_new
+            roi_height = roi_height_new
+
+        roi_top = max(0, bottom_y - roi_height)
+        roi_slice = frame_bin[roi_top:bottom_y, :]
+        cols_roi = np.where(roi_slice.any(axis=0))[0]
+        if len(cols_roi) < 2:
+            cols_roi = cols_full
+
+        roi_left = int(cols_roi[0])
+        roi_right = int(cols_roi[-1])
+        center_x = int(round((roi_left + roi_right) / 2.0))
+
+        geo = {
+            "method": "ROI2",
+            "roi_top": roi_top,
+            "roi_bottom": bottom_y,
+            "roi_left": roi_left,
+            "roi_right": roi_right,
+            "center_x": center_x,
+            "mask_width": int(roi_right - roi_left),
+            "roi_height_formula": "0.45 * frame-dependent ROI width",
+        }
+        h, w = frame_bin.shape
+        return self._clamp_geo(geo, h, w)
+
+    @staticmethod
+    def _render_overlay(frame_bin, geo):
+        vis = cv2.cvtColor(frame_bin, cv2.COLOR_GRAY2RGB).astype(np.float64) / 255.0
+        alpha = 0.35
+
+        blue_mask = np.zeros_like(vis)
+        blue_mask[geo["roi_top"]:geo["roi_bottom"], geo["roi_left"]:geo["center_x"]] = [0.0, 0.0, 1.0]
+        red_mask = np.zeros_like(vis)
+        red_mask[geo["roi_top"]:geo["roi_bottom"], geo["center_x"]:geo["roi_right"]] = [1.0, 0.0, 0.0]
+
+        bm = blue_mask.sum(axis=2) > 0
+        rm = red_mask.sum(axis=2) > 0
+        vis[bm] = vis[bm] * (1 - alpha) + blue_mask[bm] * alpha
+        vis[rm] = vis[rm] * (1 - alpha) + red_mask[rm] * alpha
+        return vis
+
+    def _preview_roi_both_methods(self):
+        ctx = self._load_roi_context()
+        if ctx is None:
+            return
+
+        geo1 = self._roi_method1_geo(ctx["master_bin"], ctx["meta"])
+        geo2 = self._roi_method2_geo(ctx["frame_bin"])
+        if geo1 is None or geo2 is None:
+            return
+
+        import matplotlib.pyplot as plt
+        from matplotlib.patches import Rectangle as MplRect
+
+        fig, axes = plt.subplots(1, 2, figsize=(13, 8), dpi=120)
+        for ax, geo, title in [
+            (axes[0], geo1, "ROI1: Metadata-based"),
+            (axes[1], geo2, "ROI2: Frame-dependent"),
+        ]:
+            vis = self._render_overlay(ctx["frame_bin"], geo)
+            ax.imshow(vis, origin="upper")
+            rect = MplRect(
+                (geo["roi_left"], geo["roi_top"]),
+                geo["roi_right"] - geo["roi_left"],
+                geo["roi_bottom"] - geo["roi_top"],
+                linewidth=2.2,
+                edgecolor="lime",
+                facecolor="none",
+            )
+            ax.add_patch(rect)
+            ax.plot([geo["center_x"], geo["center_x"]], [geo["roi_top"], geo["roi_bottom"]],
+                    color="yellow", linewidth=2.2)
+            ax.set_title(
+                f"{title}\n"
+                f"W={geo['width']} px, H={geo['height']} px, CX={geo['center_x']}\n"
+                f"{geo['roi_height_formula']}",
+                fontsize=11,
+            )
+            ax.set_axis_off()
+
+        caption = self.roi_caption_var.get().strip() or ctx["tool_folder_name"]
+        fig.suptitle(
+            f"ROI Preview | {caption} | frame: {ctx['frame_name']} (index {ctx['frame_idx']})",
+            fontsize=13,
+        )
+        fig.tight_layout(rect=[0, 0, 1, 0.95])
+        plt.show(block=False)
+
+        self._roi_log(
+            f"Preview opened for {ctx['tool_folder_name']} | frame {ctx['frame_name']} (index {ctx['frame_idx']})\n"
+            f"  ROI1 -> width={geo1['width']}px, height={geo1['height']}px, center_x={geo1['center_x']}\n"
+            f"  ROI2 -> width={geo2['width']}px, height={geo2['height']}px, center_x={geo2['center_x']}\n"
+        )
+
+    def _generate_roi_figure(self):
+        ctx = self._load_roi_context()
+        if ctx is None:
+            return
+        tool_folder_name = ctx["tool_folder_name"]
+        info_dir = ctx["info_dir"]
+        frame_files = ctx["frame_files"]
+        frame_idx = ctx["frame_idx"]
+        frame_bin = ctx["frame_bin"]
+        meta = ctx["meta"]
+
+        geo = self._roi_method1_geo(ctx["master_bin"], meta)
+        if geo is None:
+            return
 
         # Build figure
         import matplotlib
@@ -532,33 +701,23 @@ class MatrixPerspectiveGUI(tk.Tk):
         from matplotlib.patches import Rectangle as MplRect
         from matplotlib.lines import Line2D
 
-        vis = cv2.cvtColor(frame_bin, cv2.COLOR_GRAY2RGB).astype(np.float64) / 255.0
-
-        alpha = 0.35
-        blue_mask = np.zeros_like(vis)
-        blue_mask[roi_top:roi_bottom, roi_left:center_x] = [0.0, 0.0, 1.0]
-        red_mask = np.zeros_like(vis)
-        red_mask[roi_top:roi_bottom, center_x:roi_right] = [1.0, 0.0, 0.0]
-
-        bm = blue_mask.sum(axis=2) > 0
-        rm = red_mask.sum(axis=2) > 0
-        vis[bm] = vis[bm] * (1 - alpha) + blue_mask[bm] * alpha
-        vis[rm] = vis[rm] * (1 - alpha) + red_mask[rm] * alpha
+        vis = self._render_overlay(frame_bin, geo)
 
         caption = self.roi_caption_var.get().strip()
+        tool_type = meta.get("tool_type", "")
+        match = re.search(r"(tool\d+)", tool_folder_name, re.IGNORECASE)
+        tid = match.group(1) if match else tool_folder_name
         if not caption:
             ttype = (tool_type or "Tool").capitalize()
-            match = re.search(r"(tool\d+)", tool_folder_name, re.IGNORECASE)
-            tid = match.group(1) if match else tool_folder_name
             tid_num = re.sub(r"[^0-9]", "", tid)
             caption = f"{ttype} Tool ({tid_num})"
 
         fig, ax = plt.subplots(figsize=(8, 10), dpi=300)
         ax.imshow(vis, origin="upper")
-        rect = MplRect((roi_left, roi_top), roi_right - roi_left, roi_bottom - roi_top,
+        rect = MplRect((geo["roi_left"], geo["roi_top"]), geo["roi_right"] - geo["roi_left"], geo["roi_bottom"] - geo["roi_top"],
                         linewidth=2.5, edgecolor="lime", facecolor="none")
         ax.add_patch(rect)
-        ax.plot([center_x, center_x], [roi_top, roi_bottom],
+        ax.plot([geo["center_x"], geo["center_x"]], [geo["roi_top"], geo["roi_bottom"]],
                 color="yellow", linewidth=2.5)
 
         legend_handles = [
@@ -580,7 +739,7 @@ class MatrixPerspectiveGUI(tk.Tk):
         self._roi_log(
             f"ROI figure saved: {out_path}\n"
             f"  Frame used: {frame_files[frame_idx]} (index {frame_idx})\n"
-            f"  ROI height: {roi_height}px (0.45 * mask_width={mask_width}px)\n"
+            f"  ROI height: {geo['height']}px (Method 1 metadata-based)\n"
             f"  Caption: {caption}\n"
         )
 

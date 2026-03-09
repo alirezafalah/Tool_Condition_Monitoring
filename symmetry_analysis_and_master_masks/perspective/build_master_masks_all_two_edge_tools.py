@@ -213,6 +213,40 @@ def render_centerline_figure(rotated_mask, ys, line_left, line_right, out_path):
     plt.close(fig)
 
 
+def compute_roi_geometry(rotated_master, line_center_rotated):
+    ys_rm = np.where(rotated_master.any(axis=1))[0]
+    if len(ys_rm) == 0:
+        return None
+
+    white_cols = np.where(rotated_master.any(axis=0))[0]
+    if len(white_cols) < 2:
+        return None
+
+    bottom_y = int(ys_rm[-1])
+    mask_width = int(white_cols[-1] - white_cols[0])
+    roi_height = int(round(0.45 * mask_width))
+
+    roi_top = max(0, bottom_y - roi_height)
+    roi_bottom = bottom_y
+    roi_left = int(white_cols[0])
+    roi_right = int(white_cols[-1])
+
+    m_c, b_c = line_center_rotated
+    center_x_at_mid = m_c * ((roi_top + roi_bottom) / 2.0) + b_c
+    center_x = int(round(center_x_at_mid))
+    center_x = max(roi_left, min(center_x, roi_right))
+
+    return {
+        "mask_width_px": mask_width,
+        "roi_height_px": roi_height,
+        "roi_top_px": roi_top,
+        "roi_bottom_px": roi_bottom,
+        "roi_left_px": roi_left,
+        "roi_right_px": roi_right,
+        "centerline_column_px": center_x,
+    }
+
+
 # ============================================================================
 # ROI FIGURE
 # ============================================================================
@@ -226,28 +260,15 @@ def render_roi_figure(
     caption_override,
     out_path,
 ):
-    h, w = rotated_master.shape
-    ys_rm = np.where(rotated_master.any(axis=1))[0]
-    if len(ys_rm) == 0:
-        return
+    roi_geo = compute_roi_geometry(rotated_master, line_center_rotated)
+    if roi_geo is None:
+        return None
 
-    bottom_y = int(ys_rm[-1])
-
-    mask_white_cols = np.where(rotated_master.any(axis=0))[0]
-    if len(mask_white_cols) < 2:
-        return
-    mask_width = int(mask_white_cols[-1] - mask_white_cols[0])
-    roi_height = int(round(0.45 * mask_width))
-
-    roi_top = max(0, bottom_y - roi_height)
-    roi_bottom = bottom_y
-
-    m_c, b_c = line_center_rotated
-    center_x_at_mid = m_c * ((roi_top + roi_bottom) / 2.0) + b_c
-    center_x = int(round(center_x_at_mid))
-
-    roi_left = int(mask_white_cols[0])
-    roi_right = int(mask_white_cols[-1])
+    roi_top = roi_geo["roi_top_px"]
+    roi_bottom = roi_geo["roi_bottom_px"]
+    roi_left = roi_geo["roi_left_px"]
+    roi_right = roi_geo["roi_right_px"]
+    center_x = roi_geo["centerline_column_px"]
 
     vis = cv2.cvtColor(sample_frame_binary, cv2.COLOR_GRAY2RGB).astype(np.float64) / 255.0
 
@@ -294,6 +315,7 @@ def render_roi_figure(
     fig.tight_layout(pad=0.15)
     fig.savefig(out_path, dpi=FIG_DPI, bbox_inches="tight", pad_inches=0.02)
     plt.close(fig)
+    return roi_geo
 
 
 # ============================================================================
@@ -395,7 +417,9 @@ def process_selected_folder(
 
     # ROI figure on a sample frame
     rotated_center = tilt_info.get("rotated_line_center")
+    roi_geometry = None
     if rotated_center is not None:
+        roi_geometry = compute_roi_geometry(rotated_master, rotated_center)
         if sample_frame_index is not None and 0 <= sample_frame_index < len(mask_files):
             frame_idx = sample_frame_index
         else:
@@ -429,6 +453,19 @@ def process_selected_folder(
         "master_mask_path": master_mask_path,
         "tilt_angle_deg": tilt_info.get("tilt_angle_deg", 0.0),
         "rotation_angle_deg": tilt_info.get("rotation_angle_deg", 0.0),
+        "rotated_centerline_fit": {
+            "slope": float(rotated_center[0]),
+            "intercept": float(rotated_center[1]),
+        } if rotated_center is not None else None,
+        "master_mask_width_px": roi_geometry.get("mask_width_px") if roi_geometry else None,
+        "roi_height_px": roi_geometry.get("roi_height_px") if roi_geometry else None,
+        "centerline_column_px": roi_geometry.get("centerline_column_px") if roi_geometry else None,
+        "roi_top_px": roi_geometry.get("roi_top_px") if roi_geometry else None,
+        "roi_bottom_px": roi_geometry.get("roi_bottom_px") if roi_geometry else None,
+        "roi_left_px": roi_geometry.get("roi_left_px") if roi_geometry else None,
+        "roi_right_px": roi_geometry.get("roi_right_px") if roi_geometry else None,
+        "roi_height_formula": "round(0.45 * master_mask_width_px)",
+        "centerline_definition": "x column at ROI vertical midpoint from rotated master centerline fit",
         "status": tilt_info.get("status", "ok"),
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
