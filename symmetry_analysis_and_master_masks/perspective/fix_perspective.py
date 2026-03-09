@@ -1,3 +1,4 @@
+import argparse
 import cv2
 import numpy as np
 import os
@@ -6,17 +7,29 @@ import glob
 # ==========================================
 # 1. SETUP FOLDER PATHS
 # ==========================================
-TOOL_ID = "tool012"
-BASE_DIR = r"c:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Dataset\CCD_DATA"
-input_masks_dir = os.path.join(BASE_DIR, "DATA", "masks", f"{TOOL_ID}_final_masks")
+DEFAULT_TOOL_ID = "tool012"
+DEFAULT_BASE_DIR = r"c:\Users\alrfa\OneDrive - Eotvos Lorand Tudomanyegyetem Informatikai Kar\PhD\Dataset\CCD_DATA"
 
-output_root = os.path.join(BASE_DIR, "Tool_Condition_Monitoring", "two_edge_case", "swept_volume_rotation", "output")
-out_aligned_masks = os.path.join(output_root, f"{TOOL_ID}_aligned_masks")
-out_debug_lines = os.path.join(output_root, f"{TOOL_ID}_debug_lines_angles")
-out_debug_rulers = os.path.join(output_root, f"{TOOL_ID}_debug_rulers_fixed")
 
-for folder in [out_aligned_masks, out_debug_lines, out_debug_rulers]:
-    os.makedirs(folder, exist_ok=True)
+def build_paths(base_dir, tool_id):
+    input_masks_dir = os.path.join(base_dir, "DATA", "masks", f"{tool_id}_final_masks")
+    output_root = os.path.join(base_dir, "Tool_Condition_Monitoring", "two_edge_case", "swept_volume_rotation", "output")
+
+    return {
+        "input_masks_dir": input_masks_dir,
+        "out_aligned_masks": os.path.join(output_root, f"{tool_id}_aligned_masks"),
+        "out_debug_lines": os.path.join(output_root, f"{tool_id}_debug_lines_angles"),
+        "out_debug_rulers": os.path.join(output_root, f"{tool_id}_debug_rulers_fixed"),
+    }
+
+
+def ensure_output_dirs(paths):
+    for folder in [
+        paths["out_aligned_masks"],
+        paths["out_debug_lines"],
+        paths["out_debug_rulers"],
+    ]:
+        os.makedirs(folder, exist_ok=True)
 
 # ==========================================
 # 2. HELPER FUNCTIONS
@@ -148,17 +161,20 @@ def draw_vertical_rulers(mask_binary, original_filename, output_rulers_dir):
 # ==========================================
 # 6. MAIN EXECUTION LOOP
 # ==========================================
-def process_all_frames():
-    file_list = find_tiff_files(input_masks_dir)
+def process_all_frames(tool_id=DEFAULT_TOOL_ID, base_dir=DEFAULT_BASE_DIR):
+    paths = build_paths(base_dir, tool_id)
+    ensure_output_dirs(paths)
+
+    file_list = find_tiff_files(paths["input_masks_dir"])
     if not file_list:
-        print(f"No files found in {input_masks_dir}")
+        print(f"No files found in {paths['input_masks_dir']}")
         return
 
     # 1. Build Master Mask from all frames
     master_mask = build_master_mask(file_list)
     
     # 2. Calibrate using the Master Mask
-    tilt_angle = calculate_master_tilt(master_mask, out_debug_lines)
+    tilt_angle = calculate_master_tilt(master_mask, paths["out_debug_lines"])
     rotation_angle = -tilt_angle 
     
     print(f"Calibration Complete! True axis tilt: {tilt_angle:.3f} degrees.")
@@ -178,13 +194,31 @@ def process_all_frames():
         b_mask = to_binary_mask(img)
         rotated_mask = cv2.warpAffine(b_mask, rot_matrix, (w, h), flags=cv2.INTER_NEAREST)
         
-        cv2.imwrite(os.path.join(out_aligned_masks, filename), rotated_mask)
-        draw_vertical_rulers(rotated_mask, filename, out_debug_rulers)
+        cv2.imwrite(os.path.join(paths["out_aligned_masks"], filename), rotated_mask)
+        draw_vertical_rulers(rotated_mask, filename, paths["out_debug_rulers"])
         
         if idx % 50 == 0 or idx == len(file_list):
             print(f"  Processed [{idx}/{len(file_list)}] -> {filename}")
 
-    print("\nAll done! Master Mask calibration image saved in the debug_lines folder.")
+    print(f"\nAll done for {tool_id}! Master Mask calibration image saved in the debug_lines folder.")
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Calibrate perspective tilt for one tool and export aligned masks."
+    )
+    parser.add_argument(
+        "--tool-id",
+        default=DEFAULT_TOOL_ID,
+        help="Tool identifier, for example: tool012",
+    )
+    parser.add_argument(
+        "--base-dir",
+        default=DEFAULT_BASE_DIR,
+        help="Root CCD_DATA directory containing DATA/ and Tool_Condition_Monitoring/",
+    )
+    return parser.parse_args()
 
 if __name__ == "__main__":
-    process_all_frames()
+    args = parse_args()
+    process_all_frames(tool_id=args.tool_id, base_dir=args.base_dir)
