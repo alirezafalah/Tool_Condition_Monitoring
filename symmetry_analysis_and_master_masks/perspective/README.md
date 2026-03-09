@@ -25,7 +25,7 @@ Select tool mask folders from `DATA/masks/`, estimate perspective tilt, export c
 1. Point **masks_tilted folder** to `DATA/masks_tilted`.
 2. Click **Load Tools** to list processed tools.
 3. Select a tool folder.
-4. Optionally set **Frame Index** (blank = random) and **Caption Override** (blank = auto, e.g. "Drill Tool (062)").
+4. Optionally set **Frame Index** (blank = random) and **Caption Override** (blank = auto, e.g. "Drill Tool (062)", `-` = no caption).
 5. Click **Generate ROI Figure**.
 
 ## Output Structure

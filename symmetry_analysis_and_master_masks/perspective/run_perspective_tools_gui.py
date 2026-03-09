@@ -277,7 +277,7 @@ class MatrixPerspectiveGUI(tk.Tk):
         self.roi_frame_var = tk.StringVar(value="")
         make_entry(frame_col, self.roi_frame_var, width=10).pack(anchor="w")
 
-        make_label(frame_col, "Caption Override (blank=auto)").pack(anchor="w", pady=(6, 0))
+        make_label(frame_col, "Caption Override (blank=auto, '-'=none)").pack(anchor="w", pady=(6, 0))
         self.roi_caption_var = tk.StringVar(value="")
         make_entry(frame_col, self.roi_caption_var, width=40).pack(anchor="w")
 
@@ -762,7 +762,8 @@ class MatrixPerspectiveGUI(tk.Tk):
             MplRect((0, 0), 1, 1, edgecolor="lime", facecolor="none", linewidth=2, label="ROI Box"),
         ]
         ax.legend(handles=legend_handles, loc="upper right", frameon=True, fontsize=11)
-        ax.set_title(caption, fontsize=18)
+        if caption:
+            ax.set_title(caption, fontsize=18)
         ax.set_axis_off()
         fig.tight_layout(pad=0.15)
         fig.savefig(out_path, dpi=300, bbox_inches="tight", pad_inches=0.02)
@@ -873,8 +874,12 @@ class MatrixPerspectiveGUI(tk.Tk):
         tid = match.group(1) if match else tool_folder_name
         frame_stem = os.path.splitext(frame_name)[0]
 
-        caption = self.roi_caption_var.get().strip()
-        if not caption:
+        caption_raw = self.roi_caption_var.get().strip()
+        if caption_raw == "-":
+            caption = None
+        elif caption_raw:
+            caption = caption_raw
+        else:
             tool_type = meta.get("tool_type", "")
             tid_num = re.sub(r"[^0-9]", "", tid)
             caption = f"{(tool_type or 'Tool').capitalize()} Tool ({tid_num})"
