@@ -12,6 +12,8 @@ from tkinter.scrolledtext import ScrolledText
 import cv2
 import numpy as np
 
+from find_optimal_offset import OffsetAnalysisConfig, run_optimal_offset_analysis_for_tool, run_symmetry_summary
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROCESS_SCRIPT = os.path.join(SCRIPT_DIR, "build_master_masks_all_two_edge_tools.py")
 
@@ -20,6 +22,8 @@ DEFAULT_BASE_DATA_DIR = (
 )
 DEFAULT_MASKS_DIR = os.path.join(DEFAULT_BASE_DATA_DIR, "masks")
 DEFAULT_MASKS_TILTED_DIR = os.path.join(DEFAULT_BASE_DATA_DIR, "masks_tilted")
+DEFAULT_SYMMETRY_DIR = os.path.join(DEFAULT_BASE_DATA_DIR, "symmetry")
+DEFAULT_TOOLS_METADATA = os.path.join(DEFAULT_BASE_DATA_DIR, "tools_metadata.csv")
 
 
 def recommended_worker_count():
@@ -113,6 +117,38 @@ class MatrixPerspectiveGUI(tk.Tk):
         self.roi_edit_target_var = tk.StringVar(value="centerline")
         self.roi_step_var = tk.IntVar(value=1)
 
+        self.offset_running = False
+        self.offset_cancel_requested = False
+        self.offset_tilted_var = tk.StringVar(value=DEFAULT_MASKS_TILTED_DIR)
+        self.offset_mode_var = tk.StringVar(value="search_offset")
+        self.offset_num_frames_var = tk.IntVar(value=90)
+        self.offset_roi_height_var = tk.IntVar(value=200)
+        self.offset_use_metadata_roi_var = tk.BooleanVar(value=True)
+        self.offset_min_var = tk.IntVar(value=176)
+        self.offset_max_var = tk.IntVar(value=186)
+        self.offset_search_num_regions_var = tk.IntVar(value=2)
+        self.offset_range_a_start_var = tk.IntVar(value=0)
+        self.offset_range_a_end_var = tk.IntVar(value=89)
+        self.offset_range_b_start_var = tk.IntVar(value=182)
+        self.offset_range_b_end_var = tk.IntVar(value=271)
+        self.offset_regions_text_var = tk.StringVar(value="0-89,182-271")
+        self.offset_fmt_png_var = tk.BooleanVar(value=True)
+        self.offset_fmt_svg_var = tk.BooleanVar(value=False)
+        self.offset_fmt_pdf_var = tk.BooleanVar(value=False)
+        self.offset_title_font_var = tk.IntVar(value=14)
+        self.offset_axis_font_var = tk.IntVar(value=12)
+        self.offset_tick_font_var = tk.IntVar(value=10)
+        self.offset_legend_font_var = tk.IntVar(value=10)
+        self.offset_include_caption_var = tk.BooleanVar(value=True)
+        self.offset_manual_legend_var = tk.BooleanVar(value=False)
+        self.offset_legend_a_start_var = tk.IntVar(value=0)
+        self.offset_legend_a_end_var = tk.IntVar(value=90)
+        self.offset_legend_b_start_var = tk.IntVar(value=180)
+        self.offset_legend_b_end_var = tk.IntVar(value=270)
+        self.offset_legend_ranges_text_var = tk.StringVar(value="0-90,180-270")
+
+        self.summary_running = False
+
         self._build_ui()
         self._load_mask_subfolders()
 
@@ -144,11 +180,19 @@ class MatrixPerspectiveGUI(tk.Tk):
         self.tab_buttons["roi"] = make_button(tab_bar, "ROI Visualization", lambda: self._show_tab("roi"))
         self.tab_buttons["roi"].pack(side=tk.LEFT, padx=(0, 4))
 
+        self.tab_buttons["offset"] = make_button(tab_bar, "Optimal Offset", lambda: self._show_tab("offset"))
+        self.tab_buttons["offset"].pack(side=tk.LEFT, padx=(0, 4))
+
+        self.tab_buttons["summary"] = make_button(tab_bar, "Symmetry Summary", lambda: self._show_tab("summary"))
+        self.tab_buttons["summary"].pack(side=tk.LEFT, padx=(0, 4))
+
         self.content_frame = tk.Frame(self, bg=BG_MAIN, padx=12, pady=8)
         self.content_frame.pack(fill=tk.BOTH, expand=True)
 
         self._build_tilt_tab()
         self._build_roi_tab()
+        self._build_offset_tab()
+        self._build_summary_tab()
         self._show_tab("tilt")
 
     def _show_tab(self, name):
@@ -352,6 +396,320 @@ class MatrixPerspectiveGUI(tk.Tk):
         self.roi_log.pack(fill=tk.X, expand=False, padx=10, pady=(0, 10))
         self._roi_log("ROI tab ready. Load tools from masks_tilted directory.\n")
 
+    # ========== TAB 3: OPTIMAL OFFSET ===========
+    def _build_offset_tab(self):
+        tab = tk.Frame(self.content_frame, bg=BG_MAIN)
+        self.tab_frames["offset"] = tab
+
+        wrapper = tk.Frame(tab, bg=BG_PANEL, highlightbackground=BORDER, highlightthickness=1)
+        wrapper.pack(fill=tk.BOTH, expand=True)
+
+        row1 = tk.Frame(wrapper, bg=BG_PANEL)
+        row1.pack(fill=tk.X, padx=10, pady=(10, 4))
+        make_label(row1, "MASKS_TILTED FOLDER").pack(side=tk.LEFT, padx=(0, 8))
+        make_entry(row1, self.offset_tilted_var, width=68).pack(side=tk.LEFT, padx=(0, 6))
+        make_button(row1, "Browse", self._browse_offset_tilted).pack(side=tk.LEFT, padx=(0, 6))
+        make_button(row1, "Load Tools", self._load_offset_tools).pack(side=tk.LEFT)
+
+        row2 = tk.Frame(wrapper, bg=BG_PANEL)
+        row2.pack(fill=tk.X, padx=10, pady=(4, 4))
+
+        list_col = tk.Frame(row2, bg=BG_PANEL)
+        list_col.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 12))
+        make_label(list_col, "Tools (select one or more)").pack(anchor="w")
+        self.offset_tool_listbox = tk.Listbox(
+            list_col,
+            selectmode=tk.EXTENDED,
+            height=8,
+            bg=BG_ENTRY,
+            fg=FG_MAIN,
+            selectbackground="#0d6f2b",
+            selectforeground="#d8ffd8",
+            highlightbackground=BORDER,
+            relief=tk.FLAT,
+            font=("Consolas", 11),
+            activestyle="none",
+            exportselection=False,
+            width=38,
+        )
+        self.offset_tool_listbox.pack(fill=tk.BOTH, expand=True)
+        self.offset_tool_listbox.bind("<<ListboxSelect>>", self._on_offset_tool_selected)
+
+        opt_col = tk.Frame(row2, bg=BG_PANEL)
+        opt_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        self.offset_search_widgets = []
+        self.offset_fixed_widgets = []
+        self.offset_legend_widgets = []
+
+        line_mode = tk.Frame(opt_col, bg=BG_PANEL)
+        line_mode.pack(fill=tk.X, pady=(0, 6))
+        make_label(line_mode, "Mode").pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_mode_menu = tk.OptionMenu(
+            line_mode,
+            self.offset_mode_var,
+            "search_offset",
+            "fixed_ranges",
+            command=lambda _v: self._update_offset_mode_widgets(),
+        )
+        self.offset_mode_menu.config(
+            bg=BG_ENTRY,
+            fg=FG_MAIN,
+            activebackground=BG_BTN_ACTIVE,
+            activeforeground="#dcffdc",
+            relief=tk.FLAT,
+            highlightbackground=BORDER,
+            highlightthickness=1,
+            font=("Consolas", 10),
+        )
+        self.offset_mode_menu["menu"].config(bg=BG_ENTRY, fg=FG_MAIN, font=("Consolas", 10))
+        self.offset_mode_menu.pack(side=tk.LEFT, padx=(0, 12))
+
+        tk.Checkbutton(
+            line_mode,
+            text="Use ROI Height from metadata JSON",
+            variable=self.offset_use_metadata_roi_var,
+            command=self._try_load_offset_roi_from_metadata,
+            bg=BG_PANEL,
+            fg=FG_MAIN,
+            selectcolor=BG_ENTRY,
+            activebackground=BG_PANEL,
+            activeforeground=FG_MAIN,
+            font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 10))
+
+        line_a = tk.Frame(opt_col, bg=BG_PANEL)
+        line_a.pack(fill=tk.X, pady=(0, 6))
+        make_label(line_a, "Frames").pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_frames_spin = tk.Spinbox(
+            line_a, from_=1, to=1000, textvariable=self.offset_num_frames_var, width=6,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        )
+        self.offset_frames_spin.pack(side=tk.LEFT, padx=(0, 10))
+        make_label(line_a, "ROI Height(px)").pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_roi_spin = tk.Spinbox(
+            line_a, from_=1, to=2000, textvariable=self.offset_roi_height_var, width=7,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        )
+        self.offset_roi_spin.pack(side=tk.LEFT)
+
+        self.offset_search_widgets.extend([self.offset_frames_spin])
+
+        line_b = tk.Frame(opt_col, bg=BG_PANEL)
+        line_b.pack(fill=tk.X, pady=(0, 6))
+        make_label(line_b, "Offset Min").pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_min_spin = tk.Spinbox(
+            line_b, from_=0, to=360, textvariable=self.offset_min_var, width=6,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        )
+        self.offset_min_spin.pack(side=tk.LEFT, padx=(0, 10))
+        make_label(line_b, "Offset Max").pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_max_spin = tk.Spinbox(
+            line_b, from_=0, to=360, textvariable=self.offset_max_var, width=6,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        )
+        self.offset_max_spin.pack(side=tk.LEFT, padx=(0, 10))
+
+        make_label(line_b, "Num Regions").pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_search_num_regions_spin = tk.Spinbox(
+            line_b, from_=2, to=10, textvariable=self.offset_search_num_regions_var, width=4,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        )
+        self.offset_search_num_regions_spin.pack(side=tk.LEFT)
+
+        self.offset_search_widgets.extend([self.offset_min_spin, self.offset_max_spin, self.offset_search_num_regions_spin])
+
+        line_fixed = tk.Frame(opt_col, bg=BG_PANEL)
+        line_fixed.pack(fill=tk.X, pady=(0, 6))
+        make_label(line_fixed, "Range A (start-end)").pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_range_a_start_spin = tk.Spinbox(
+            line_fixed, from_=0, to=5000, textvariable=self.offset_range_a_start_var, width=6,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        )
+        self.offset_range_a_start_spin.pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_range_a_end_spin = tk.Spinbox(
+            line_fixed, from_=0, to=5000, textvariable=self.offset_range_a_end_var, width=6,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        )
+        self.offset_range_a_end_spin.pack(side=tk.LEFT, padx=(0, 10))
+
+        make_label(line_fixed, "Range B (start-end)").pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_range_b_start_spin = tk.Spinbox(
+            line_fixed, from_=0, to=5000, textvariable=self.offset_range_b_start_var, width=6,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        )
+        self.offset_range_b_start_spin.pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_range_b_end_spin = tk.Spinbox(
+            line_fixed, from_=0, to=5000, textvariable=self.offset_range_b_end_var, width=6,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        )
+        self.offset_range_b_end_spin.pack(side=tk.LEFT)
+
+        self.offset_fixed_widgets.extend(
+            [
+                self.offset_range_a_start_spin,
+                self.offset_range_a_end_spin,
+                self.offset_range_b_start_spin,
+                self.offset_range_b_end_spin,
+            ]
+        )
+
+        line_fixed_text = tk.Frame(opt_col, bg=BG_PANEL)
+        line_fixed_text.pack(fill=tk.X, pady=(0, 6))
+        make_label(line_fixed_text, "Regions List (e.g. 0-60,120-180,240-300)").pack(side=tk.LEFT, padx=(0, 6))
+        self.offset_regions_entry = make_entry(line_fixed_text, self.offset_regions_text_var, width=44)
+        self.offset_regions_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.offset_fixed_widgets.append(self.offset_regions_entry)
+
+        line_c = tk.Frame(opt_col, bg=BG_PANEL)
+        line_c.pack(fill=tk.X, pady=(0, 6))
+        make_label(line_c, "Output Formats").pack(side=tk.LEFT, padx=(0, 8))
+        tk.Checkbutton(
+            line_c, text="PNG", variable=self.offset_fmt_png_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        tk.Checkbutton(
+            line_c, text="SVG", variable=self.offset_fmt_svg_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        tk.Checkbutton(
+            line_c, text="PDF", variable=self.offset_fmt_pdf_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT)
+
+        line_d = tk.Frame(opt_col, bg=BG_PANEL)
+        line_d.pack(fill=tk.X, pady=(0, 6))
+        make_label(line_d, "Title Font").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Spinbox(
+            line_d, from_=8, to=48, textvariable=self.offset_title_font_var, width=5,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        make_label(line_d, "Axis Font").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Spinbox(
+            line_d, from_=8, to=48, textvariable=self.offset_axis_font_var, width=5,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        make_label(line_d, "Tick Font").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Spinbox(
+            line_d, from_=6, to=36, textvariable=self.offset_tick_font_var, width=5,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        make_label(line_d, "Legend Font").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Spinbox(
+            line_d, from_=6, to=48, textvariable=self.offset_legend_font_var, width=5,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT)
+
+        line_e = tk.Frame(opt_col, bg=BG_PANEL)
+        line_e.pack(fill=tk.X, pady=(0, 4))
+        tk.Checkbutton(
+            line_e,
+            text="Include Top Caption",
+            variable=self.offset_include_caption_var,
+            bg=BG_PANEL,
+            fg=FG_MAIN,
+            selectcolor=BG_ENTRY,
+            activebackground=BG_PANEL,
+            activeforeground=FG_MAIN,
+            font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 10))
+
+        self.offset_manual_legend_chk = tk.Checkbutton(
+            line_e,
+            text="Manual Legend Degree Ranges",
+            variable=self.offset_manual_legend_var,
+            command=self._update_offset_legend_widgets,
+            bg=BG_PANEL,
+            fg=FG_MAIN,
+            selectcolor=BG_ENTRY,
+            activebackground=BG_PANEL,
+            activeforeground=FG_MAIN,
+            font=("Consolas", 10),
+        )
+        self.offset_manual_legend_chk.pack(side=tk.LEFT)
+
+        line_legend = tk.Frame(opt_col, bg=BG_PANEL)
+        line_legend.pack(fill=tk.X, pady=(0, 6))
+        make_label(line_legend, "Legend A (start-end deg)").pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_legend_a_start_spin = tk.Spinbox(
+            line_legend, from_=-360, to=720, textvariable=self.offset_legend_a_start_var, width=6,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        )
+        self.offset_legend_a_start_spin.pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_legend_a_end_spin = tk.Spinbox(
+            line_legend, from_=-360, to=720, textvariable=self.offset_legend_a_end_var, width=6,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        )
+        self.offset_legend_a_end_spin.pack(side=tk.LEFT, padx=(0, 10))
+
+        make_label(line_legend, "Legend B (start-end deg)").pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_legend_b_start_spin = tk.Spinbox(
+            line_legend, from_=-360, to=720, textvariable=self.offset_legend_b_start_var, width=6,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        )
+        self.offset_legend_b_start_spin.pack(side=tk.LEFT, padx=(0, 4))
+        self.offset_legend_b_end_spin = tk.Spinbox(
+            line_legend, from_=-360, to=720, textvariable=self.offset_legend_b_end_var, width=6,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        )
+        self.offset_legend_b_end_spin.pack(side=tk.LEFT)
+
+        self.offset_legend_widgets.extend(
+            [
+                self.offset_legend_a_start_spin,
+                self.offset_legend_a_end_spin,
+                self.offset_legend_b_start_spin,
+                self.offset_legend_b_end_spin,
+            ]
+        )
+
+        line_legend_text = tk.Frame(opt_col, bg=BG_PANEL)
+        line_legend_text.pack(fill=tk.X, pady=(0, 6))
+        make_label(line_legend_text, "Legend Ranges List (optional)").pack(side=tk.LEFT, padx=(0, 6))
+        self.offset_legend_ranges_entry = make_entry(line_legend_text, self.offset_legend_ranges_text_var, width=38)
+        self.offset_legend_ranges_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.offset_legend_widgets.append(self.offset_legend_ranges_entry)
+
+        row3 = tk.Frame(wrapper, bg=BG_PANEL)
+        row3.pack(fill=tk.X, padx=10, pady=(6, 4))
+        self.offset_run_btn = make_button(
+            row3,
+            "Run Optimal Offset Analysis",
+            self._run_offset_analysis,
+            width=30,
+            fg=FG_WARN,
+        )
+        self.offset_run_btn.pack(side=tk.LEFT, padx=(0, 8))
+        self.offset_stop_btn = make_button(row3, "Stop", self._stop_offset_analysis, width=10)
+        self.offset_stop_btn.pack(side=tk.LEFT)
+
+        make_label(wrapper, "OPTIMAL OFFSET LOG").pack(anchor="w", padx=10, pady=(6, 2))
+        self.offset_log = make_log(wrapper, height=14)
+        self.offset_log.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        self._offset_log("Optimal Offset tab ready. Load tools from masks_tilted directory.\n")
+        self._update_offset_mode_widgets()
+        self._update_offset_legend_widgets()
+
     # ================================================================
     # TILT TAB LOGIC
     # ================================================================
@@ -465,6 +823,449 @@ class MatrixPerspectiveGUI(tk.Tk):
                 self._append_log(f"Stop failed: {exc}\n")
         else:
             self._append_log("No active process.\n")
+
+    # ================================================================
+    # OPTIMAL OFFSET TAB LOGIC
+    # ================================================================
+    def _offset_log(self, text):
+        self.offset_log.insert(tk.END, text)
+        self.offset_log.see(tk.END)
+
+    def _offset_log_ts(self, text):
+        self.after(0, lambda: self._offset_log(text))
+
+    def _browse_offset_tilted(self):
+        cur = self.offset_tilted_var.get().strip() or DEFAULT_MASKS_TILTED_DIR
+        folder = filedialog.askdirectory(initialdir=cur, title="Select masks_tilted root")
+        if folder:
+            self.offset_tilted_var.set(folder)
+
+    def _load_offset_tools(self):
+        tilted_root = self.offset_tilted_var.get().strip()
+        self.offset_tool_listbox.delete(0, tk.END)
+        if not os.path.isdir(tilted_root):
+            self._offset_log(f"Not a valid directory: {tilted_root}\n")
+            return
+
+        subdirs = sorted(
+            name for name in os.listdir(tilted_root)
+            if os.path.isdir(os.path.join(tilted_root, name))
+        )
+        for name in subdirs:
+            self.offset_tool_listbox.insert(tk.END, name)
+        self._offset_log(f"Loaded {len(subdirs)} tool folders from masks_tilted.\n")
+        if subdirs:
+            self.offset_tool_listbox.selection_set(0)
+            if self.offset_use_metadata_roi_var.get():
+                self._try_load_offset_roi_from_metadata()
+
+    def _on_offset_tool_selected(self, _evt):
+        if self.offset_use_metadata_roi_var.get():
+            self._try_load_offset_roi_from_metadata()
+
+    def _try_load_offset_roi_from_metadata(self):
+        selected = self._get_selected_offset_tool_paths()
+        if not selected:
+            return
+
+        tool_dir = selected[0]
+        info_dir = os.path.join(tool_dir, "information")
+        if not os.path.isdir(info_dir):
+            return
+
+        meta_files = sorted(
+            f for f in os.listdir(info_dir)
+            if f.endswith("_tilt_metadata.json") and os.path.isfile(os.path.join(info_dir, f))
+        )
+        for name in meta_files:
+            path = os.path.join(info_dir, name)
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                roi_height = data.get("roi_height_px", data.get("roi_height"))
+                if roi_height is None:
+                    continue
+                roi_height = int(roi_height)
+                if roi_height > 0:
+                    self.offset_roi_height_var.set(roi_height)
+                    self._offset_log(
+                        f"Loaded ROI Height={roi_height}px from metadata for {os.path.basename(tool_dir)}.\n"
+                    )
+                    return
+            except Exception:
+                continue
+
+    def _update_offset_mode_widgets(self):
+        mode = self.offset_mode_var.get().strip()
+        search_state = tk.NORMAL if mode == "search_offset" else tk.DISABLED
+        fixed_state = tk.NORMAL if mode == "fixed_ranges" else tk.DISABLED
+
+        for widget in self.offset_search_widgets:
+            widget.config(state=search_state)
+        for widget in self.offset_fixed_widgets:
+            widget.config(state=fixed_state)
+
+        # Manual legend is available in BOTH modes.
+        self.offset_manual_legend_chk.config(state=tk.NORMAL)
+        self._update_offset_legend_widgets()
+
+    def _update_offset_legend_widgets(self):
+        state = tk.NORMAL if self.offset_manual_legend_var.get() else tk.DISABLED
+        for widget in self.offset_legend_widgets:
+            widget.config(state=state)
+
+    def _set_offset_running(self, running):
+        self.offset_running = running
+        self.offset_run_btn.config(state=tk.DISABLED if running else tk.NORMAL)
+
+    def _get_selected_output_formats(self):
+        fmts = []
+        if self.offset_fmt_png_var.get():
+            fmts.append("png")
+        if self.offset_fmt_svg_var.get():
+            fmts.append("svg")
+        if self.offset_fmt_pdf_var.get():
+            fmts.append("pdf")
+        return tuple(fmts)
+
+    def _get_selected_offset_tool_paths(self):
+        root = self.offset_tilted_var.get().strip()
+        return [
+            os.path.join(root, self.offset_tool_listbox.get(i))
+            for i in self.offset_tool_listbox.curselection()
+        ]
+
+    @staticmethod
+    def _parse_ranges_text(ranges_text):
+        text = (ranges_text or "").strip()
+        if not text:
+            return []
+
+        parts = [p.strip() for p in re.split(r"[,;]", text) if p.strip()]
+        ranges = []
+        for part in parts:
+            m = re.match(r"^(-?\d+)\s*[-:]\s*(-?\d+)$", part)
+            if not m:
+                raise ValueError(f"Invalid range entry: '{part}'")
+            start = int(m.group(1))
+            end = int(m.group(2))
+            if end < start:
+                raise ValueError(f"Range end must be >= start: '{part}'")
+            ranges.append((start, end))
+        return ranges
+
+    def _run_offset_analysis(self):
+        if self.offset_running:
+            messagebox.showwarning("Busy", "Optimal offset analysis is already running.")
+            return
+
+        tool_paths = self._get_selected_offset_tool_paths()
+        if not tool_paths:
+            messagebox.showwarning("Selection", "Select one or more tools to analyze.")
+            return
+
+        output_formats = self._get_selected_output_formats()
+        if not output_formats:
+            messagebox.showerror("Output Format", "Select at least one output format (PNG, SVG, or PDF).")
+            return
+
+        mode = self.offset_mode_var.get().strip()
+        if mode not in {"search_offset", "fixed_ranges"}:
+            messagebox.showerror("Mode", f"Unsupported mode: {mode}")
+            return
+
+        fixed_regions = []
+        legend_ranges = []
+
+        if mode == "search_offset":
+            offset_min = int(self.offset_min_var.get())
+            offset_max = int(self.offset_max_var.get())
+            if offset_max < offset_min:
+                messagebox.showerror("Range", "Offset Max must be >= Offset Min.")
+                return
+        else:
+            try:
+                fixed_regions = self._parse_ranges_text(self.offset_regions_text_var.get())
+            except ValueError as exc:
+                messagebox.showerror("Fixed Regions", str(exc))
+                return
+
+            if not fixed_regions:
+                range_a_start = int(self.offset_range_a_start_var.get())
+                range_a_end = int(self.offset_range_a_end_var.get())
+                range_b_start = int(self.offset_range_b_start_var.get())
+                range_b_end = int(self.offset_range_b_end_var.get())
+                if range_a_end < range_a_start or range_b_end < range_b_start:
+                    messagebox.showerror("Range", "Range end must be >= range start for both A and B.")
+                    return
+                fixed_regions = [(range_a_start, range_a_end), (range_b_start, range_b_end)]
+
+            if len(fixed_regions) < 2:
+                messagebox.showerror("Fixed Regions", "Provide at least two ranges for fixed mode.")
+                return
+
+            offset_min = int(self.offset_min_var.get())
+            offset_max = int(self.offset_max_var.get())
+
+        # Manual legend handling — available in both modes.
+        if self.offset_manual_legend_var.get():
+            try:
+                legend_ranges = self._parse_ranges_text(self.offset_legend_ranges_text_var.get())
+            except ValueError as exc:
+                messagebox.showerror("Legend Ranges", str(exc))
+                return
+
+            if mode == "fixed_ranges" and fixed_regions:
+                if legend_ranges and len(legend_ranges) != len(fixed_regions):
+                    messagebox.showerror(
+                        "Legend Ranges",
+                        "Legend range count must match fixed region count, or leave it blank to use fallback values.",
+                    )
+                    return
+                if len(fixed_regions) > 2 and not legend_ranges:
+                    messagebox.showerror(
+                        "Legend Ranges",
+                        "For more than two regions in manual legend mode, provide Legend Ranges List.",
+                    )
+                    return
+
+        cfg = OffsetAnalysisConfig(
+            analysis_mode=mode,
+            num_frames=max(1, int(self.offset_num_frames_var.get())),
+            search_num_regions=max(2, int(self.offset_search_num_regions_var.get())),
+            roi_height=max(1, int(self.offset_roi_height_var.get())),
+            use_metadata_roi_height=bool(self.offset_use_metadata_roi_var.get()),
+            offset_min=offset_min,
+            offset_max=offset_max,
+            range_a_start=int(self.offset_range_a_start_var.get()),
+            range_a_end=int(self.offset_range_a_end_var.get()),
+            range_b_start=int(self.offset_range_b_start_var.get()),
+            range_b_end=int(self.offset_range_b_end_var.get()),
+            region_ranges=tuple(fixed_regions),
+            output_formats=output_formats,
+            title_font_size=max(1, int(self.offset_title_font_var.get())),
+            axis_label_font_size=max(1, int(self.offset_axis_font_var.get())),
+            tick_font_size=max(1, int(self.offset_tick_font_var.get())),
+            legend_font_size=max(1, int(self.offset_legend_font_var.get())),
+            include_top_caption=bool(self.offset_include_caption_var.get()),
+            manual_legend_ranges=bool(self.offset_manual_legend_var.get()),
+            legend_a_start_deg=int(self.offset_legend_a_start_var.get()),
+            legend_a_end_deg=int(self.offset_legend_a_end_var.get()),
+            legend_b_start_deg=int(self.offset_legend_b_start_var.get()),
+            legend_b_end_deg=int(self.offset_legend_b_end_var.get()),
+            legend_ranges=tuple(legend_ranges),
+        )
+
+        self.offset_cancel_requested = False
+        self._set_offset_running(True)
+        self._offset_log("\n" + "=" * 90 + "\n")
+        if cfg.analysis_mode == "search_offset":
+            self._offset_log(
+                f"Running search mode for {len(tool_paths)} tool(s) | "
+                f"frames={cfg.num_frames}, offsets={cfg.offset_min}-{cfg.offset_max}, "
+                f"roi_height={'metadata' if cfg.use_metadata_roi_height else cfg.roi_height}\n"
+            )
+        else:
+            self._offset_log(
+                f"Running fixed-range mode for {len(tool_paths)} tool(s) | "
+                f"regions={','.join(f'{a}-{b}' for a, b in cfg.region_ranges)}, "
+                f"roi_height={'metadata' if cfg.use_metadata_roi_height else cfg.roi_height}\n"
+            )
+
+        threading.Thread(
+            target=self._offset_analysis_worker,
+            args=(tool_paths, cfg),
+            daemon=True,
+        ).start()
+
+    def _offset_analysis_worker(self, tool_paths, cfg):
+        try:
+            for idx, tool_path in enumerate(tool_paths, start=1):
+                if self.offset_cancel_requested:
+                    self._offset_log_ts("Stop requested. Ending after current tool.\n")
+                    break
+
+                self._offset_log_ts("\n" + "-" * 70 + "\n")
+                self._offset_log_ts(f"[{idx}/{len(tool_paths)}] Analyzing {os.path.basename(tool_path)}\n")
+
+                try:
+                    # Compute symmetry output directory for this tool.
+                    _tid_match = re.search(r"(tool\d+)", os.path.basename(tool_path), re.IGNORECASE)
+                    _tid = _tid_match.group(1).lower() if _tid_match else os.path.basename(tool_path)
+                    _sym_dir = os.path.join(self.base_data_var.get().strip(), "symmetry", _tid)
+
+                    result = run_optimal_offset_analysis_for_tool(
+                        tool_path,
+                        cfg,
+                        log_fn=self._offset_log_ts,
+                        symmetry_dir=_sym_dir,
+                    )
+                    if result.get("analysis_mode") == "search_offset":
+                        self._offset_log_ts(
+                            f"Optimal offset: {result['optimal_offset']} deg | "
+                            f"frames {result['frame_range']} | ROI={result['roi_height_px']}px\n"
+                            f"Saved in: {result['output_dir']}\n"
+                        )
+                    else:
+                        self._offset_log_ts(
+                            f"Fixed comparison complete | regions={'; '.join(result['internal_regions'])} | "
+                            f"display={'; '.join(result['display_regions'])} deg | "
+                            f"pairs={result['pair_count']} | mean_abs_diff={result['mean_abs_diff']:.2f} | ROI={result['roi_height_px']}px\n"
+                            f"Saved in: {result['output_dir']}\n"
+                        )
+                except Exception as exc:
+                    self._offset_log_ts(f"ERROR for {os.path.basename(tool_path)}: {exc}\n")
+        finally:
+            self.after(0, lambda: self._set_offset_running(False))
+
+    def _stop_offset_analysis(self):
+        if not self.offset_running:
+            self._offset_log("No active optimal offset analysis.\n")
+            return
+        self.offset_cancel_requested = True
+        self._offset_log("Stop requested. Waiting for current step to finish...\n")
+
+    # ================================================================
+    # TAB 4: SYMMETRY SUMMARY
+    # ================================================================
+    def _build_summary_tab(self):
+        tab = tk.Frame(self.content_frame, bg=BG_MAIN)
+        self.tab_frames["summary"] = tab
+
+        wrapper = tk.Frame(tab, bg=BG_PANEL, highlightbackground=BORDER, highlightthickness=1)
+        wrapper.pack(fill=tk.BOTH, expand=True)
+
+        row1 = tk.Frame(wrapper, bg=BG_PANEL)
+        row1.pack(fill=tk.X, padx=10, pady=(10, 4))
+        make_label(row1, "SYMMETRY RESULTS FOLDER").pack(side=tk.LEFT, padx=(0, 8))
+        self.summary_sym_var = tk.StringVar(value=DEFAULT_SYMMETRY_DIR)
+        make_entry(row1, self.summary_sym_var, width=60).pack(side=tk.LEFT, padx=(0, 6))
+        make_button(row1, "Browse", self._browse_summary_dir).pack(side=tk.LEFT)
+
+        row2 = tk.Frame(wrapper, bg=BG_PANEL)
+        row2.pack(fill=tk.X, padx=10, pady=(4, 4))
+        make_label(row2, "TOOLS METADATA CSV").pack(side=tk.LEFT, padx=(0, 8))
+        self.summary_meta_var = tk.StringVar(value=DEFAULT_TOOLS_METADATA)
+        make_entry(row2, self.summary_meta_var, width=60).pack(side=tk.LEFT, padx=(0, 6))
+        make_button(row2, "Browse", self._browse_summary_meta).pack(side=tk.LEFT)
+
+        row3 = tk.Frame(wrapper, bg=BG_PANEL)
+        row3.pack(fill=tk.X, padx=10, pady=(4, 4))
+        make_label(row3, "Output Formats").pack(side=tk.LEFT, padx=(0, 8))
+        self.summary_fmt_png_var = tk.BooleanVar(value=True)
+        self.summary_fmt_svg_var = tk.BooleanVar(value=False)
+        self.summary_fmt_pdf_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            row3, text="PNG", variable=self.summary_fmt_png_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        tk.Checkbutton(
+            row3, text="SVG", variable=self.summary_fmt_svg_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        tk.Checkbutton(
+            row3, text="PDF", variable=self.summary_fmt_pdf_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT)
+
+        row4 = tk.Frame(wrapper, bg=BG_PANEL)
+        row4.pack(fill=tk.X, padx=10, pady=(6, 4))
+        self.summary_run_btn = make_button(
+            row4, "Generate Summary Bar Chart", self._run_summary_analysis, width=32, fg=FG_WARN,
+        )
+        self.summary_run_btn.pack(side=tk.LEFT, padx=(0, 8))
+
+        make_label(wrapper, "SYMMETRY SUMMARY LOG").pack(anchor="w", padx=10, pady=(6, 2))
+        self.summary_log_widget = make_log(wrapper, height=20)
+        self.summary_log_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        self._summary_log("Symmetry Summary tab ready. Run Tab 3 first, then generate the summary bar chart.\n")
+
+    def _summary_log(self, text):
+        self.summary_log_widget.insert(tk.END, text)
+        self.summary_log_widget.see(tk.END)
+
+    def _summary_log_ts(self, text):
+        self.after(0, lambda: self._summary_log(text))
+
+    def _browse_summary_dir(self):
+        cur = self.summary_sym_var.get().strip() or DEFAULT_SYMMETRY_DIR
+        folder = filedialog.askdirectory(initialdir=cur, title="Select symmetry results folder")
+        if folder:
+            self.summary_sym_var.set(folder)
+
+    def _browse_summary_meta(self):
+        cur = self.summary_meta_var.get().strip() or DEFAULT_TOOLS_METADATA
+        path = filedialog.askopenfilename(
+            initialdir=os.path.dirname(cur), title="Select tools_metadata.csv",
+            filetypes=[("CSV", "*.csv"), ("All", "*.*")],
+        )
+        if path:
+            self.summary_meta_var.set(path)
+
+    def _run_summary_analysis(self):
+        if self.summary_running:
+            messagebox.showwarning("Busy", "Summary analysis is already running.")
+            return
+
+        sym_root = self.summary_sym_var.get().strip()
+        meta_csv = self.summary_meta_var.get().strip()
+
+        if not os.path.isdir(sym_root):
+            messagebox.showerror("Path", f"Symmetry folder not found:\n{sym_root}")
+            return
+        if not os.path.isfile(meta_csv):
+            messagebox.showerror("Path", f"Tools metadata CSV not found:\n{meta_csv}")
+            return
+
+        fmts = []
+        if self.summary_fmt_png_var.get():
+            fmts.append("png")
+        if self.summary_fmt_svg_var.get():
+            fmts.append("svg")
+        if self.summary_fmt_pdf_var.get():
+            fmts.append("pdf")
+        if not fmts:
+            messagebox.showerror("Output Format", "Select at least one output format.")
+            return
+
+        cfg = OffsetAnalysisConfig(
+            output_formats=tuple(fmts),
+            title_font_size=max(1, int(self.offset_title_font_var.get())),
+            axis_label_font_size=max(1, int(self.offset_axis_font_var.get())),
+            tick_font_size=max(1, int(self.offset_tick_font_var.get())),
+            legend_font_size=max(1, int(self.offset_legend_font_var.get())),
+            include_top_caption=bool(self.offset_include_caption_var.get()),
+        )
+
+        self.summary_running = True
+        self.summary_run_btn.config(state=tk.DISABLED)
+        self._summary_log("\n" + "=" * 90 + "\n")
+        self._summary_log(f"Generating summary from: {sym_root}\n")
+
+        threading.Thread(
+            target=self._summary_analysis_worker,
+            args=(sym_root, meta_csv, cfg),
+            daemon=True,
+        ).start()
+
+    def _summary_analysis_worker(self, sym_root, meta_csv, cfg):
+        try:
+            result = run_symmetry_summary(
+                sym_root, meta_csv, cfg, log_fn=self._summary_log_ts,
+            )
+            self._summary_log_ts(
+                f"\nDone! {result['tool_count']} tools in chart.\n"
+                f"Plots: {', '.join(result['plot_paths'])}\n"
+                f"CSV: {result['csv_path']}\n"
+            )
+        except Exception as exc:
+            self._summary_log_ts(f"\nERROR: {exc}\n")
+        finally:
+            self.summary_running = False
+            self.after(0, lambda: self.summary_run_btn.config(state=tk.NORMAL))
 
     # ================================================================
     # ROI TAB LOGIC
@@ -892,11 +1693,19 @@ class MatrixPerspectiveGUI(tk.Tk):
         self._save_roi_image_with_legend(ctx["frame_bin"], geo, out2, caption)
         self._save_roi_image_with_legend(ctx["frame_bin"], geo, main_out, caption)
 
+        # Also save ROI visualization to the symmetry folder.
+        base_data = self.base_data_var.get().strip()
+        sym_dir = os.path.join(base_data, "symmetry", tid.lower())
+        os.makedirs(sym_dir, exist_ok=True)
+        sym_out = os.path.join(sym_dir, f"{tid.lower()}_roi_visualization.png")
+        self._save_roi_image_with_legend(ctx["frame_bin"], geo, sym_out, caption)
+
         saved_meta = self._persist_current_geo_to_metadata()
         if saved_meta:
             self._roi_log(
                 f"Saved ROI image: {out2}\n"
                 f"Saved ROI image: {main_out}\n"
+                f"Saved ROI image: {sym_out}\n"
                 f"Updated metadata: {ctx['meta_path']}\n"
                 f"  left={geo['roi_left']}, right={geo['roi_right']}, "
                 f"top={geo['roi_top']}, bottom={geo['roi_bottom']}, center={geo['center_x']}\n"
