@@ -7,6 +7,7 @@ This repository provides a complete pipeline for analyzing CNC tool wear through
 * **`image_to_signal/`**: Main processing pipeline that converts tool images into 1D profile signals for wear analysis
 * **`mask_refiner/`**: Standalone interactive OpenGL mask refinement tool for editing masks against blurred frames
 * **`3D_reconstruction/`**: Visual Hull (Shape from Silhouette) reconstruction with GPU-accelerated engine and GUI
+* **`symmetry_analysis_and_master_masks/`**: Symmetry, tilted-mask correction, master-mask generation, and optimal offset analysis tools with GUI
 * **`tool_profile_viz/`**: Modern PyQt6 GUI application for visualizing tool profiles, managing metadata, and reviewing inspection results
 * **`signal_processing/`** and **`tool_monitoring/`**: Legacy versions, kept for historical reference
 * **`old/`**: Proof of concept implementations and experimental data
@@ -47,6 +48,22 @@ python -m mask_refiner.main
 cd Tool_Condition_Monitoring/3D_reconstruction
 python visual_hull_gui.py
 ```
+
+### Run Symmetry Analysis GUI (Tilted Masks + Master Masks)
+```bash
+cd Tool_Condition_Monitoring
+python symmetry_analysis_and_master_masks/perspective/run_perspective_tools_gui.py
+```
+
+Windows `py` launcher alternative:
+```powershell
+py -3 "Tool_Condition_Monitoring\symmetry_analysis_and_master_masks\perspective\run_perspective_tools_gui.py"
+```
+
+This GUI includes three tabs:
+- Tilt Processing
+- ROI Visualization
+- Optimal Offset Analysis
 
 Optional legacy CLI:
 ```bash
