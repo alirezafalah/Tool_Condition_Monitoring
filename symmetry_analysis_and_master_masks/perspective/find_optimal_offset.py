@@ -1329,12 +1329,15 @@ def run_symmetry_summary(
     tools_metadata_path: str,
     cfg: OffsetAnalysisConfig,
     log_fn: Optional[Callable[[str], None]] = None,
+    include_tools: Optional[list[str]] = None,
 ) -> dict:
     """Generate a summary bar chart from Tab 3 results.
 
     Scans ``symmetry_root/<tool_id>/*_symmetry_metadata.json`` for
     ``mean_abs_diff``, joins with *tools_metadata.csv* for condition,
     creates a bar chart grouped by condition (new → fractured → broken).
+
+    ``include_tools``: if provided, only tool IDs in this list are included.
     """
     if not os.path.isdir(symmetry_root):
         raise FileNotFoundError(f"Symmetry directory not found: {symmetry_root}")
@@ -1369,6 +1372,10 @@ def run_symmetry_summary(
         tool_id = meta.get("tool_id", entry)
         mean_abs_diff = meta.get("mean_abs_diff")
         if mean_abs_diff is None:
+            continue
+
+        # Skip if not in the user-selected include list.
+        if include_tools is not None and tool_id not in include_tools:
             continue
 
         tool_meta = tools_meta.get(tool_id, {})

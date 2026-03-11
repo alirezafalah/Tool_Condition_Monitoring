@@ -1151,13 +1151,16 @@ class MatrixPerspectiveGUI(tk.Tk):
         wrapper = tk.Frame(tab, bg=BG_PANEL, highlightbackground=BORDER, highlightthickness=1)
         wrapper.pack(fill=tk.BOTH, expand=True)
 
+        # ── Row 1: Symmetry folder ──
         row1 = tk.Frame(wrapper, bg=BG_PANEL)
         row1.pack(fill=tk.X, padx=10, pady=(10, 4))
         make_label(row1, "SYMMETRY RESULTS FOLDER").pack(side=tk.LEFT, padx=(0, 8))
         self.summary_sym_var = tk.StringVar(value=DEFAULT_SYMMETRY_DIR)
-        make_entry(row1, self.summary_sym_var, width=60).pack(side=tk.LEFT, padx=(0, 6))
-        make_button(row1, "Browse", self._browse_summary_dir).pack(side=tk.LEFT)
+        make_entry(row1, self.summary_sym_var, width=56).pack(side=tk.LEFT, padx=(0, 6))
+        make_button(row1, "Browse", self._browse_summary_dir).pack(side=tk.LEFT, padx=(0, 6))
+        make_button(row1, "Load Tools", self._load_summary_tools, fg=FG_WARN).pack(side=tk.LEFT)
 
+        # ── Row 2: Metadata CSV ──
         row2 = tk.Frame(wrapper, bg=BG_PANEL)
         row2.pack(fill=tk.X, padx=10, pady=(4, 4))
         make_label(row2, "TOOLS METADATA CSV").pack(side=tk.LEFT, padx=(0, 8))
@@ -1165,39 +1168,167 @@ class MatrixPerspectiveGUI(tk.Tk):
         make_entry(row2, self.summary_meta_var, width=60).pack(side=tk.LEFT, padx=(0, 6))
         make_button(row2, "Browse", self._browse_summary_meta).pack(side=tk.LEFT)
 
-        row3 = tk.Frame(wrapper, bg=BG_PANEL)
-        row3.pack(fill=tk.X, padx=10, pady=(4, 4))
-        make_label(row3, "Output Formats").pack(side=tk.LEFT, padx=(0, 8))
+        # ── Row 3: Dual list boxes ──
+        list_area = tk.Frame(wrapper, bg=BG_PANEL)
+        list_area.pack(fill=tk.X, padx=10, pady=(4, 4))
+
+        # Left column: INCLUDED
+        left_col = tk.Frame(list_area, bg=BG_PANEL)
+        left_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        make_label(left_col, "INCLUDED (will appear in chart)").pack(anchor="w", pady=(0, 2))
+        inc_frame = tk.Frame(left_col, bg=BG_PANEL)
+        inc_frame.pack(fill=tk.BOTH, expand=True)
+        self.summary_include_lb = tk.Listbox(
+            inc_frame, selectmode=tk.EXTENDED, height=10,
+            bg=BG_ENTRY, fg=FG_MAIN, selectbackground="#0d6f2b", selectforeground="#d8ffd8",
+            highlightbackground=BORDER, relief=tk.FLAT, font=("Consolas", 11),
+            activestyle="none", exportselection=False,
+        )
+        self.summary_include_lb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        inc_scroll = tk.Scrollbar(inc_frame, command=self.summary_include_lb.yview)
+        inc_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.summary_include_lb.config(yscrollcommand=inc_scroll.set)
+
+        # Middle column: arrow buttons
+        arrow_col = tk.Frame(list_area, bg=BG_PANEL)
+        arrow_col.pack(side=tk.LEFT, padx=10, anchor="center")
+        tk.Frame(arrow_col, bg=BG_PANEL, height=30).pack()  # spacer
+        make_button(arrow_col, ">>", self._summary_exclude_selected, width=5).pack(pady=(0, 6))
+        make_button(arrow_col, "<<", self._summary_include_selected, width=5).pack(pady=(0, 6))
+        make_button(arrow_col, ">> All", self._summary_exclude_all, width=5).pack(pady=(0, 6))
+        make_button(arrow_col, "<< All", self._summary_include_all, width=5).pack()
+
+        # Right column: EXCLUDED
+        right_col = tk.Frame(list_area, bg=BG_PANEL)
+        right_col.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        make_label(right_col, "EXCLUDED (skipped)").pack(anchor="w", pady=(0, 2))
+        exc_frame = tk.Frame(right_col, bg=BG_PANEL)
+        exc_frame.pack(fill=tk.BOTH, expand=True)
+        self.summary_exclude_lb = tk.Listbox(
+            exc_frame, selectmode=tk.EXTENDED, height=10,
+            bg=BG_ENTRY, fg="#ff6060", selectbackground="#6f2b0d", selectforeground="#ffd8d8",
+            highlightbackground=BORDER, relief=tk.FLAT, font=("Consolas", 11),
+            activestyle="none", exportselection=False,
+        )
+        self.summary_exclude_lb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        exc_scroll = tk.Scrollbar(exc_frame, command=self.summary_exclude_lb.yview)
+        exc_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.summary_exclude_lb.config(yscrollcommand=exc_scroll.set)
+
+        # ── Row 4: Formats + Run ──
+        row4 = tk.Frame(wrapper, bg=BG_PANEL)
+        row4.pack(fill=tk.X, padx=10, pady=(6, 4))
+        make_label(row4, "Output Formats").pack(side=tk.LEFT, padx=(0, 8))
         self.summary_fmt_png_var = tk.BooleanVar(value=True)
         self.summary_fmt_svg_var = tk.BooleanVar(value=False)
         self.summary_fmt_pdf_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(
-            row3, text="PNG", variable=self.summary_fmt_png_var,
-            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
-            activeforeground=FG_MAIN, font=("Consolas", 10),
-        ).pack(side=tk.LEFT, padx=(0, 6))
-        tk.Checkbutton(
-            row3, text="SVG", variable=self.summary_fmt_svg_var,
-            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
-            activeforeground=FG_MAIN, font=("Consolas", 10),
-        ).pack(side=tk.LEFT, padx=(0, 6))
-        tk.Checkbutton(
-            row3, text="PDF", variable=self.summary_fmt_pdf_var,
-            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
-            activeforeground=FG_MAIN, font=("Consolas", 10),
-        ).pack(side=tk.LEFT)
+        for text, var in [("PNG", self.summary_fmt_png_var), ("SVG", self.summary_fmt_svg_var), ("PDF", self.summary_fmt_pdf_var)]:
+            tk.Checkbutton(
+                row4, text=text, variable=var,
+                bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+                activeforeground=FG_MAIN, font=("Consolas", 10),
+            ).pack(side=tk.LEFT, padx=(0, 6))
 
-        row4 = tk.Frame(wrapper, bg=BG_PANEL)
-        row4.pack(fill=tk.X, padx=10, pady=(6, 4))
+        row5 = tk.Frame(wrapper, bg=BG_PANEL)
+        row5.pack(fill=tk.X, padx=10, pady=(4, 4))
         self.summary_run_btn = make_button(
-            row4, "Generate Summary Bar Chart", self._run_summary_analysis, width=32, fg=FG_WARN,
+            row5, "Generate Summary Bar Chart", self._run_summary_analysis, width=32, fg=FG_WARN,
         )
         self.summary_run_btn.pack(side=tk.LEFT, padx=(0, 8))
+        self.summary_count_label = tk.Label(
+            row5, text="", bg=BG_PANEL, fg=FG_DIM, font=("Consolas", 10),
+        )
+        self.summary_count_label.pack(side=tk.LEFT)
 
         make_label(wrapper, "SYMMETRY SUMMARY LOG").pack(anchor="w", padx=10, pady=(6, 2))
-        self.summary_log_widget = make_log(wrapper, height=20)
+        self.summary_log_widget = make_log(wrapper, height=10)
         self.summary_log_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
-        self._summary_log("Symmetry Summary tab ready. Run Tab 3 first, then generate the summary bar chart.\n")
+        self._summary_log("Symmetry Summary tab ready.\n1. Set the symmetry folder and click Load Tools.\n2. Move unwanted tools to the EXCLUDED box.\n3. Click Generate.\n")
+
+    # ── Dual-listbox helpers ──
+
+    def _load_summary_tools(self):
+        sym_root = self.summary_sym_var.get().strip()
+        if not os.path.isdir(sym_root):
+            messagebox.showerror("Path", f"Symmetry folder not found:\n{sym_root}")
+            return
+
+        tool_ids = []
+        for entry in sorted(os.listdir(sym_root)):
+            sub = os.path.join(sym_root, entry)
+            if not os.path.isdir(sub):
+                continue
+            has_meta = any(f.endswith("_symmetry_metadata.json") for f in os.listdir(sub))
+            if has_meta:
+                # extract tool_id from the metadata file
+                for f in os.listdir(sub):
+                    if f.endswith("_symmetry_metadata.json"):
+                        try:
+                            with open(os.path.join(sub, f), "r", encoding="utf-8") as fp:
+                                meta = json.load(fp)
+                            tool_ids.append(meta.get("tool_id", entry))
+                        except Exception:
+                            tool_ids.append(entry)
+                        break
+
+        self.summary_include_lb.delete(0, tk.END)
+        self.summary_exclude_lb.delete(0, tk.END)
+        for tid in sorted(tool_ids):
+            self.summary_include_lb.insert(tk.END, tid)
+
+        self._update_summary_count()
+        self._summary_log(f"Loaded {len(tool_ids)} tools from {sym_root}.\n")
+
+    def _update_summary_count(self):
+        inc = self.summary_include_lb.size()
+        exc = self.summary_exclude_lb.size()
+        self.summary_count_label.config(text=f"Include: {inc}   Excluded: {exc}")
+
+    def _summary_exclude_selected(self):
+        """Move selected items from Include → Exclude."""
+        selected = list(self.summary_include_lb.curselection())
+        items = [self.summary_include_lb.get(i) for i in selected]
+        for i in reversed(selected):
+            self.summary_include_lb.delete(i)
+        existing = list(self.summary_exclude_lb.get(0, tk.END))
+        for item in items:
+            if item not in existing:
+                self.summary_exclude_lb.insert(tk.END, item)
+                existing.append(item)
+        self._update_summary_count()
+
+    def _summary_include_selected(self):
+        """Move selected items from Exclude → Include."""
+        selected = list(self.summary_exclude_lb.curselection())
+        items = [self.summary_exclude_lb.get(i) for i in selected]
+        for i in reversed(selected):
+            self.summary_exclude_lb.delete(i)
+        existing = list(self.summary_include_lb.get(0, tk.END))
+        for item in items:
+            if item not in existing:
+                self.summary_include_lb.insert(tk.END, item)
+                existing.append(item)
+        self._update_summary_count()
+
+    def _summary_exclude_all(self):
+        """Move everything from Include → Exclude."""
+        items = list(self.summary_include_lb.get(0, tk.END))
+        self.summary_include_lb.delete(0, tk.END)
+        existing = list(self.summary_exclude_lb.get(0, tk.END))
+        for item in items:
+            if item not in existing:
+                self.summary_exclude_lb.insert(tk.END, item)
+        self._update_summary_count()
+
+    def _summary_include_all(self):
+        """Move everything from Exclude → Include."""
+        items = list(self.summary_exclude_lb.get(0, tk.END))
+        self.summary_exclude_lb.delete(0, tk.END)
+        existing = list(self.summary_include_lb.get(0, tk.END))
+        for item in items:
+            if item not in existing:
+                self.summary_include_lb.insert(tk.END, item)
+        self._update_summary_count()
 
     def _summary_log(self, text):
         self.summary_log_widget.insert(tk.END, text)
@@ -1236,6 +1367,11 @@ class MatrixPerspectiveGUI(tk.Tk):
             messagebox.showerror("Path", f"Tools metadata CSV not found:\n{meta_csv}")
             return
 
+        include_tools = list(self.summary_include_lb.get(0, tk.END))
+        if not include_tools:
+            messagebox.showerror("No Tools", "The INCLUDED list is empty. Load tools first, or move some back from Excluded.")
+            return
+
         fmts = []
         if self.summary_fmt_png_var.get():
             fmts.append("png")
@@ -1259,18 +1395,20 @@ class MatrixPerspectiveGUI(tk.Tk):
         self.summary_running = True
         self.summary_run_btn.config(state=tk.DISABLED)
         self._summary_log("\n" + "=" * 90 + "\n")
-        self._summary_log(f"Generating summary from: {sym_root}\n")
+        self._summary_log(f"Generating summary from: {sym_root}  ({len(include_tools)} tools included)\n")
 
         threading.Thread(
             target=self._summary_analysis_worker,
-            args=(sym_root, meta_csv, cfg),
+            args=(sym_root, meta_csv, cfg, include_tools),
             daemon=True,
         ).start()
 
-    def _summary_analysis_worker(self, sym_root, meta_csv, cfg):
+    def _summary_analysis_worker(self, sym_root, meta_csv, cfg, include_tools):
         try:
             result = run_symmetry_summary(
-                sym_root, meta_csv, cfg, log_fn=self._summary_log_ts,
+                sym_root, meta_csv, cfg,
+                log_fn=self._summary_log_ts,
+                include_tools=include_tools,
             )
             self._summary_log_ts(
                 f"\nDone! {result['tool_count']} tools in chart.\n"
