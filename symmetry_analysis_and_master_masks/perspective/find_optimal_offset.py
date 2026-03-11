@@ -56,6 +56,7 @@ class OffsetAnalysisConfig:
     tick_font_size: int = 10
     legend_font_size: int = 10
     include_top_caption: bool = True
+    stack_overlay_abs_diff: bool = False
 
     # Display degree labels in fixed-range figure.
     manual_legend_ranges: bool = False
@@ -794,6 +795,85 @@ def _plot_abs_diff(
     return _save_plot_formats(fig, f"{out_prefix}_abs_diff", cfg, log_fn=log_fn)
 
 
+def _plot_overlay_abs_diff_stacked(
+    counts_df: pd.DataFrame,
+    pairwise_df: pd.DataFrame,
+    tool_id: str,
+    out_prefix: str,
+    cfg: OffsetAnalysisConfig,
+    region_ranges: list[tuple[int, int]],
+    display_ranges: list[tuple[int, int]],
+    log_fn: Optional[Callable[[str], None]] = None,
+) -> list[str]:
+    """Combined figure: overlay on top, absolute difference below."""
+    plt.rcParams.update(
+        {
+            "font.size": cfg.axis_label_font_size,
+            "axes.titlesize": cfg.title_font_size,
+            "axes.labelsize": cfg.axis_label_font_size,
+            "xtick.labelsize": cfg.tick_font_size,
+            "ytick.labelsize": cfg.tick_font_size,
+            "legend.fontsize": cfg.legend_font_size,
+        }
+    )
+
+    region_count = len(region_ranges)
+    pair_count = int(len(counts_df))
+    x_progression = np.arange(pair_count)
+
+    fig, (ax_top, ax_bottom) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+
+    for r_i in range(region_count):
+        y_col = f"count_r{r_i + 1}"
+        label = f"P({display_ranges[r_i][0]}\u00b0\u2013{display_ranges[r_i][1]}\u00b0)"
+        ax_top.plot(x_progression, counts_df[y_col], linewidth=1.5, label=label)
+
+    ax_top.set_ylabel("White Pixel Count (Right Half)")
+    ax_top.legend(fontsize=cfg.legend_font_size)
+    ax_top.grid(True, alpha=0.3)
+    ax_top.tick_params(axis="both", labelsize=cfg.tick_font_size)
+    ax_top.set_title("Overlay Pixel Counts", fontsize=cfg.axis_label_font_size, fontweight="bold")
+
+    pair_groups = list(pairwise_df.groupby("pair_key", sort=True))
+    red_shades = plt.cm.Reds(np.linspace(0.58, 0.9, max(1, len(pair_groups))))
+
+    for idx, (pair_key, grp) in enumerate(pair_groups):
+        grp = grp.sort_values("pair_idx")
+        mean_val = float(grp["abs_difference"].mean())
+        parts = pair_key.replace("R", "").split("_vs_")
+        if len(parts) == 2:
+            ri, rj = int(parts[0]) - 1, int(parts[1]) - 1
+            lbl = f"R{ri+1} vs R{rj+1}  (mean\u2009=\u2009{mean_val:.2f})"
+        else:
+            lbl = f"{pair_key}  (mean={mean_val:.2f})"
+
+        line_color = red_shades[idx]
+        y_values = grp["abs_difference"].values
+        ax_bottom.plot(x_progression, y_values, linewidth=1.8, color=line_color, label=lbl)
+        ax_bottom.fill_between(x_progression, y_values, 0, color=line_color, alpha=0.18, linewidth=0)
+
+    ax_bottom.set_xlabel(r"$\theta$ progression (frame index within range)")
+    ax_bottom.set_ylabel("Absolute Difference")
+    ax_bottom.legend(fontsize=cfg.legend_font_size)
+    ax_bottom.grid(True, alpha=0.3)
+    ax_bottom.tick_params(axis="both", labelsize=cfg.tick_font_size)
+    ax_bottom.set_title("Absolute Difference per Angle", fontsize=cfg.axis_label_font_size, fontweight="bold")
+
+    if cfg.include_top_caption:
+        overall_mean = float(pairwise_df["abs_difference"].mean())
+        fig.suptitle(
+            f"{tool_id} \u2014 Overlay and Absolute Difference\n"
+            f"Overall Mean Abs Diff: {overall_mean:.2f}",
+            fontsize=cfg.title_font_size,
+            fontweight="bold",
+        )
+        plt.tight_layout(rect=(0.0, 0.0, 1.0, 0.96))
+    else:
+        plt.tight_layout()
+
+    return _save_plot_formats(fig, f"{out_prefix}_overlay_abs_diff_stacked", cfg, log_fn=log_fn)
+
+
 def _plot_fixed_ranges(
     counts_df: pd.DataFrame,
     pairwise_df: pd.DataFrame,
@@ -823,6 +903,20 @@ def _plot_fixed_ranges(
             pairwise_df, tool_id, out_prefix, cfg, display_ranges, log_fn=log_fn,
         )
     )
+
+    if cfg.stack_overlay_abs_diff:
+        saved.extend(
+            _plot_overlay_abs_diff_stacked(
+                counts_df,
+                pairwise_df,
+                tool_id,
+                out_prefix,
+                cfg,
+                region_ranges,
+                display_ranges,
+                log_fn=log_fn,
+            )
+        )
 
     return saved, display_ranges
 
@@ -1039,6 +1133,19 @@ def run_optimal_offset_analysis_for_tool(
                 pairwise_df, tool_id, out_prefix, cfg, display_ranges, log_fn=log_fn,
             )
         )
+        if cfg.stack_overlay_abs_diff:
+            plot_paths.extend(
+                _plot_overlay_abs_diff_stacked(
+                    counts_df,
+                    pairwise_df,
+                    tool_id,
+                    out_prefix,
+                    cfg,
+                    region_ranges,
+                    display_ranges,
+                    log_fn=log_fn,
+                )
+            )
 
         mean_abs_diff = float(pairwise_df["abs_difference"].mean())
 
@@ -1056,6 +1163,7 @@ def run_optimal_offset_analysis_for_tool(
             "used_cached_search": bool(used_cached_search),
             "mean_abs_diff": mean_abs_diff,
             "output_formats": list(_normalize_output_formats(cfg.output_formats)),
+            "stack_overlay_abs_diff": bool(cfg.stack_overlay_abs_diff),
             "analysis_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         }
 
@@ -1149,6 +1257,7 @@ def run_optimal_offset_analysis_for_tool(
         "pair_count": int(len(counts_df)),
         "mean_abs_diff": mean_abs_diff,
         "output_formats": list(_normalize_output_formats(cfg.output_formats)),
+        "stack_overlay_abs_diff": bool(cfg.stack_overlay_abs_diff),
         "analysis_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 

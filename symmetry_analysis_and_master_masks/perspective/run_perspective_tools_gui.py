@@ -135,6 +135,7 @@ class MatrixPerspectiveGUI(tk.Tk):
         self.offset_fmt_png_var = tk.BooleanVar(value=True)
         self.offset_fmt_svg_var = tk.BooleanVar(value=False)
         self.offset_fmt_pdf_var = tk.BooleanVar(value=False)
+        self.offset_stack_overlay_abs_diff_var = tk.BooleanVar(value=False)
         self.offset_title_font_var = tk.IntVar(value=14)
         self.offset_axis_font_var = tk.IntVar(value=12)
         self.offset_tick_font_var = tk.IntVar(value=10)
@@ -587,6 +588,20 @@ class MatrixPerspectiveGUI(tk.Tk):
             line_c, text="PDF", variable=self.offset_fmt_pdf_var,
             bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
             activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT)
+
+        line_c2 = tk.Frame(opt_col, bg=BG_PANEL)
+        line_c2.pack(fill=tk.X, pady=(0, 6))
+        tk.Checkbutton(
+            line_c2,
+            text="Create stacked figure (Overlay top + AbsDiff bottom)",
+            variable=self.offset_stack_overlay_abs_diff_var,
+            bg=BG_PANEL,
+            fg=FG_MAIN,
+            selectcolor=BG_ENTRY,
+            activebackground=BG_PANEL,
+            activeforeground=FG_MAIN,
+            font=("Consolas", 10),
         ).pack(side=tk.LEFT)
 
         line_d = tk.Frame(opt_col, bg=BG_PANEL)
@@ -1043,6 +1058,7 @@ class MatrixPerspectiveGUI(tk.Tk):
             range_b_end=int(self.offset_range_b_end_var.get()),
             region_ranges=tuple(fixed_regions),
             output_formats=output_formats,
+            stack_overlay_abs_diff=bool(self.offset_stack_overlay_abs_diff_var.get()),
             title_font_size=max(1, int(self.offset_title_font_var.get())),
             axis_label_font_size=max(1, int(self.offset_axis_font_var.get())),
             tick_font_size=max(1, int(self.offset_tick_font_var.get())),
