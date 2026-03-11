@@ -1395,7 +1395,8 @@ def run_symmetry_summary(
 
     df = pd.DataFrame(results)
     df["_sort"] = df["condition"].apply(_condition_sort_key)
-    df = df.sort_values(["_sort", "tool_id"]).drop(columns=["_sort"]).reset_index(drop=True)
+    # Primary grouping by condition, then by mean difference (not by tool name).
+    df = df.sort_values(["_sort", "mean_abs_diff", "tool_id"], ascending=[True, True, True]).drop(columns=["_sort"]).reset_index(drop=True)
 
     # Save summary CSV.
     csv_path = os.path.join(symmetry_root, "symmetry_summary.csv")
@@ -1422,16 +1423,15 @@ def run_symmetry_summary(
 
     ax.set_xticks(range(len(df)))
     ax.set_xticklabels(df["tool_id"], rotation=45, ha="right", fontsize=cfg.tick_font_size)
-    ax.set_ylabel("Mean Absolute Difference")
+    ax.set_ylabel("Mean Absolute Difference (Pixels)")
     ax.set_xlabel("Tool ID")
     ax.grid(axis="y", alpha=0.3)
 
-    if cfg.include_top_caption:
-        ax.set_title(
-            "Symmetry Analysis \u2014 Mean Absolute Difference by Tool Condition",
-            fontsize=cfg.title_font_size,
-            fontweight="bold",
-        )
+    ax.set_title(
+        "Mean Absolute Difference (0-90 vs 180-270, Right Half)",
+        fontsize=cfg.title_font_size,
+        fontweight="bold",
+    )
 
     # Build legend from actually-present conditions.
     from matplotlib.patches import Patch as _Patch
