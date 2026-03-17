@@ -60,7 +60,7 @@ def _run():
     print(f"Masks directory: {masks_dir}"); sys.stdout.flush()
 
     try:
-        image_files = sorted([f for f in os.listdir(masks_dir) if f.endswith(('.tiff', '.tif'))])
+        image_files = sorted([f for f in os.listdir(masks_dir) if f.endswith('.png')])
         if not image_files:
             print(f"No masks found in '{masks_dir}'.")
             return

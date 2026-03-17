@@ -231,7 +231,7 @@ def _generate_mask_single(args):
                              background_subtraction_lab)
         
         image_path = os.path.join(input_dir, filename)
-        output_path = os.path.join(output_dir, filename)
+        output_path = os.path.join(output_dir, os.path.splitext(filename)[0] + '.png')
         
         blurred_image = Image.open(image_path)
         
@@ -272,7 +272,7 @@ def _generate_mask_single(args):
         filled2 = fill_holes(largest_contour)
         
         if filled2:
-            filled2.save(output_path, 'TIFF')
+            filled2.save(output_path, 'PNG')
             return True, filename
         return False, f"Final mask is None for {filename}"
             

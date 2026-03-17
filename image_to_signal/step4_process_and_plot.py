@@ -18,7 +18,7 @@ def run(config):
     optimization_method = config.get('OPTIMIZATION_METHOD', 'gpu')
     
     try:
-        image_files = sorted([f for f in os.listdir(input_dir) if f.endswith(('.tiff', '.tif'))])
+        image_files = sorted([f for f in os.listdir(input_dir) if f.endswith('.png')])
         if not image_files:
             print(f"No final masks found in '{input_dir}'. Skipping.")
             return

@@ -30,14 +30,19 @@ def rename(tool_id: str, frames360: int, folder_type: str = 'masks', force: bool
         sys.stdout.flush()
         return
 
-    files = sorted([f for f in os.listdir(target_dir) if f.lower().endswith(('.tiff', '.tif'))])
+    if folder_type == 'masks':
+        files = sorted([f for f in os.listdir(target_dir) if f.lower().endswith('.png')])
+        out_ext = '.png'
+    else:
+        files = sorted([f for f in os.listdir(target_dir) if f.lower().endswith(('.tiff', '.tif'))])
+        out_ext = '.tiff'
     if not files:
         print(f"No image files found in {folder_type} directory.")
         sys.stdout.flush()
         return
 
     # Detect if already renamed
-    already_renamed = any('_degrees.tiff' in f for f in files)
+    already_renamed = any(f'_degrees{out_ext}' in f for f in files)
     if already_renamed and not force:
         print("ALREADY_RENAMED")  # Special marker for GUI to detect
         sys.stdout.flush()
@@ -48,7 +53,7 @@ def rename(tool_id: str, frames360: int, folder_type: str = 'masks', force: bool
     sys.stdout.flush()
     for i, fname in enumerate(tqdm(files, desc=f"Renaming {folder_type}")):
         angle = i * angle_step
-        new_name = f"{angle:07.2f}_degrees.tiff"
+        new_name = f"{angle:07.2f}_degrees{out_ext}"
         old_path = os.path.join(target_dir, fname)
         new_path = os.path.join(target_dir, new_name)
         try:

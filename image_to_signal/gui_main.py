@@ -3,13 +3,18 @@ Sophisticated GUI for Image-to-Signal Processing Pipeline
 """
 import sys
 import os
+import random
 import warnings
+import numpy as np
+import cv2
+from PIL import Image
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                             QGroupBox, QLabel, QPushButton, QLineEdit, QSpinBox, QDoubleSpinBox,
                             QCheckBox, QComboBox, QProgressBar, QTextEdit, QTabWidget,
-                            QFileDialog, QFrame, QScrollArea, QDialog, QListWidget, QListWidgetItem)
+                            QFileDialog, QFrame, QScrollArea, QDialog, QListWidget, QListWidgetItem,
+                            QMessageBox)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QColor, QPalette, QIcon
+from PyQt6.QtGui import QFont, QColor, QPalette, QIcon, QImage, QPixmap, QShortcut, QKeySequence
 
 # Suppress matplotlib threading warnings
 warnings.filterwarnings('ignore', message='Starting a Matplotlib GUI outside of the main thread')
@@ -19,6 +24,9 @@ from . import step1_blur_and_rename
 from . import step2_generate_masks
 from . import step3_analyze_and_plot
 from . import step4_process_and_plot
+from .utils.filters import (create_multichannel_mask, fill_holes, morph_closing,
+                            keep_largest_contour, background_subtraction_absdiff,
+                            background_subtraction_lab)
 
 
 class ProcessingThread(QThread):
@@ -40,6 +48,121 @@ class ProcessingThread(QThread):
             import traceback
             error_msg = f"Error: {str(e)}\n{traceback.format_exc()}"
             self.error.emit(error_msg)
+
+
+class MaskPreviewDialog(QDialog):
+    """Modeless dialog for previewing step 2 mask generation on blurred frames."""
+
+    previous_requested = pyqtSignal()
+    next_requested = pyqtSignal()
+    random_requested = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setModal(False)
+        self.setWindowTitle("Mask Preview")
+        self.resize(1200, 760)
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+
+        self.frame_label = QLabel("Frame: -")
+        self.frame_label.setStyleSheet("font-weight: bold; color: #4CAF50;")
+        layout.addWidget(self.frame_label)
+
+        self.status_label = QLabel("Preview uses the current blurred frame and refreshes while this window is open.")
+        self.status_label.setWordWrap(True)
+        self.status_label.setStyleSheet("color: #888;")
+        layout.addWidget(self.status_label)
+
+        panels_row = QHBoxLayout()
+        panels_row.setSpacing(14)
+
+        original_layout = QVBoxLayout()
+        original_title = QLabel("Blurred Frame")
+        original_title.setStyleSheet("font-weight: bold;")
+        original_layout.addWidget(original_title)
+        self.original_image_label = QLabel("No preview loaded")
+        self._configure_image_label(self.original_image_label)
+        original_layout.addWidget(self.original_image_label, stretch=1)
+        panels_row.addLayout(original_layout, stretch=1)
+
+        mask_layout = QVBoxLayout()
+        mask_title = QLabel("Final Mask")
+        mask_title.setStyleSheet("font-weight: bold;")
+        mask_layout.addWidget(mask_title)
+        self.mask_image_label = QLabel("No preview loaded")
+        self._configure_image_label(self.mask_image_label)
+        mask_layout.addWidget(self.mask_image_label, stretch=1)
+        panels_row.addLayout(mask_layout, stretch=1)
+
+        layout.addLayout(panels_row, stretch=1)
+
+        controls_row = QHBoxLayout()
+        self.prev_btn = QPushButton("← Previous")
+        self.prev_btn.clicked.connect(self.previous_requested.emit)
+        controls_row.addWidget(self.prev_btn)
+
+        self.random_btn = QPushButton("Random")
+        self.random_btn.clicked.connect(self.random_requested.emit)
+        controls_row.addWidget(self.random_btn)
+
+        self.next_btn = QPushButton("Next →")
+        self.next_btn.clicked.connect(self.next_requested.emit)
+        controls_row.addWidget(self.next_btn)
+
+        controls_row.addStretch()
+
+        help_label = QLabel("Keyboard: Left/Right arrows to navigate, R for random frame")
+        help_label.setStyleSheet("color: #888;")
+        controls_row.addWidget(help_label)
+        layout.addLayout(controls_row)
+
+        QShortcut(QKeySequence("Left"), self, activated=self.previous_requested.emit)
+        QShortcut(QKeySequence("Right"), self, activated=self.next_requested.emit)
+        QShortcut(QKeySequence("R"), self, activated=self.random_requested.emit)
+
+    def _configure_image_label(self, label):
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        label.setMinimumSize(480, 520)
+        label.setStyleSheet("background: #111; border: 1px solid #444; color: #888;")
+        label.setWordWrap(True)
+
+    def _set_label_pixmap(self, label, pixmap, empty_text):
+        if pixmap is None:
+            label.clear()
+            label.setText(empty_text)
+            return
+
+        target_size = label.contentsRect().size()
+        if target_size.width() <= 0 or target_size.height() <= 0:
+            scaled = pixmap
+        else:
+            scaled = pixmap.scaled(
+                target_size,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        label.setText("")
+        label.setPixmap(scaled)
+
+    def set_original_preview(self, pixmap, empty_text="No frame loaded"):
+        self._set_label_pixmap(self.original_image_label, pixmap, empty_text)
+
+    def set_mask_preview(self, pixmap, empty_text="No mask preview available"):
+        self._set_label_pixmap(self.mask_image_label, pixmap, empty_text)
+
+    def set_frame_text(self, text):
+        self.frame_label.setText(text)
+
+    def set_status_text(self, text, color="#888"):
+        self.status_label.setText(text)
+        self.status_label.setStyleSheet(f"color: {color};")
+
+    def set_navigation_enabled(self, enabled):
+        self.prev_btn.setEnabled(enabled)
+        self.next_btn.setEnabled(enabled)
+        self.random_btn.setEnabled(enabled)
 
 
 class ImageToSignalGUI(QMainWindow):
@@ -64,6 +187,14 @@ class ImageToSignalGUI(QMainWindow):
         # Initialize config
         self.tool_id = 'tool'  # Start with 'tool' prefix
         self.config = self._create_default_config()
+        self.mask_preview_dialog = None
+        self.mask_preview_tool_id = None
+        self.mask_preview_files = []
+        self.mask_preview_index = 0
+        self.mask_preview_background_cache = {}
+        self.mask_preview_refresh_timer = QTimer(self)
+        self.mask_preview_refresh_timer.setSingleShot(True)
+        self.mask_preview_refresh_timer.timeout.connect(self._refresh_mask_preview)
         
         # Setup UI
         self._setup_ui()
@@ -334,6 +465,22 @@ class ImageToSignalGUI(QMainWindow):
         
         thresh_group.setLayout(thresh_layout)
         scroll_layout.addWidget(thresh_group)
+
+        preview_row = QHBoxLayout()
+        preview_hint = QLabel(
+            "Preview step 2 output on the current blurred frames. While the preview window is open, "
+            "changes to mask-generation parameters refresh automatically."
+        )
+        preview_hint.setWordWrap(True)
+        preview_hint.setStyleSheet("color: #888; font-size: 10px;")
+        preview_row.addWidget(preview_hint, stretch=1)
+
+        self.preview_mask_btn = QPushButton("👁️ Preview Mask")
+        self.preview_mask_btn.clicked.connect(self._open_mask_preview)
+        preview_row.addWidget(self.preview_mask_btn)
+        scroll_layout.addLayout(preview_row)
+
+        self._connect_mask_preview_controls()
         scroll_layout.addStretch()
         
         scroll.setWidget(scroll_content)
@@ -639,6 +786,278 @@ class ImageToSignalGUI(QMainWindow):
         row.addStretch()
         layout.addLayout(row)
         return spinbox
+
+    def _connect_mask_preview_controls(self):
+        """Refresh the preview window whenever mask-generation controls change."""
+        preview_controls = [
+            (self.tool_id_input, 'textChanged'),
+            (self.closing_kernel, 'valueChanged'),
+            (self.bg_method, 'currentTextChanged'),
+            (self.bg_image_combo, 'currentTextChanged'),
+            (self.apply_multichannel, 'stateChanged'),
+            (self.diff_threshold, 'valueChanged'),
+            (self.h_min, 'valueChanged'),
+            (self.h_max, 'valueChanged'),
+            (self.s_min, 'valueChanged'),
+            (self.s_max, 'valueChanged'),
+            (self.v_min, 'valueChanged'),
+            (self.v_max, 'valueChanged'),
+            (self.l_min, 'valueChanged'),
+            (self.l_max, 'valueChanged'),
+            (self.a_min, 'valueChanged'),
+            (self.a_max, 'valueChanged'),
+            (self.b_min, 'valueChanged'),
+            (self.b_max, 'valueChanged'),
+        ]
+
+        for widget, signal_name in preview_controls:
+            signal = getattr(widget, signal_name)
+            signal.connect(lambda *_: self._schedule_mask_preview_refresh())
+
+    def _schedule_mask_preview_refresh(self):
+        """Debounce mask preview refresh while the dialog is open."""
+        if self.mask_preview_dialog is None or not self.mask_preview_dialog.isVisible():
+            return
+        self.mask_preview_refresh_timer.start(120)
+
+    def _get_primary_tool_id(self):
+        """Return the first tool id from the current selector text."""
+        tool_ids = [tool.strip() for tool in self.tool_id_input.text().split(',') if tool.strip()]
+        return tool_ids[0] if tool_ids else ""
+
+    def _list_preview_source_files(self, folder_path):
+        """List source frames available for preview."""
+        valid_exts = ('.tiff', '.tif', '.png', '.jpg', '.jpeg')
+        return sorted([name for name in os.listdir(folder_path) if name.lower().endswith(valid_exts)])
+
+    def _load_preview_background_image(self, background_path):
+        """Load and cache the selected background image for repeated preview refreshes."""
+        cached = self.mask_preview_background_cache.get(background_path)
+        if cached is not None:
+            return cached
+
+        with Image.open(background_path) as bg_image:
+            background_np = np.array(bg_image.convert('RGB'))
+
+        self.mask_preview_background_cache[background_path] = background_np
+        return background_np
+
+    def _build_mask_preview_arrays(self, image_path, config):
+        """Generate the final step 2 mask for a single blurred frame."""
+        with Image.open(image_path) as image_file:
+            blurred_image = image_file.convert('RGB')
+
+        original_np = np.array(blurred_image)
+        method = config.get('BACKGROUND_SUBTRACTION_METHOD', 'none').lower()
+        use_mc_mask = config.get('APPLY_MULTICHANNEL_MASK', False)
+
+        bg_mask_np = None
+        color_mask_np = None
+
+        if method in ('absdiff', 'lab'):
+            background_path = config.get('BACKGROUND_IMAGE_PATH', '')
+            if not os.path.isfile(background_path):
+                return original_np, None, f"Background image not found: {background_path}"
+
+            background_image_np = self._load_preview_background_image(background_path)
+            if method == 'absdiff':
+                bg_mask = background_subtraction_absdiff(blurred_image, background_image_np, config)
+            else:
+                bg_mask = background_subtraction_lab(blurred_image, background_image_np, config)
+
+            if bg_mask is not None:
+                bg_mask_np = np.array(bg_mask.convert('L'))
+
+        if use_mc_mask:
+            color_mask = create_multichannel_mask(blurred_image, config)
+            if color_mask is not None:
+                color_mask_np = np.array(color_mask.convert('L'))
+
+        if bg_mask_np is not None and color_mask_np is not None:
+            initial_mask_np = cv2.bitwise_or(bg_mask_np, color_mask_np)
+        elif bg_mask_np is not None:
+            initial_mask_np = bg_mask_np
+        elif color_mask_np is not None:
+            initial_mask_np = color_mask_np
+        else:
+            return original_np, None, "Enable background subtraction or multichannel masking to preview a mask."
+
+        initial_mask = Image.fromarray(initial_mask_np)
+        filled1 = fill_holes(initial_mask)
+        closed = morph_closing(filled1, kernel_size=config.get('closing_kernel', 21)) if filled1 else None
+        largest_contour = keep_largest_contour(closed) if closed else None
+        filled2 = fill_holes(largest_contour) if largest_contour else None
+
+        if filled2 is None:
+            return original_np, None, "Mask post-processing failed for this frame."
+
+        return original_np, np.array(filled2.convert('L')), None
+
+    def _numpy_to_pixmap(self, image_np):
+        """Convert a numpy image array to QPixmap for preview display."""
+        if image_np is None:
+            return None
+
+        if image_np.ndim == 2:
+            grayscale = np.ascontiguousarray(image_np.astype(np.uint8))
+            qimage = QImage(
+                grayscale.data,
+                grayscale.shape[1],
+                grayscale.shape[0],
+                grayscale.strides[0],
+                QImage.Format.Format_Grayscale8,
+            ).copy()
+            return QPixmap.fromImage(qimage)
+
+        rgb = np.ascontiguousarray(image_np.astype(np.uint8))
+        qimage = QImage(
+            rgb.data,
+            rgb.shape[1],
+            rgb.shape[0],
+            rgb.strides[0],
+            QImage.Format.Format_RGB888,
+        ).copy()
+        return QPixmap.fromImage(qimage)
+
+    def _open_mask_preview(self):
+        """Open the modeless mask preview dialog."""
+        preview_tool = self._get_primary_tool_id()
+        if not preview_tool:
+            QMessageBox.warning(self, "Preview Unavailable", "Enter a tool ID before opening the mask preview.")
+            return
+
+        self._update_config_from_ui()
+        preview_config = self._build_config_for_tool(preview_tool)
+        try:
+            preview_files = self._list_preview_source_files(preview_config['BLURRED_DIR'])
+        except FileNotFoundError:
+            QMessageBox.warning(
+                self,
+                "Preview Unavailable",
+                f"Blurred folder not found for {preview_tool}:\n{preview_config['BLURRED_DIR']}\n\nRun step 1 first.",
+            )
+            return
+
+        if not preview_files:
+            QMessageBox.warning(
+                self,
+                "Preview Unavailable",
+                f"No blurred frames found for {preview_tool}:\n{preview_config['BLURRED_DIR']}\n\nRun step 1 first.",
+            )
+            return
+
+        if self.mask_preview_dialog is None:
+            self.mask_preview_dialog = MaskPreviewDialog(self)
+            self.mask_preview_dialog.previous_requested.connect(self._show_previous_mask_preview_frame)
+            self.mask_preview_dialog.next_requested.connect(self._show_next_mask_preview_frame)
+            self.mask_preview_dialog.random_requested.connect(self._show_random_mask_preview_frame)
+            self.mask_preview_dialog.finished.connect(self._on_mask_preview_closed)
+
+        self.mask_preview_tool_id = preview_tool
+        self.mask_preview_files = preview_files
+        self.mask_preview_index = 0
+        self.mask_preview_dialog.setWindowTitle(f"Mask Preview - {preview_tool}")
+        self.mask_preview_dialog.show()
+        self.mask_preview_dialog.raise_()
+        self.mask_preview_dialog.activateWindow()
+        self._refresh_mask_preview()
+
+    def _show_previous_mask_preview_frame(self):
+        """Navigate to the previous preview frame."""
+        if not self.mask_preview_files:
+            return
+        self.mask_preview_index = (self.mask_preview_index - 1) % len(self.mask_preview_files)
+        self._refresh_mask_preview()
+
+    def _show_next_mask_preview_frame(self):
+        """Navigate to the next preview frame."""
+        if not self.mask_preview_files:
+            return
+        self.mask_preview_index = (self.mask_preview_index + 1) % len(self.mask_preview_files)
+        self._refresh_mask_preview()
+
+    def _show_random_mask_preview_frame(self):
+        """Jump to a random preview frame."""
+        if not self.mask_preview_files:
+            return
+        if len(self.mask_preview_files) == 1:
+            self.mask_preview_index = 0
+        else:
+            available_indices = [idx for idx in range(len(self.mask_preview_files)) if idx != self.mask_preview_index]
+            self.mask_preview_index = random.choice(available_indices)
+        self._refresh_mask_preview()
+
+    def _refresh_mask_preview(self):
+        """Refresh the preview dialog using the current parameters and frame selection."""
+        if self.mask_preview_dialog is None or not self.mask_preview_dialog.isVisible():
+            return
+
+        preview_tool = self._get_primary_tool_id()
+        if not preview_tool:
+            self.mask_preview_dialog.set_frame_text("Frame: -")
+            self.mask_preview_dialog.set_original_preview(None, "No tool selected")
+            self.mask_preview_dialog.set_mask_preview(None, "No tool selected")
+            self.mask_preview_dialog.set_status_text("Enter a tool ID to preview a mask.", "#FFA726")
+            self.mask_preview_dialog.set_navigation_enabled(False)
+            return
+
+        self._update_config_from_ui()
+        preview_config = self._build_config_for_tool(preview_tool)
+
+        try:
+            preview_files = self._list_preview_source_files(preview_config['BLURRED_DIR'])
+        except FileNotFoundError:
+            preview_files = []
+
+        if preview_tool != self.mask_preview_tool_id:
+            self.mask_preview_tool_id = preview_tool
+            self.mask_preview_index = 0
+
+        self.mask_preview_files = preview_files
+        self.mask_preview_dialog.setWindowTitle(f"Mask Preview - {preview_tool}")
+
+        if not preview_files:
+            self.mask_preview_dialog.set_frame_text(f"Tool {preview_tool} | No blurred frames found")
+            self.mask_preview_dialog.set_original_preview(None, "No blurred frames found")
+            self.mask_preview_dialog.set_mask_preview(None, "No mask preview available")
+            self.mask_preview_dialog.set_status_text("Run step 1 first to generate blurred frames for preview.", "#FFA726")
+            self.mask_preview_dialog.set_navigation_enabled(False)
+            return
+
+        self.mask_preview_index = max(0, min(self.mask_preview_index, len(preview_files) - 1))
+        current_filename = preview_files[self.mask_preview_index]
+        current_path = os.path.join(preview_config['BLURRED_DIR'], current_filename)
+        original_np, mask_np, error_message = self._build_mask_preview_arrays(current_path, preview_config)
+
+        self.mask_preview_dialog.set_original_preview(self._numpy_to_pixmap(original_np), "Could not load source frame")
+        self.mask_preview_dialog.set_mask_preview(
+            self._numpy_to_pixmap(mask_np),
+            "Mask preview unavailable for this frame",
+        )
+        self.mask_preview_dialog.set_frame_text(
+            f"Tool {preview_tool} | Frame {self.mask_preview_index + 1}/{len(preview_files)} | {current_filename}"
+        )
+        self.mask_preview_dialog.set_navigation_enabled(len(preview_files) > 0)
+
+        if error_message:
+            self.mask_preview_dialog.set_status_text(error_message, "#FFA726")
+            return
+
+        white_ratio = float(np.mean(mask_np == 255)) if mask_np is not None and mask_np.size else 0.0
+        method_label = preview_config.get('BACKGROUND_SUBTRACTION_METHOD', 'none')
+        multichannel_label = "on" if preview_config.get('APPLY_MULTICHANNEL_MASK', False) else "off"
+        self.mask_preview_dialog.set_status_text(
+            f"Preview refreshed. Method: {method_label}; multichannel: {multichannel_label}; white ratio: {white_ratio:.3f}",
+            "#4CAF50",
+        )
+
+    def _on_mask_preview_closed(self):
+        """Clean up preview dialog state when the window closes."""
+        self.mask_preview_refresh_timer.stop()
+        self.mask_preview_dialog = None
+        self.mask_preview_files = []
+        self.mask_preview_tool_id = None
+        self.mask_preview_index = 0
     
     def _on_tool_id_changed(self):
         """Update paths when tool ID changes."""
@@ -648,6 +1067,8 @@ class ImageToSignalGUI(QMainWindow):
         # Update path labels
         for key, label in self.path_labels.items():
             label.setText(self.config[key])
+
+        self._schedule_mask_preview_refresh()
     
     def _on_optimization_changed(self, method):
         """Handle optimization method change."""
@@ -888,7 +1309,7 @@ class ImageToSignalGUI(QMainWindow):
         mask_files = []
         blurred_files = []
         if os.path.isdir(masks_dir):
-            mask_files = sorted([f for f in os.listdir(masks_dir) if f.lower().endswith(('.tiff', '.tif'))])
+            mask_files = sorted([f for f in os.listdir(masks_dir) if f.lower().endswith('.png')])
         if os.path.isdir(blurred_dir):
             blurred_files = sorted([f for f in os.listdir(blurred_dir) if f.lower().endswith(('.tiff', '.tif'))])
         
@@ -959,8 +1380,8 @@ class ImageToSignalGUI(QMainWindow):
         blurred_already_renamed = False
         
         if os.path.isdir(masks_dir):
-            files = [f for f in os.listdir(masks_dir) if f.lower().endswith(('.tiff', '.tif'))]
-            masks_already_renamed = any('_degrees.tiff' in f for f in files)
+            files = [f for f in os.listdir(masks_dir) if f.lower().endswith('.png')]
+            masks_already_renamed = any('_degrees.png' in f for f in files)
         
         if os.path.isdir(blurred_dir):
             files = [f for f in os.listdir(blurred_dir) if f.lower().endswith(('.tiff', '.tif'))]
@@ -1100,7 +1521,7 @@ class ImageToSignalGUI(QMainWindow):
         
         extra_count = 0
         if os.path.isdir(masks_dir):
-            mask_files = [f for f in os.listdir(masks_dir) if f.lower().endswith(('.tiff', '.tif'))]
+            mask_files = [f for f in os.listdir(masks_dir) if f.lower().endswith('.png')]
             if best_frame and len(mask_files) > best_frame:
                 extra_count = len(mask_files) - best_frame
         
@@ -1144,7 +1565,7 @@ class ImageToSignalGUI(QMainWindow):
 
         # Attempt side images
         try:
-            mask_files = sorted([f for f in os.listdir(masks_dir) if f.lower().endswith(('.tiff', '.tif'))])
+            mask_files = sorted([f for f in os.listdir(masks_dir) if f.lower().endswith('.png')])
             if len(mask_files) >= 2:
                 from PIL import Image
                 import numpy as np
