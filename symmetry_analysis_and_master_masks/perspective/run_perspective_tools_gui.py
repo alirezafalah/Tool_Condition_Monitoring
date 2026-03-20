@@ -12,7 +12,7 @@ from tkinter.scrolledtext import ScrolledText
 import cv2
 import numpy as np
 
-from find_optimal_offset import OffsetAnalysisConfig, run_optimal_offset_analysis_for_tool, run_symmetry_summary
+from find_optimal_offset import OffsetAnalysisConfig, run_optimal_offset_analysis_for_tool, run_symmetry_summary, run_custom_summary_graph
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROCESS_SCRIPT = os.path.join(SCRIPT_DIR, "build_master_masks_all_two_edge_tools.py")
@@ -149,6 +149,30 @@ class MatrixPerspectiveGUI(tk.Tk):
         self.offset_legend_ranges_text_var = tk.StringVar(value="0-90,180-270")
 
         self.summary_running = False
+        
+        # Custom Graph tab variables
+        self.custom_graph_running = False
+        self.custom_graph_sym_var = tk.StringVar(value=DEFAULT_SYMMETRY_DIR)
+        self.custom_graph_meta_var = tk.StringVar(value=DEFAULT_TOOLS_METADATA)
+        self.custom_graph_num_labels_var = tk.IntVar(value=4)
+        self.custom_graph_title_var = tk.StringVar(value="Custom Summary: Mean Absolute Difference")
+        self.custom_graph_show_title_var = tk.BooleanVar(value=True)
+        self.custom_graph_label_vars = []  # Will hold (name_var, color_var, tools_listbox) tuples
+        self.custom_graph_all_tools_listbox = None
+        self.custom_graph_labels_frame = None
+        self.custom_graph_label_vars = []
+        self.custom_graph_tool_assignments = {}  # {label_idx: [tool_ids...]}
+        self.custom_graph_available_tools_listbox = None  # Central tool pool
+        self.custom_graph_dragging_tools = []  # Currently dragged tools (multi-select)
+        self.custom_graph_fmt_png_var = tk.BooleanVar(value=True)
+        self.custom_graph_fmt_svg_var = tk.BooleanVar(value=False)
+        self.custom_graph_fmt_pdf_var = tk.BooleanVar(value=False)
+        self.custom_graph_title_font_var = tk.IntVar(value=14)
+        self.custom_graph_axis_font_var = tk.IntVar(value=12)
+        self.custom_graph_tick_font_var = tk.IntVar(value=10)
+        self.custom_graph_legend_font_var = tk.IntVar(value=10)
+        self.custom_graph_show_threshold_var = tk.BooleanVar(value=False)
+        self.custom_graph_threshold_var = tk.DoubleVar(value=0.0)
 
         self._build_ui()
         self._load_mask_subfolders()
@@ -187,6 +211,9 @@ class MatrixPerspectiveGUI(tk.Tk):
         self.tab_buttons["summary"] = make_button(tab_bar, "Symmetry Summary", lambda: self._show_tab("summary"))
         self.tab_buttons["summary"].pack(side=tk.LEFT, padx=(0, 4))
 
+        self.tab_buttons["custom"] = make_button(tab_bar, "Custom Summary", lambda: self._show_tab("custom"))
+        self.tab_buttons["custom"].pack(side=tk.LEFT, padx=(0, 4))
+
         self.content_frame = tk.Frame(self, bg=BG_MAIN, padx=12, pady=8)
         self.content_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -194,6 +221,7 @@ class MatrixPerspectiveGUI(tk.Tk):
         self._build_roi_tab()
         self._build_offset_tab()
         self._build_summary_tab()
+        self._build_custom_graph_tab()
         self._show_tab("tilt")
 
     def _show_tab(self, name):
@@ -1229,6 +1257,23 @@ class MatrixPerspectiveGUI(tk.Tk):
                 activeforeground=FG_MAIN, font=("Consolas", 10),
             ).pack(side=tk.LEFT, padx=(0, 6))
 
+        # ── Row 4b: Threshold controls ──
+        row4b = tk.Frame(wrapper, bg=BG_PANEL)
+        row4b.pack(fill=tk.X, padx=10, pady=(4, 4))
+        self.summary_show_threshold_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(
+            row4b, text="Show Threshold", variable=self.summary_show_threshold_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        make_label(row4b, "Value").pack(side=tk.LEFT, padx=(0, 4))
+        self.summary_threshold_var = tk.DoubleVar(value=6261.0)
+        tk.Spinbox(
+            row4b, from_=0, to=100000, textvariable=self.summary_threshold_var, width=10,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT)
+
         row5 = tk.Frame(wrapper, bg=BG_PANEL)
         row5.pack(fill=tk.X, padx=10, pady=(4, 4))
         self.summary_run_btn = make_button(
@@ -1396,19 +1441,26 @@ class MatrixPerspectiveGUI(tk.Tk):
         self.summary_run_btn.config(state=tk.DISABLED)
         self._summary_log("\n" + "=" * 90 + "\n")
         self._summary_log(f"Generating summary from: {sym_root}  ({len(include_tools)} tools included)\n")
+        
+        threshold_value = self.summary_threshold_var.get() if self.summary_show_threshold_var.get() else None
+        show_threshold = self.summary_show_threshold_var.get()
+        if show_threshold:
+            self._summary_log(f"Threshold: {threshold_value}\n")
 
         threading.Thread(
             target=self._summary_analysis_worker,
-            args=(sym_root, meta_csv, cfg, include_tools),
+            args=(sym_root, meta_csv, cfg, include_tools, threshold_value, show_threshold),
             daemon=True,
         ).start()
 
-    def _summary_analysis_worker(self, sym_root, meta_csv, cfg, include_tools):
+    def _summary_analysis_worker(self, sym_root, meta_csv, cfg, include_tools, threshold_value=None, show_threshold=False):
         try:
             result = run_symmetry_summary(
                 sym_root, meta_csv, cfg,
                 log_fn=self._summary_log_ts,
                 include_tools=include_tools,
+                threshold_value=threshold_value,
+                show_threshold=show_threshold,
             )
             self._summary_log_ts(
                 f"\nDone! {result['tool_count']} tools in chart.\n"
@@ -1420,6 +1472,457 @@ class MatrixPerspectiveGUI(tk.Tk):
         finally:
             self.summary_running = False
             self.after(0, lambda: self.summary_run_btn.config(state=tk.NORMAL))
+
+    # ================================================================
+    # TAB 5: CUSTOM SUMMARY GRAPH
+    # ================================================================
+    def _build_custom_graph_tab(self):
+        tab = tk.Frame(self.content_frame, bg=BG_MAIN)
+        self.tab_frames["custom"] = tab
+
+        wrapper = tk.Frame(tab, bg=BG_PANEL, highlightbackground=BORDER, highlightthickness=1)
+        wrapper.pack(fill=tk.BOTH, expand=True)
+
+        # ── Row 1: Symmetry folder & Metadata CSV ──
+        row1 = tk.Frame(wrapper, bg=BG_PANEL)
+        row1.pack(fill=tk.X, padx=10, pady=(10, 4))
+        make_label(row1, "SYMMETRY RESULTS FOLDER").pack(side=tk.LEFT, padx=(0, 8))
+        make_entry(row1, self.custom_graph_sym_var, width=48).pack(side=tk.LEFT, padx=(0, 6))
+        make_button(row1, "Browse", self._browse_custom_graph_dir).pack(side=tk.LEFT, padx=(0, 6))
+        make_button(row1, "Load Tools", self._load_custom_graph_tools, fg=FG_WARN).pack(side=tk.LEFT)
+
+        row2 = tk.Frame(wrapper, bg=BG_PANEL)
+        row2.pack(fill=tk.X, padx=10, pady=(4, 4))
+        make_label(row2, "TOOLS METADATA CSV").pack(side=tk.LEFT, padx=(0, 8))
+        make_entry(row2, self.custom_graph_meta_var, width=56).pack(side=tk.LEFT, padx=(0, 6))
+        make_button(row2, "Browse", self._browse_custom_graph_meta).pack(side=tk.LEFT)
+
+        # ── Row 3: Number of labels ──
+        row3 = tk.Frame(wrapper, bg=BG_PANEL)
+        row3.pack(fill=tk.X, padx=10, pady=(4, 4))
+        make_label(row3, "Number of Labels").pack(side=tk.LEFT, padx=(0, 4))
+        self.custom_graph_labels_spin = tk.Spinbox(
+            row3, from_=1, to=10, textvariable=self.custom_graph_num_labels_var, width=4,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10), command=self._rebuild_custom_graph_labels,
+        )
+        self.custom_graph_labels_spin.pack(side=tk.LEFT, padx=(0, 12))
+        make_button(row3, "Update Labels", self._rebuild_custom_graph_labels).pack(side=tk.LEFT)
+
+        # ── Row 3b: Chart title ──
+        row3b = tk.Frame(wrapper, bg=BG_PANEL)
+        row3b.pack(fill=tk.X, padx=10, pady=(4, 4))
+        tk.Checkbutton(
+            row3b, text="Show Title", variable=self.custom_graph_show_title_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 12))
+        make_label(row3b, "Title").pack(side=tk.LEFT, padx=(0, 4))
+        make_entry(row3b, self.custom_graph_title_var, width=50).pack(side=tk.LEFT)
+
+        # ── Row 4: Labels configuration container ──
+        make_label(wrapper, "LABEL CONFIGURATION").pack(anchor="w", padx=10, pady=(6, 2))
+        self.custom_graph_labels_frame = tk.Frame(wrapper, bg=BG_PANEL)
+        self.custom_graph_labels_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 4))
+
+        # Initialize with default number of labels
+        self._rebuild_custom_graph_labels()
+
+        # ── Row 5: Output formats ──
+        row_fmt = tk.Frame(wrapper, bg=BG_PANEL)
+        row_fmt.pack(fill=tk.X, padx=10, pady=(4, 4))
+        make_label(row_fmt, "Output Formats").pack(side=tk.LEFT, padx=(0, 8))
+        tk.Checkbutton(
+            row_fmt, text="PNG", variable=self.custom_graph_fmt_png_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        tk.Checkbutton(
+            row_fmt, text="SVG", variable=self.custom_graph_fmt_svg_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        tk.Checkbutton(
+            row_fmt, text="PDF", variable=self.custom_graph_fmt_pdf_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT)
+
+        # ── Row 5b: Threshold controls ──
+        row_thresh = tk.Frame(wrapper, bg=BG_PANEL)
+        row_thresh.pack(fill=tk.X, padx=10, pady=(4, 4))
+        tk.Checkbutton(
+            row_thresh, text="Show Threshold", variable=self.custom_graph_show_threshold_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        make_label(row_thresh, "Value").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Spinbox(
+            row_thresh, from_=0, to=100000, textvariable=self.custom_graph_threshold_var, width=10,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT)
+
+        # ── Row 6: Font sizes ──
+        row_fonts = tk.Frame(wrapper, bg=BG_PANEL)
+        row_fonts.pack(fill=tk.X, padx=10, pady=(4, 4))
+        make_label(row_fonts, "Title Font").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Spinbox(
+            row_fonts, from_=8, to=48, textvariable=self.custom_graph_title_font_var, width=5,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        make_label(row_fonts, "Axis Font").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Spinbox(
+            row_fonts, from_=8, to=48, textvariable=self.custom_graph_axis_font_var, width=5,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        make_label(row_fonts, "Tick Font").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Spinbox(
+            row_fonts, from_=6, to=36, textvariable=self.custom_graph_tick_font_var, width=5,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 10))
+        make_label(row_fonts, "Legend Font").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Spinbox(
+            row_fonts, from_=6, to=48, textvariable=self.custom_graph_legend_font_var, width=5,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT)
+
+        # ── Row 7: Run button ──
+        row_run = tk.Frame(wrapper, bg=BG_PANEL)
+        row_run.pack(fill=tk.X, padx=10, pady=(6, 4))
+        self.custom_graph_run_btn = make_button(
+            row_run, "Generate Custom Summary", self._run_custom_graph_analysis, width=32, fg=FG_WARN,
+        )
+        self.custom_graph_run_btn.pack(side=tk.LEFT, padx=(0, 8))
+        self.custom_graph_stop_btn = make_button(row_run, "Stop", self._stop_custom_graph_analysis, width=10)
+        self.custom_graph_stop_btn.pack(side=tk.LEFT)
+
+        # ── Row 8: Log ──
+        make_label(wrapper, "CUSTOM GRAPH LOG").pack(anchor="w", padx=10, pady=(6, 2))
+        self.custom_graph_log_widget = make_log(wrapper, height=10)
+        self.custom_graph_log_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=(0, 10))
+        self._custom_graph_log("Custom Summary tab ready.\n1. Load symmetry folder and tools.\n2. Configure labels, colors, and tool assignments.\n3. Click Generate.\n")
+
+    def _rebuild_custom_graph_labels(self):
+        """Rebuild labels frame with drag-drop tool assignment."""
+        # Clear existing
+        for child in self.custom_graph_labels_frame.winfo_children():
+            child.destroy()
+        self.custom_graph_label_vars = []
+        self.custom_graph_tool_assignments = {}
+        
+        num_labels = max(1, int(self.custom_graph_num_labels_var.get()))
+
+        # Two-column layout: Available Tools (left) | Label Configs (right)
+        container = tk.Frame(self.custom_graph_labels_frame, bg=BG_PANEL)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        # ──── LEFT COLUMN: Available Tools ────
+        left_frame = tk.Frame(container, bg=BG_PANEL)
+        left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        
+        make_label(left_frame, "Available Tools (select & drag to label)").pack(anchor="w", padx=2, pady=(0, 4))
+        self.custom_graph_available_tools_listbox = tk.Listbox(
+            left_frame, selectmode=tk.EXTENDED, height=20, width=30,
+            bg=BG_ENTRY, fg=FG_MAIN, selectbackground="#0d6f2b", selectforeground="#d8ffd8",
+            highlightbackground=BORDER, relief=tk.FLAT, font=("Consolas", 9),
+            activestyle="none", exportselection=False,
+        )
+        self.custom_graph_available_tools_listbox.pack(fill=tk.BOTH, expand=True)
+
+        # ──── RIGHT COLUMN: Label drop targets ────
+        right_frame = tk.Frame(container, bg=BG_PANEL)
+        right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
+
+        # Scrollable frame for label configs
+        canvas = tk.Canvas(right_frame, bg=BG_PANEL, highlightthickness=0)
+        scrollbar = tk.Scrollbar(right_frame, command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg=BG_PANEL)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all")),
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        for i in range(num_labels):
+            self._create_label_drop_target(scrollable_frame, i)
+            self.custom_graph_tool_assignments[i] = []
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+    def _create_label_drop_target(self, parent, label_idx):
+        """Create a label config with drop target for tools."""
+        row = tk.Frame(parent, bg=BG_PANEL, relief=tk.FLAT)
+        row.pack(fill=tk.X, padx=4, pady=4)
+
+        # Header frame (label name + color)
+        header = tk.Frame(row, bg=BG_PANEL)
+        header.pack(fill=tk.X, padx=4, pady=(4, 2))
+
+        make_label(header, f"Label {label_idx + 1}").pack(side=tk.LEFT, padx=(0, 6))
+        
+        # Default label names
+        default_names = ["New", "Used", "Used (Segmentation Problem)", "Fractured"]
+        if label_idx < len(default_names):
+            default_name = default_names[label_idx]
+        else:
+            default_name = f"Category {label_idx + 1}"
+        
+        name_var = tk.StringVar(value=default_name)
+        name_entry = make_entry(header, name_var, width=25)
+        name_entry.pack(side=tk.LEFT, padx=(0, 6))
+
+        # Color picker - Default colors: dark green, light green, yellow, red
+        default_colors = ["#2d5a2d", "#90ee90", "#ffdd00", "#ff0000"]
+        default_color = default_colors[label_idx] if label_idx < len(default_colors) else "#2ca02c"
+        color_var = tk.StringVar(value=default_color)
+        color_display = tk.Label(header, text="   ", bg=color_var.get(), width=5)
+        color_display.pack(side=tk.LEFT, padx=(0, 6))
+
+        def pick_color(cv=color_var, cd=color_display):
+            from tkinter import colorchooser
+            color = colorchooser.askcolor(color=cv.get())
+            if color[1]:
+                cv.set(color[1])
+                cd.config(bg=color[1])
+
+        make_button(header, "Color", pick_color, width=10).pack(side=tk.LEFT)
+
+        # Drop target frame (for assigned tools)
+        drop_frame = tk.Frame(row, bg=BG_ENTRY, relief=tk.SUNKEN, bd=1)
+        drop_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=(0, 4), ipady=4)
+        
+        # Label to show assigned tools
+        tools_display = tk.Frame(drop_frame, bg=BG_ENTRY)
+        tools_display.pack(fill=tk.BOTH, expand=True)
+        
+        # Store references
+        self.custom_graph_label_vars.append((name_var, color_var, tools_display, label_idx))
+
+        # Setup drag-drop for this drop target
+        self._setup_drop_target(tools_display, label_idx)
+
+    def _setup_drop_target(self, drop_frame, label_idx):
+        """Setup drag-drop event handlers for a drop target frame."""
+        drop_frame.bind("<Button-1>", lambda e: self._on_tool_drag_start(e, label_idx), add="+")
+        drop_frame.bind("<B1-Motion>", self._on_tool_drag_motion, add="+")
+        drop_frame.bind("<ButtonRelease-1>", lambda e: self._on_tool_drop(e, label_idx), add="+")
+        drop_frame.bind("<Button-3>", lambda e: self._on_tool_right_click(e, label_idx), add="+")
+
+    def _on_tool_drag_start(self, event, label_idx):
+        """Start dragging tools from available tools listbox (supports multi-select)."""
+        selections = self.custom_graph_available_tools_listbox.curselection()
+        if selections:
+            self.custom_graph_dragging_tools = [self.custom_graph_available_tools_listbox.get(idx) for idx in selections]
+
+    def _on_tool_drag_motion(self, event):
+        """Motion during drag (visual feedback could go here)."""
+        pass
+
+    def _on_tool_drop(self, event, label_idx):
+        """Drop all dragged tools into label's drop target."""
+        if self.custom_graph_dragging_tools:
+            for tool_id in self.custom_graph_dragging_tools:
+                if tool_id not in self.custom_graph_tool_assignments[label_idx]:
+                    self.custom_graph_tool_assignments[label_idx].append(tool_id)
+            self._update_label_display(label_idx)
+            self.custom_graph_dragging_tools = []
+
+    def _on_tool_right_click(self, event, label_idx):
+        """Right-click to remove tool from label."""
+        # Find which tool widget was clicked
+        widget = event.widget
+        if isinstance(widget, tk.Label) and hasattr(widget, "_tool_id"):
+            tool_id = widget._tool_id
+            if tool_id in self.custom_graph_tool_assignments[label_idx]:
+                self.custom_graph_tool_assignments[label_idx].remove(tool_id)
+                self._update_label_display(label_idx)
+
+    def _update_label_display(self, label_idx):
+        """Update the display of tools for a label."""
+        # Find the display frame for this label
+        for name_var, color_var, tools_display, idx in self.custom_graph_label_vars:
+            if idx == label_idx:
+                # Clear existing tool widgets
+                for child in tools_display.winfo_children():
+                    child.destroy()
+                
+                # Add tool label widgets
+                tools = self.custom_graph_tool_assignments.get(label_idx, [])
+                for tool_id in tools:
+                    tool_label = tk.Label(
+                        tools_display, text=tool_id, bg="#0d6f2b", fg=FG_MAIN,
+                        padx=6, pady=2, font=("Consolas", 9), relief=tk.RAISED
+                    )
+                    tool_label._tool_id = tool_id
+                    tool_label.pack(side=tk.LEFT, padx=2, pady=2)
+                    tool_label.bind("<Button-3>", lambda e: self._on_tool_right_click(e, label_idx))
+                break
+
+    def _load_custom_graph_tools(self):
+        """Load available tools from symmetry folder into central listbox."""
+        sym_root = self.custom_graph_sym_var.get().strip()
+        if not os.path.isdir(sym_root):
+            messagebox.showerror("Path", f"Symmetry folder not found:\n{sym_root}")
+            return
+
+        tool_ids = []
+        for entry in sorted(os.listdir(sym_root)):
+            sub = os.path.join(sym_root, entry)
+            if not os.path.isdir(sub):
+                continue
+            has_meta = any(f.endswith("_symmetry_metadata.json") for f in os.listdir(sub))
+            if has_meta:
+                for f in os.listdir(sub):
+                    if f.endswith("_symmetry_metadata.json"):
+                        try:
+                            with open(os.path.join(sub, f), "r", encoding="utf-8") as fp:
+                                meta = json.load(fp)
+                            tool_ids.append(meta.get("tool_id", entry))
+                        except Exception:
+                            tool_ids.append(entry)
+                        break
+
+        tool_ids = sorted(tool_ids)
+
+        # Populate the central available tools listbox
+        if self.custom_graph_available_tools_listbox:
+            self.custom_graph_available_tools_listbox.delete(0, tk.END)
+            for tid in tool_ids:
+                self.custom_graph_available_tools_listbox.insert(tk.END, tid)
+
+        self._custom_graph_log(f"Loaded {len(tool_ids)} tools.\n")
+
+    def _browse_custom_graph_dir(self):
+        cur = self.custom_graph_sym_var.get().strip() or DEFAULT_SYMMETRY_DIR
+        folder = filedialog.askdirectory(initialdir=cur, title="Select symmetry results folder")
+        if folder:
+            self.custom_graph_sym_var.set(folder)
+
+    def _browse_custom_graph_meta(self):
+        cur = self.custom_graph_meta_var.get().strip() or DEFAULT_TOOLS_METADATA
+        path = filedialog.askopenfilename(
+            initialdir=os.path.dirname(cur), title="Select tools_metadata.csv",
+            filetypes=[("CSV", "*.csv"), ("All", "*.*")],
+        )
+        if path:
+            self.custom_graph_meta_var.set(path)
+
+    def _custom_graph_log(self, text):
+        self.custom_graph_log_widget.insert(tk.END, text)
+        self.custom_graph_log_widget.see(tk.END)
+
+    def _custom_graph_log_ts(self, text):
+        self.after(0, lambda: self._custom_graph_log(text))
+
+    def _run_custom_graph_analysis(self):
+        if self.custom_graph_running:
+            messagebox.showwarning("Busy", "Custom graph generation is already running.")
+            return
+
+        sym_root = self.custom_graph_sym_var.get().strip()
+        meta_csv = self.custom_graph_meta_var.get().strip()
+
+        if not os.path.isdir(sym_root):
+            messagebox.showerror("Path", f"Symmetry folder not found:\n{sym_root}")
+            return
+        if not os.path.isfile(meta_csv):
+            messagebox.showerror("Path", f"Tools metadata CSV not found:\n{meta_csv}")
+            return
+
+        # Build label configuration from UI (using tool_assignments dict)
+        labels_config = []
+        for name_var, color_var, tools_display, idx in self.custom_graph_label_vars:
+            label_name = name_var.get().strip() or f"Category {idx + 1}"
+            label_color = color_var.get().strip()
+            assigned_tools = self.custom_graph_tool_assignments.get(idx, [])
+
+            if assigned_tools:
+                labels_config.append({
+                    "name": label_name,
+                    "color": label_color,
+                    "tools": assigned_tools,
+                })
+
+        if not labels_config:
+            messagebox.showerror("Configuration", "Please assign tools to at least one label.")
+            return
+
+        fmts = []
+        if self.custom_graph_fmt_png_var.get():
+            fmts.append("png")
+        if self.custom_graph_fmt_svg_var.get():
+            fmts.append("svg")
+        if self.custom_graph_fmt_pdf_var.get():
+            fmts.append("pdf")
+        if not fmts:
+            messagebox.showerror("Output Format", "Select at least one output format.")
+            return
+
+        cfg = OffsetAnalysisConfig(
+            output_formats=tuple(fmts),
+            title_font_size=max(1, int(self.custom_graph_title_font_var.get())),
+            axis_label_font_size=max(1, int(self.custom_graph_axis_font_var.get())),
+            tick_font_size=max(1, int(self.custom_graph_tick_font_var.get())),
+            legend_font_size=max(1, int(self.custom_graph_legend_font_var.get())),
+        )
+
+        threshold_value = self.custom_graph_threshold_var.get() if self.custom_graph_show_threshold_var.get() else None
+        show_threshold = self.custom_graph_show_threshold_var.get()
+        
+        custom_title = self.custom_graph_title_var.get().strip() if self.custom_graph_show_title_var.get() else None
+        show_title = self.custom_graph_show_title_var.get()
+
+        self.custom_graph_running = True
+        self.custom_graph_run_btn.config(state=tk.DISABLED)
+        self._custom_graph_log("\n" + "=" * 90 + "\n")
+        self._custom_graph_log(f"Generating custom summary with {len(labels_config)} label(s)...\n")
+        if show_threshold:
+            self._custom_graph_log(f"Threshold: {threshold_value}\n")
+        if show_title and custom_title:
+            self._custom_graph_log(f"Title: {custom_title}\n")
+
+        threading.Thread(
+            target=self._custom_graph_worker,
+            args=(sym_root, meta_csv, cfg, labels_config, threshold_value, show_threshold, custom_title, show_title),
+            daemon=True,
+        ).start()
+
+    def _custom_graph_worker(self, sym_root, meta_csv, cfg, labels_config, threshold_value=None, show_threshold=False, custom_title=None, show_title=False):
+        try:
+            result = run_custom_summary_graph(
+                sym_root, meta_csv, cfg, labels_config,
+                threshold_value=threshold_value,
+                show_threshold=show_threshold,
+                custom_title=custom_title,
+                show_title=show_title,
+                log_fn=self._custom_graph_log_ts,
+            )
+            self._custom_graph_log_ts(
+                f"\nDone! {result['tool_count']} tools in chart.\n"
+                f"Plots: {', '.join(result['plot_paths'])}\n"
+                f"CSV: {result['csv_path']}\n"
+            )
+        except Exception as exc:
+            self._custom_graph_log_ts(f"\nERROR: {exc}\n")
+        finally:
+            self.custom_graph_running = False
+            self.after(0, lambda: self.custom_graph_run_btn.config(state=tk.NORMAL))
+
+    def _stop_custom_graph_analysis(self):
+        if not self.custom_graph_running:
+            self._custom_graph_log("No active custom graph generation.\n")
+            return
+        # Note: Threading doesn't support direct interrupt; user can just close or restart
+        self._custom_graph_log("Stop requested.\n")
 
     # ================================================================
     # ROI TAB LOGIC

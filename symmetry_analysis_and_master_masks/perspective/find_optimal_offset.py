@@ -1330,6 +1330,8 @@ def run_symmetry_summary(
     cfg: OffsetAnalysisConfig,
     log_fn: Optional[Callable[[str], None]] = None,
     include_tools: Optional[list[str]] = None,
+    threshold_value: Optional[float] = None,
+    show_threshold: bool = False,
 ) -> dict:
     """Generate a summary bar chart from Tab 3 results.
 
@@ -1435,6 +1437,7 @@ def run_symmetry_summary(
 
     # Build legend from actually-present conditions.
     from matplotlib.patches import Patch as _Patch
+    from matplotlib.lines import Line2D as _Line2D
 
     seen: list[str] = []
     for cond in df["condition"]:
@@ -1452,6 +1455,13 @@ def run_symmetry_summary(
         _Patch(facecolor=CONDITION_COLORS.get(k, "#888888"), edgecolor="black", label=k.capitalize())
         for k in seen
     ]
+
+    # Add threshold line to legend if enabled
+    if show_threshold and threshold_value is not None:
+        threshold_line = _Line2D([0], [0], color='blue', linestyle='--', linewidth=2, label=f'Threshold (T = {threshold_value})')
+        legend_elements.append(threshold_line)
+        ax.axhline(threshold_value, color='blue', linestyle='--', linewidth=2)  # Draw the line
+
     ax.legend(handles=legend_elements, fontsize=cfg.legend_font_size)
 
     plt.tight_layout()
@@ -1467,3 +1477,173 @@ def run_symmetry_summary(
         "tool_count": len(df),
         "results": df.to_dict("records"),
     }
+
+
+def run_custom_summary_graph(
+    symmetry_root: str,
+    tools_metadata_path: str,
+    cfg: OffsetAnalysisConfig,
+    labels_config: list[dict],
+    threshold_value: Optional[float] = None,
+    show_threshold: bool = False,
+    custom_title: Optional[str] = None,
+    show_title: bool = False,
+    log_fn: Optional[Callable[[str], None]] = None,
+) -> dict:
+    """Generate a custom summary bar chart with user-defined labels and colors.
+
+    Scans ``symmetry_root/<tool_id>/*_symmetry_metadata.json`` for ``mean_abs_diff``,
+    joins with *tools_metadata.csv*, and creates a bar chart with custom labels.
+
+    ``labels_config``: list of dicts with keys:
+        - "name": label name
+        - "color": hex color code
+        - "tools": list of tool_ids to include in this label
+    """
+    if not os.path.isdir(symmetry_root):
+        raise FileNotFoundError(f"Symmetry directory not found: {symmetry_root}")
+
+    # Load tools metadata for condition info (optional, for context).
+    tools_meta: dict[str, dict] = {}
+    if os.path.isfile(tools_metadata_path):
+        try:
+            meta_df = pd.read_csv(tools_metadata_path)
+            for _, row in meta_df.iterrows():
+                tools_meta[str(row["tool_id"]).strip()] = row.to_dict()
+        except Exception:
+            pass
+
+    # Scan symmetry folders for results.
+    results: list[dict] = []
+    for entry in sorted(os.listdir(symmetry_root)):
+        tool_sub = os.path.join(symmetry_root, entry)
+        if not os.path.isdir(tool_sub):
+            continue
+
+        meta_files = [
+            f for f in os.listdir(tool_sub) if f.endswith("_symmetry_metadata.json")
+        ]
+        if not meta_files:
+            continue
+
+        meta_path = os.path.join(tool_sub, meta_files[0])
+        try:
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+        except Exception:
+            continue
+
+        tool_id = meta.get("tool_id", entry)
+        mean_abs_diff = meta.get("mean_abs_diff")
+        if mean_abs_diff is None:
+            continue
+
+        results.append(
+            {
+                "tool_id": tool_id,
+                "mean_abs_diff": float(mean_abs_diff),
+            }
+        )
+
+    if not results:
+        raise ValueError("No symmetry analysis results found in the symmetry folder.")
+
+    # Assign tools to labels based on config
+    df_rows = []
+    for label_config in labels_config:
+        label_name = label_config["name"]
+        label_tools = label_config["tools"]
+
+        for result in results:
+            if result["tool_id"] in label_tools:
+                df_rows.append({
+                    "tool_id": result["tool_id"],
+                    "label": label_name,
+                    "mean_abs_diff": result["mean_abs_diff"],
+                })
+
+    if not df_rows:
+        raise ValueError("No tools matched the provided label configuration.")
+
+    df = pd.DataFrame(df_rows)
+    # Sort by label order (insertion order), then by mean_abs_diff
+    label_order = {label_config["name"]: idx for idx, label_config in enumerate(labels_config)}
+    df["_sort"] = df["label"].map(label_order)
+    df = df.sort_values(["_sort", "mean_abs_diff", "tool_id"], ascending=[True, True, True]).drop(
+        columns=["_sort"]
+    ).reset_index(drop=True)
+
+    # Save summary CSV
+    csv_path = os.path.join(symmetry_root, "custom_summary.csv")
+    df[["tool_id", "label", "mean_abs_diff"]].to_csv(csv_path, index=False)
+    if log_fn:
+        log_fn(f"Saved summary CSV: {csv_path}\n")
+
+    # Create color mapping
+    color_map = {label_config["name"]: label_config["color"] for label_config in labels_config}
+
+    # Bar chart
+    plt.rcParams.update(
+        {
+            "font.size": cfg.axis_label_font_size,
+            "axes.titlesize": cfg.title_font_size,
+            "axes.labelsize": cfg.axis_label_font_size,
+            "xtick.labelsize": cfg.tick_font_size,
+            "ytick.labelsize": cfg.tick_font_size,
+            "legend.fontsize": cfg.legend_font_size,
+        }
+    )
+
+    colors = [color_map.get(label, "#888888") for label in df["label"]]
+
+    fig, ax = plt.subplots(figsize=(max(10, len(df) * 0.8), 7))
+    ax.bar(range(len(df)), df["mean_abs_diff"], color=colors, edgecolor="black", linewidth=0.5)
+
+    ax.set_xticks(range(len(df)))
+    ax.set_xticklabels(df["tool_id"], rotation=45, ha="right", fontsize=cfg.tick_font_size)
+    ax.set_ylabel("Mean Absolute Difference (Pixels)")
+    ax.set_xlabel("Tool ID")
+    ax.grid(axis="y", alpha=0.3)
+    
+    # Set title only if enabled
+    if show_title:
+        title_to_use = custom_title if custom_title else "Custom Summary: Mean Absolute Difference"
+        ax.set_title(
+            title_to_use,
+            fontsize=cfg.title_font_size,
+            fontweight="bold",
+        )
+
+    # Build legend from labels_config
+    from matplotlib.patches import Patch as _Patch
+    from matplotlib.lines import Line2D as _Line2D
+
+    legend_elements = [
+        _Patch(facecolor=label_config["color"], edgecolor="black", label=label_config["name"])
+        for label_config in labels_config
+    ]
+
+    # Add threshold line to legend if enabled
+    if show_threshold and threshold_value is not None:
+        ax.axhline(threshold_value, color='blue', linestyle='--', linewidth=2, label=f'Threshold (T = {threshold_value})')
+        # Create Line2D for legend instead of relying on axhline label (more reliable)
+        threshold_line = _Line2D([0], [0], color='blue', linestyle='--', linewidth=2, label=f'Threshold (T = {threshold_value})')
+        legend_elements.append(threshold_line)
+        ax.axhline(threshold_value, color='blue', linestyle='--', linewidth=2)  # Draw the line without label
+
+    ax.legend(handles=legend_elements, fontsize=cfg.legend_font_size)
+
+    plt.tight_layout()
+    out_prefix = os.path.join(symmetry_root, "custom_summary_bar_chart")
+    plot_paths = _save_plot_formats(fig, out_prefix, cfg, log_fn=log_fn)
+
+    if log_fn:
+        log_fn(f"Summary: {len(df)} tools processed.\n")
+
+    return {
+        "csv_path": csv_path,
+        "plot_paths": plot_paths,
+        "tool_count": len(df),
+        "results": df.to_dict("records"),
+    }
+
