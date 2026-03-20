@@ -99,7 +99,7 @@ def run(config):
     print(f"Processed data saved to '{csv_path}'")
     
     # --- 4.5. Save Metadata ---
-    metadata_dir = os.path.join(os.path.dirname(csv_path), 'analysis_metadata')
+    metadata_dir = config.get('ANALYSIS_OUTPUT_DIR') or os.path.join(os.path.dirname(csv_path), 'analysis_metadata')
     os.makedirs(metadata_dir, exist_ok=True)
     
     tool_id = os.path.basename(csv_path).replace('_area_vs_angle_processed.csv', '')

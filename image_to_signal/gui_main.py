@@ -183,6 +183,9 @@ class ImageToSignalGUI(QMainWindow):
         
         # Calculate DATA_ROOT
         self.DATA_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "DATA"))
+        self.SYNTHETIC_DEFAULT_ROOT = os.path.abspath(
+            os.path.join(SCRIPT_DIR, "..", "Simulation", "synthetic_data")
+        )
         
         # Initialize config
         self.tool_id = 'tool'  # Start with 'tool' prefix
@@ -195,6 +198,8 @@ class ImageToSignalGUI(QMainWindow):
         self.mask_preview_refresh_timer = QTimer(self)
         self.mask_preview_refresh_timer.setSingleShot(True)
         self.mask_preview_refresh_timer.timeout.connect(self._refresh_mask_preview)
+        self._synthetic_mode_active = False
+        self._synthetic_masks_dir = ""
         
         # Setup UI
         self._setup_ui()
@@ -364,6 +369,39 @@ class ImageToSignalGUI(QMainWindow):
         
         paths_group.setLayout(paths_layout)
         scroll_layout.addWidget(paths_group)
+
+        synthetic_group = QGroupBox("Synthetic Masks (Optional)")
+        synthetic_layout = QVBoxLayout()
+
+        self.use_synthetic_masks = QCheckBox(
+            "Use external synthetic masks folder (Step 3/4 only)"
+        )
+        self.use_synthetic_masks.setToolTip(
+            "When enabled, Step 1 and Step 2 are ignored and analysis runs\n"
+            "directly on masks in the selected folder."
+        )
+        synthetic_layout.addWidget(self.use_synthetic_masks)
+
+        synthetic_path_row = QHBoxLayout()
+        synthetic_path_row.addWidget(QLabel("Masks Folder:"))
+        self.synthetic_masks_dir_input = QLineEdit(self.SYNTHETIC_DEFAULT_ROOT)
+        synthetic_path_row.addWidget(self.synthetic_masks_dir_input, stretch=1)
+        synthetic_browse_btn = QPushButton("Browse...")
+        synthetic_browse_btn.clicked.connect(self._browse_synthetic_masks_dir)
+        synthetic_path_row.addWidget(synthetic_browse_btn)
+        synthetic_layout.addLayout(synthetic_path_row)
+
+        synthetic_hint = QLabel(
+            "Outputs are saved into an analysis subfolder:\n"
+            "analysis/<folder_name>_raw_data.csv/.svg and analysis/<folder_name>_processed_data.csv/.svg\n"
+            "Metadata JSON files are also saved in analysis/."
+        )
+        synthetic_hint.setWordWrap(True)
+        synthetic_hint.setStyleSheet("color: #888; font-size: 10px;")
+        synthetic_layout.addWidget(synthetic_hint)
+
+        synthetic_group.setLayout(synthetic_layout)
+        scroll_layout.addWidget(synthetic_group)
         scroll_layout.addStretch()
         
         scroll.setWidget(scroll_content)
@@ -1164,10 +1202,42 @@ class ImageToSignalGUI(QMainWindow):
         config['PROCESSED_PLOT_PATH'] = os.path.join(data_root, '1d_profiles', f'{tool_id}_processed_plot.svg')
         
         return config
+
+    def _browse_synthetic_masks_dir(self):
+        """Select an external folder containing synthetic mask images."""
+        start_dir = self.synthetic_masks_dir_input.text().strip() or self.SYNTHETIC_DEFAULT_ROOT
+        selected_dir = QFileDialog.getExistingDirectory(
+            self,
+            "Select Synthetic Masks Folder",
+            start_dir,
+        )
+        if selected_dir:
+            self.synthetic_masks_dir_input.setText(selected_dir)
+
+    def _build_config_for_synthetic_masks(self, masks_dir, tool_id):
+        """Build config for external synthetic masks where only Step 3/4 is needed."""
+        config = self.config.copy()
+        masks_dir = os.path.abspath(masks_dir)
+        tool_id = tool_id or "synthetic_masks"
+        analysis_dir = os.path.join(masks_dir, "analysis")
+
+        config['tool_id'] = tool_id
+        config['DATA_ROOT'] = os.path.dirname(masks_dir)
+        config['RAW_DIR'] = masks_dir
+        config['BLURRED_DIR'] = masks_dir
+        config['FINAL_MASKS_DIR'] = masks_dir
+        config['ANALYSIS_OUTPUT_DIR'] = analysis_dir
+        config['ROI_CSV_PATH'] = os.path.join(analysis_dir, f'{tool_id}_raw_data.csv')
+        config['ROI_PLOT_PATH'] = os.path.join(analysis_dir, f'{tool_id}_raw_plot.svg')
+        config['PROCESSED_CSV_PATH'] = os.path.join(analysis_dir, f'{tool_id}_processed_data.csv')
+        config['PROCESSED_PLOT_PATH'] = os.path.join(analysis_dir, f'{tool_id}_processed_plot.svg')
+        return config
     
     def _run_pipeline(self):
         """Run selected pipeline steps."""
         self._update_config_from_ui()
+        self._synthetic_mode_active = False
+        self._synthetic_masks_dir = ""
         
         steps = []
         if self.step1_check.isChecked():
@@ -1182,15 +1252,55 @@ class ImageToSignalGUI(QMainWindow):
         if not steps:
             self.log_output.append("<span style='color: orange;'>⚠️ No steps selected!</span>")
             return
-        
-        # Parse tool IDs (comma-separated)
-        tool_ids = [t.strip() for t in self.tool_id.split(',') if t.strip()]
-        if not tool_ids:
-            self.log_output.append("<span style='color: orange;'>⚠️ No tool ID specified!</span>")
-            return
+
+        synthetic_mode = self.use_synthetic_masks.isChecked()
+        if synthetic_mode:
+            synthetic_masks_dir = self.synthetic_masks_dir_input.text().strip()
+            if not synthetic_masks_dir or not os.path.isdir(synthetic_masks_dir):
+                self.log_output.append(
+                    "<span style='color: orange;'>⚠️ Synthetic mode is enabled but masks folder is invalid.</span>"
+                )
+                return
+
+            blocked_steps = []
+            filtered_steps = []
+            for name, func in steps:
+                if name.startswith("Step 1") or name.startswith("Step 2"):
+                    blocked_steps.append(name)
+                else:
+                    filtered_steps.append((name, func))
+
+            if blocked_steps:
+                self.log_output.append(
+                    "<span style='color: #FFA726;'>⚠️ Synthetic mode ignores: "
+                    + ", ".join(blocked_steps)
+                    + "</span>"
+                )
+
+            steps = filtered_steps
+            if not steps:
+                self.log_output.append(
+                    "<span style='color: orange;'>⚠️ Select Step 3 and/or Step 4 for synthetic masks mode.</span>"
+                )
+                return
+
+            synthetic_tool = os.path.basename(os.path.normpath(synthetic_masks_dir)) or "synthetic_masks"
+            tool_ids = [synthetic_tool]
+            self._synthetic_mode_active = True
+            self._synthetic_masks_dir = os.path.abspath(synthetic_masks_dir)
+        else:
+            # Parse tool IDs (comma-separated)
+            tool_ids = [t.strip() for t in self.tool_id.split(',') if t.strip()]
+            if not tool_ids:
+                self.log_output.append("<span style='color: orange;'>⚠️ No tool ID specified!</span>")
+                return
         
         self.log_output.clear()
-        if len(tool_ids) == 1:
+        if self._synthetic_mode_active:
+            self.log_output.append(
+                f"<span style='color: #4CAF50;'>🚀 Starting synthetic-mask analysis for folder: {self._synthetic_masks_dir}</span>"
+            )
+        elif len(tool_ids) == 1:
             self.log_output.append(f"<span style='color: #4CAF50;'>🚀 Starting pipeline for {tool_ids[0]}...</span>")
         else:
             self.log_output.append(f"<span style='color: #4CAF50;'>🚀 Starting pipeline for {len(tool_ids)} tools...</span>")
@@ -1207,7 +1317,12 @@ class ImageToSignalGUI(QMainWindow):
         self.steps_to_run = steps
         
         # Build config for first tool
-        self.config = self._build_config_for_tool(tool_ids[0])
+        if self._synthetic_mode_active:
+            self.config = self._build_config_for_synthetic_masks(
+                self._synthetic_masks_dir, tool_ids[0]
+            )
+        else:
+            self.config = self._build_config_for_tool(tool_ids[0])
         
         self._run_next_step()
     
@@ -1228,7 +1343,12 @@ class ImageToSignalGUI(QMainWindow):
             self.log_output.append(f"\n<span style='color: #FFA726;'>📦 Processing tool {self.current_tool_index + 1}/{len(self.tools_to_process)}: {current_tool}</span>")
             # Update config with new tool_id
             self.config['tool_id'] = current_tool
-            self.config = self._build_config_for_tool(current_tool)
+            if self._synthetic_mode_active:
+                self.config = self._build_config_for_synthetic_masks(
+                    self._synthetic_masks_dir, current_tool
+                )
+            else:
+                self.config = self._build_config_for_tool(current_tool)
         
         step_name, step_func = self.steps_to_run[self.current_step]
         current_tool = self.tools_to_process[self.current_tool_index]
