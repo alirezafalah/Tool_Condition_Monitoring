@@ -24,6 +24,7 @@ from . import step1_blur_and_rename
 from . import step2_generate_masks
 from . import step3_analyze_and_plot
 from . import step4_process_and_plot
+from . import dashboard_generator
 from .utils.filters import (create_multichannel_mask, fill_holes, morph_closing,
                             keep_largest_contour, background_subtraction_absdiff,
                             background_subtraction_lab)
@@ -260,6 +261,7 @@ class ImageToSignalGUI(QMainWindow):
         tabs.addTab(self._create_analysis_params_tab(), "📊 Analysis Parameters")
         tabs.addTab(self._create_pipeline_tab(), "▶️ Run Pipeline")
         tabs.addTab(self._create_360_utils_tab(), "🔄 360° Utilities")
+        tabs.addTab(self._create_synthetic_masks_tab(), "🎭 Synthetic Dashboard")
         main_layout.addWidget(tabs, stretch=1)
         
         # Status bar
@@ -370,38 +372,7 @@ class ImageToSignalGUI(QMainWindow):
         paths_group.setLayout(paths_layout)
         scroll_layout.addWidget(paths_group)
 
-        synthetic_group = QGroupBox("Synthetic Masks (Optional)")
-        synthetic_layout = QVBoxLayout()
-
-        self.use_synthetic_masks = QCheckBox(
-            "Use external synthetic masks folder (Step 3/4 only)"
-        )
-        self.use_synthetic_masks.setToolTip(
-            "When enabled, Step 1 and Step 2 are ignored and analysis runs\n"
-            "directly on masks in the selected folder."
-        )
-        synthetic_layout.addWidget(self.use_synthetic_masks)
-
-        synthetic_path_row = QHBoxLayout()
-        synthetic_path_row.addWidget(QLabel("Masks Folder:"))
-        self.synthetic_masks_dir_input = QLineEdit(self.SYNTHETIC_DEFAULT_ROOT)
-        synthetic_path_row.addWidget(self.synthetic_masks_dir_input, stretch=1)
-        synthetic_browse_btn = QPushButton("Browse...")
-        synthetic_browse_btn.clicked.connect(self._browse_synthetic_masks_dir)
-        synthetic_path_row.addWidget(synthetic_browse_btn)
-        synthetic_layout.addLayout(synthetic_path_row)
-
-        synthetic_hint = QLabel(
-            "Outputs are saved into an analysis subfolder:\n"
-            "analysis/<folder_name>_raw_data.csv/.svg and analysis/<folder_name>_processed_data.csv/.svg\n"
-            "Metadata JSON files are also saved in analysis/."
-        )
-        synthetic_hint.setWordWrap(True)
-        synthetic_hint.setStyleSheet("color: #888; font-size: 10px;")
-        synthetic_layout.addWidget(synthetic_hint)
-
-        synthetic_group.setLayout(synthetic_layout)
-        scroll_layout.addWidget(synthetic_group)
+        scroll_layout.addStretch()
         scroll_layout.addStretch()
         
         scroll.setWidget(scroll_content)
@@ -792,6 +763,84 @@ class ImageToSignalGUI(QMainWindow):
         
         scroll.setWidget(scroll_content)
         return scroll
+    
+    def _create_synthetic_masks_tab(self):
+        """Create dedicated tab for Synthetic Masks Dashboard."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(15)
+        
+        info = QLabel("Analyze synthetic mask images directly and generate an interactive HTML dashboard.")
+        info.setStyleSheet("color: #ccc; font-style: italic;")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+        
+        # Synthetic Path Selector
+        synthetic_group = QGroupBox("Synthetic Data Paths")
+        synthetic_layout = QVBoxLayout()
+        
+        synthetic_path_row = QHBoxLayout()
+        synthetic_path_row.addWidget(QLabel("Masks Folder (Req):"))
+        self.synthetic_masks_dir_input = QLineEdit(self.SYNTHETIC_DEFAULT_ROOT)
+        synthetic_path_row.addWidget(self.synthetic_masks_dir_input, stretch=1)
+        synthetic_browse_btn = QPushButton("Browse...")
+        synthetic_browse_btn.clicked.connect(self._browse_synthetic_masks_dir)
+        synthetic_path_row.addWidget(synthetic_browse_btn)
+        synthetic_layout.addLayout(synthetic_path_row)
+        
+        real_path_row = QHBoxLayout()
+        real_path_row.addWidget(QLabel("Realistic Folder (Opt):"))
+        self.synthetic_real_dir_input = QLineEdit()
+        real_path_row.addWidget(self.synthetic_real_dir_input, stretch=1)
+        real_browse_btn = QPushButton("Browse...")
+        real_browse_btn.clicked.connect(self._browse_synthetic_real_dir)
+        real_path_row.addWidget(real_browse_btn)
+        synthetic_layout.addLayout(real_path_row)
+        
+        csv_path_row = QHBoxLayout()
+        csv_path_row.addWidget(QLabel("CSV File (Opt):"))
+        self.synthetic_csv_input = QLineEdit()
+        csv_path_row.addWidget(self.synthetic_csv_input, stretch=1)
+        csv_browse_btn = QPushButton("Browse...")
+        csv_browse_btn.clicked.connect(self._browse_synthetic_csv)
+        csv_path_row.addWidget(csv_browse_btn)
+        synthetic_layout.addLayout(csv_path_row)
+        
+        synthetic_group.setLayout(synthetic_layout)
+        layout.addWidget(synthetic_group)
+        
+        # Actions
+        actions_group = QGroupBox("Actions")
+        actions_layout = QVBoxLayout()
+        
+        self.run_synthetic_btn = QPushButton("▶️ Run Analysis & Generate Dashboard")
+        self.run_synthetic_btn.setMinimumHeight(40)
+        self.run_synthetic_btn.setStyleSheet("""
+            QPushButton {
+                background: #4CAF50;
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+                border-radius: 5px;
+            }
+            QPushButton:hover {
+                background: #45a049;
+            }
+        """)
+        self.run_synthetic_btn.clicked.connect(self._run_synthetic_pipeline_and_dashboard)
+        actions_layout.addWidget(self.run_synthetic_btn)
+        
+        self.open_dashboard_btn = QPushButton("🌐 Open Existing Dashboard")
+        self.open_dashboard_btn.setMinimumHeight(40)
+        self.open_dashboard_btn.clicked.connect(self._open_existing_dashboard)
+        actions_layout.addWidget(self.open_dashboard_btn)
+        
+        actions_group.setLayout(actions_layout)
+        layout.addWidget(actions_group)
+        
+        layout.addStretch()
+        return widget
+
     
     def _add_spinbox_param(self, layout, label, min_val, max_val, step, default):
         """Helper to add spinbox parameter."""
@@ -1213,6 +1262,29 @@ class ImageToSignalGUI(QMainWindow):
         )
         if selected_dir:
             self.synthetic_masks_dir_input.setText(selected_dir)
+            
+    def _browse_synthetic_real_dir(self):
+        """Select an external folder containing synthetic realistic images."""
+        start_dir = self.synthetic_real_dir_input.text().strip() or self.SYNTHETIC_DEFAULT_ROOT
+        selected_dir = QFileDialog.getExistingDirectory(
+            self,
+            "Select Synthetic Realistic Folder",
+            start_dir,
+        )
+        if selected_dir:
+            self.synthetic_real_dir_input.setText(selected_dir)
+            
+    def _browse_synthetic_csv(self):
+        """Select a specific CSV file."""
+        start_dir = self.synthetic_masks_dir_input.text().strip() or self.SYNTHETIC_DEFAULT_ROOT
+        selected_file, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select CSV File",
+            start_dir,
+            "CSV Files (*.csv);;All Files (*)"
+        )
+        if selected_file:
+            self.synthetic_csv_input.setText(selected_file)
 
     def _build_config_for_synthetic_masks(self, masks_dir, tool_id):
         """Build config for external synthetic masks where only Step 3/4 is needed."""
@@ -1237,7 +1309,7 @@ class ImageToSignalGUI(QMainWindow):
         """Run selected pipeline steps."""
         self._update_config_from_ui()
         self._synthetic_mode_active = False
-        self._synthetic_masks_dir = ""
+        self._generate_dashboard_after = False
         
         steps = []
         if self.step1_check.isChecked():
@@ -1253,54 +1325,14 @@ class ImageToSignalGUI(QMainWindow):
             self.log_output.append("<span style='color: orange;'>⚠️ No steps selected!</span>")
             return
 
-        synthetic_mode = self.use_synthetic_masks.isChecked()
-        if synthetic_mode:
-            synthetic_masks_dir = self.synthetic_masks_dir_input.text().strip()
-            if not synthetic_masks_dir or not os.path.isdir(synthetic_masks_dir):
-                self.log_output.append(
-                    "<span style='color: orange;'>⚠️ Synthetic mode is enabled but masks folder is invalid.</span>"
-                )
-                return
-
-            blocked_steps = []
-            filtered_steps = []
-            for name, func in steps:
-                if name.startswith("Step 1") or name.startswith("Step 2"):
-                    blocked_steps.append(name)
-                else:
-                    filtered_steps.append((name, func))
-
-            if blocked_steps:
-                self.log_output.append(
-                    "<span style='color: #FFA726;'>⚠️ Synthetic mode ignores: "
-                    + ", ".join(blocked_steps)
-                    + "</span>"
-                )
-
-            steps = filtered_steps
-            if not steps:
-                self.log_output.append(
-                    "<span style='color: orange;'>⚠️ Select Step 3 and/or Step 4 for synthetic masks mode.</span>"
-                )
-                return
-
-            synthetic_tool = os.path.basename(os.path.normpath(synthetic_masks_dir)) or "synthetic_masks"
-            tool_ids = [synthetic_tool]
-            self._synthetic_mode_active = True
-            self._synthetic_masks_dir = os.path.abspath(synthetic_masks_dir)
-        else:
-            # Parse tool IDs (comma-separated)
-            tool_ids = [t.strip() for t in self.tool_id.split(',') if t.strip()]
-            if not tool_ids:
-                self.log_output.append("<span style='color: orange;'>⚠️ No tool ID specified!</span>")
-                return
+        # Parse tool IDs (comma-separated)
+        tool_ids = [t.strip() for t in self.tool_id.split(',') if t.strip()]
+        if not tool_ids:
+            self.log_output.append("<span style='color: orange;'>⚠️ No tool ID specified!</span>")
+            return
         
         self.log_output.clear()
-        if self._synthetic_mode_active:
-            self.log_output.append(
-                f"<span style='color: #4CAF50;'>🚀 Starting synthetic-mask analysis for folder: {self._synthetic_masks_dir}</span>"
-            )
-        elif len(tool_ids) == 1:
+        if len(tool_ids) == 1:
             self.log_output.append(f"<span style='color: #4CAF50;'>🚀 Starting pipeline for {tool_ids[0]}...</span>")
         else:
             self.log_output.append(f"<span style='color: #4CAF50;'>🚀 Starting pipeline for {len(tool_ids)} tools...</span>")
@@ -1317,14 +1349,139 @@ class ImageToSignalGUI(QMainWindow):
         self.steps_to_run = steps
         
         # Build config for first tool
-        if self._synthetic_mode_active:
-            self.config = self._build_config_for_synthetic_masks(
-                self._synthetic_masks_dir, tool_ids[0]
-            )
-        else:
-            self.config = self._build_config_for_tool(tool_ids[0])
+        self.config = self._build_config_for_tool(tool_ids[0])
         
         self._run_next_step()
+        
+    def _run_synthetic_pipeline_and_dashboard(self):
+        """Run step 3 & 4 for synthetic masks and then generate dashboard."""
+        self._update_config_from_ui()
+        synthetic_masks_dir = self.synthetic_masks_dir_input.text().strip()
+        if not synthetic_masks_dir or not os.path.isdir(synthetic_masks_dir):
+            self.log_output.append("<span style='color: orange;'>⚠️ Invalid masks folder.</span>")
+            return
+            
+        synthetic_tool = os.path.basename(os.path.normpath(synthetic_masks_dir)) or "synthetic_masks"
+        
+        # Switch to pipeline tab to show progress
+        for i in range(self.centralWidget().layout().itemAt(1).widget().count()):
+            if "Run Pipeline" in self.centralWidget().layout().itemAt(1).widget().tabText(i):
+                self.centralWidget().layout().itemAt(1).widget().setCurrentIndex(i)
+                break
+                
+        self.log_output.clear()
+        self.log_output.append(f"<span style='color: #4CAF50;'>🚀 Starting synthetic dashboard pipeline for folder: {synthetic_masks_dir}</span>")
+        
+        self._synthetic_mode_active = True
+        self._synthetic_masks_dir = os.path.abspath(synthetic_masks_dir)
+        
+        self.run_btn.setEnabled(False)
+        self.stop_btn.setEnabled(True)
+        
+        self.current_step = 0
+        self.current_tool_index = 0
+        self.tools_to_process = [synthetic_tool]
+        self.steps_to_run = [
+            ("Step 3: Analyze and Plot", step3_analyze_and_plot.run),
+            ("Step 4: Process and Plot", step4_process_and_plot.run)
+        ]
+        
+        self.config = self._build_config_for_synthetic_masks(self._synthetic_masks_dir, synthetic_tool)
+        
+        # Override BLURRED_DIR if realistic dir is provided
+        real_dir = self.synthetic_real_dir_input.text().strip()
+        if real_dir and os.path.isdir(real_dir):
+            self.config['BLURRED_DIR'] = real_dir
+        else:
+            self.config['BLURRED_DIR'] = None
+            
+        # Override CSV if provided
+        custom_csv = self.synthetic_csv_input.text().strip()
+        if custom_csv and os.path.isfile(custom_csv):
+            self.config['PROCESSED_CSV_PATH'] = custom_csv
+            self.config['ROI_CSV_PATH'] = custom_csv # Fallback
+            
+        # Check if CSV already exists
+        csv_path = self.config['PROCESSED_CSV_PATH']
+        if not os.path.exists(csv_path):
+            csv_path = self.config['ROI_CSV_PATH']
+            
+        if os.path.exists(csv_path):
+            from PyQt6.QtWidgets import QMessageBox
+            reply = QMessageBox.question(
+                self, 'Analysis Exists',
+                f"Data already exists at:\n{csv_path}\n\nDo you want to re-run the analysis, or skip directly to generating the dashboard?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            # Yes = re-run, No = skip to dashboard
+            if reply == QMessageBox.StandardButton.No:
+                self.log_output.append("<span style='color: #2196F3;'>🌐 Skipping analysis, generating HTML Dashboard...</span>")
+                success = dashboard_generator.generate_dashboard(
+                    csv_path, 
+                    self.config['FINAL_MASKS_DIR'], 
+                    self.config['ANALYSIS_OUTPUT_DIR'],
+                    real_dir=self.config.get('BLURRED_DIR'),
+                    output_filename="dashboard.html",
+                    auto_open=True
+                )
+                if success:
+                    self.log_output.append("<span style='color: #4CAF50;'>✓ Dashboard opened in browser!</span>")
+                else:
+                    self.log_output.append("<span style='color: #f44336;'>✗ Failed to generate dashboard.</span>")
+                
+                self.run_btn.setEnabled(True)
+                self.stop_btn.setEnabled(False)
+                return
+        
+        # Add flag to know we should generate dashboard after
+        self._generate_dashboard_after = True
+        
+        self._run_next_step()
+        
+    def _open_existing_dashboard(self):
+        """Open dashboard using specific paths."""
+        masks_dir = self.synthetic_masks_dir_input.text().strip()
+        if not masks_dir or not os.path.isdir(masks_dir):
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Not Found", "Please specify a valid Masks folder.")
+            return
+            
+        real_dir = self.synthetic_real_dir_input.text().strip()
+        if not real_dir or not os.path.isdir(real_dir):
+            real_dir = None
+            
+        custom_csv = self.synthetic_csv_input.text().strip()
+        
+        if custom_csv and os.path.isfile(custom_csv):
+            csv_path = custom_csv
+            analysis_dir = os.path.dirname(custom_csv)
+        else:
+            analysis_dir = os.path.join(masks_dir, "analysis")
+            csv_path = os.path.join(analysis_dir, "synthetic_masks_processed_data.csv")
+            if not os.path.exists(csv_path):
+                # Try raw
+                csv_path = os.path.join(analysis_dir, "synthetic_masks_raw_data.csv")
+                
+        if not os.path.exists(csv_path):
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Not Found", f"Could not find CSV at {csv_path}.\nPlease select a valid CSV file.")
+            return
+            
+        # Generate on the fly
+        self.log_output.append("<span style='color: #2196F3;'>🌐 Generating HTML Dashboard...</span>")
+        success = dashboard_generator.generate_dashboard(
+            csv_path, 
+            masks_dir, 
+            analysis_dir,
+            real_dir=real_dir,
+            output_filename="dashboard.html",
+            auto_open=True
+        )
+        if success:
+            self.log_output.append("<span style='color: #4CAF50;'>✓ Dashboard opened in browser!</span>")
+        else:
+            self.log_output.append("<span style='color: #f44336;'>✗ Failed to generate dashboard.</span>")
     
     def _run_next_step(self):
         """Run the next step in the queue."""
@@ -1394,6 +1551,33 @@ class ImageToSignalGUI(QMainWindow):
         self.status_label.setText("Ready")
         self.run_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
+        
+        # Generate Dashboard if flag is set (Synthetic mode)
+        if getattr(self, '_generate_dashboard_after', False):
+            self.log_output.append(f"<span style='color: #2196F3;'>🌐 Generating HTML Dashboard...</span>")
+            
+            # Prefer processed csv, fallback to raw csv
+            csv_path = self.config['PROCESSED_CSV_PATH']
+            if not os.path.exists(csv_path):
+                csv_path = self.config['ROI_CSV_PATH']
+                
+            if os.path.exists(csv_path):
+                success = dashboard_generator.generate_dashboard(
+                    csv_path, 
+                    self.config['FINAL_MASKS_DIR'], 
+                    self.config['ANALYSIS_OUTPUT_DIR'],
+                    real_dir=self.config.get('BLURRED_DIR'),
+                    output_filename="dashboard.html",
+                    auto_open=True
+                )
+                if success:
+                    self.log_output.append(f"<span style='color: #4CAF50;'>✓ Dashboard opened in browser!</span>")
+                else:
+                    self.log_output.append(f"<span style='color: #f44336;'>✗ Failed to generate dashboard.</span>")
+            else:
+                self.log_output.append(f"<span style='color: #f44336;'>✗ Cannot generate dashboard, CSV not found.</span>")
+            
+            self._generate_dashboard_after = False
 
     def _run_find360(self):
         """Run find360; suppress external plot, embed via JSON afterward."""
