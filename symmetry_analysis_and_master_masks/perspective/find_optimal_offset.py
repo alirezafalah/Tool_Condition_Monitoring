@@ -17,6 +17,7 @@ import cv2
 import matplotlib
 import numpy as np
 import pandas as pd
+from matplotlib.ticker import MultipleLocator
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -24,6 +25,7 @@ import matplotlib.pyplot as plt
 
 VALID_OUTPUT_FORMATS = ("png", "svg", "pdf")
 VALID_ANALYSIS_MODES = ("search_offset", "fixed_ranges")
+CENTERLINE_MODE = "per_frame_midpoint"
 
 
 @dataclass(frozen=True)
@@ -138,12 +140,14 @@ def _extract_right_half_stats(
     if len(white_pixels[1]) == 0:
         return None
 
-    _left_col = int(np.min(white_pixels[1]))
+    left_col = int(np.min(white_pixels[1]))
     right_col = int(np.max(white_pixels[1]))
 
     width = int(roi_mask.shape[1])
-    fixed_center_col = int(np.clip(center_col, 0, max(0, width - 1)))
-    start_col = fixed_center_col + 1
+    # Dynamic centerline per frame: midpoint of current ROI's left/right white extent.
+    dynamic_center_col = int(round((left_col + right_col) / 2.0))
+    dynamic_center_col = int(np.clip(dynamic_center_col, 0, max(0, width - 1)))
+    start_col = dynamic_center_col + 1
     end_col = min(width, right_col + 1)
     right_half = roi_mask[:, start_col:end_col]
     right_count = int(np.sum(right_half == 255))
@@ -949,6 +953,10 @@ def _try_load_cached_search_result(
     if meta.get("analysis_mode") != "search_offset":
         return None, None, None
 
+    # Invalidate old caches produced with previous centerline behavior.
+    if str(meta.get("centerline_mode", "")) != CENTERLINE_MODE:
+        return None, None, None
+
     expected_range = f"{cfg.offset_min}-{cfg.offset_max}"
     if str(meta.get("offset_range_tested", "")) != expected_range:
         return None, None, None
@@ -1157,6 +1165,7 @@ def run_optimal_offset_analysis_for_tool(
             "optimal_offset": int(optimal_offset),
             "optimal_frame_range": f"{optimal_offset}-{optimal_offset + cfg.num_frames - 1}",
             "roi_height_px": int(roi_height),
+            "centerline_mode": CENTERLINE_MODE,
             "centerline_column_px_used": int(center_col),
             "global_roi_bottom": int(global_roi_bottom),
             "use_metadata_roi_height": bool(cfg.use_metadata_roi_height),
@@ -1248,6 +1257,7 @@ def run_optimal_offset_analysis_for_tool(
         "analysis_mode": "fixed_ranges",
         "tool_id": tool_id,
         "roi_height_px": int(roi_height),
+        "centerline_mode": CENTERLINE_MODE,
         "centerline_column_px_used": int(center_col),
         "global_roi_bottom": int(global_roi_bottom),
         "use_metadata_roi_height": bool(cfg.use_metadata_roi_height),
@@ -1308,6 +1318,86 @@ CONDITION_COLORS = {
 }
 
 
+def _apply_adaptive_summary_y_axis(ax, values: list[float], threshold_value: Optional[float] = None):
+    """Apply readable y-axis scaling for both low and extreme-value bar charts.
+
+    Behavior:
+    - Base granularity is 500 px.
+    - If the range is moderate, keep major ticks every 500.
+    - For very large ranges, increase major step (2k / 5k / 10k) but keep minor grid at 500.
+    """
+    y_max = 0.0
+    if values:
+        y_max = max(y_max, float(np.max(values)))
+    if threshold_value is not None:
+        y_max = max(y_max, float(threshold_value))
+
+    y_upper = max(500.0, float(np.ceil(y_max / 500.0) * 500.0))
+
+    # Keep labels readable while preserving 500-step detail via minor ticks.
+    tick_count_500 = int(y_upper / 500.0)
+    if tick_count_500 <= 14:
+        major_step = 500
+    elif tick_count_500 <= 40:
+        major_step = 2000
+    elif tick_count_500 <= 100:
+        major_step = 5000
+    else:
+        major_step = 10000
+
+    ax.set_ylim(0, y_upper)
+    ax.yaxis.set_major_locator(MultipleLocator(major_step))
+    ax.yaxis.set_minor_locator(MultipleLocator(500))
+    ax.grid(axis="y", which="major", alpha=0.35)
+    ax.grid(axis="y", which="minor", alpha=0.12, linestyle=":")
+
+
+def _normalize_threshold_lines(
+    threshold_lines: Optional[list[dict]] = None,
+    threshold_value: Optional[float] = None,
+    show_threshold: bool = False,
+) -> list[dict]:
+    """Normalize old/new threshold inputs to a standard list format.
+
+    Each entry in result has keys: value(float), color(str), label(str).
+    """
+    normalized: list[dict] = []
+
+    # Preferred new API path.
+    if threshold_lines:
+        for i, item in enumerate(threshold_lines, start=1):
+            try:
+                value = float(item.get("value"))
+            except Exception:
+                continue
+            color = str(item.get("color", "#1f77b4") or "#1f77b4").strip()
+            label = str(item.get("label", "") or "").strip()
+            if not label:
+                label = f"Threshold {i} (T = {value:g})"
+            normalized.append({"value": value, "color": color, "label": label})
+
+    # Backward-compatible single-threshold path.
+    if not normalized and show_threshold and threshold_value is not None:
+        value = float(threshold_value)
+        normalized.append({"value": value, "color": "#1f77b4", "label": f"Threshold (T = {value:g})"})
+
+    return normalized
+
+
+def _draw_threshold_lines(ax, threshold_lines: list[dict]):
+    """Draw threshold lines and return legend entries."""
+    from matplotlib.lines import Line2D as _Line2D
+
+    legend_lines = []
+    for item in threshold_lines:
+        value = float(item["value"])
+        color = str(item.get("color", "#1f77b4"))
+        label = str(item.get("label", f"Threshold (T = {value:g})"))
+        ax.axhline(value, color=color, linestyle="--", linewidth=2)
+        legend_lines.append(_Line2D([0], [0], color=color, linestyle="--", linewidth=2, label=label))
+    return legend_lines
+
+
 def _condition_sort_key(cond: str) -> int:
     c = str(cond).strip().lower()
     for key, val in CONDITION_ORDER.items():
@@ -1332,6 +1422,7 @@ def run_symmetry_summary(
     include_tools: Optional[list[str]] = None,
     threshold_value: Optional[float] = None,
     show_threshold: bool = False,
+    threshold_lines: Optional[list[dict]] = None,
 ) -> dict:
     """Generate a summary bar chart from Tab 3 results.
 
@@ -1427,7 +1518,21 @@ def run_symmetry_summary(
     ax.set_xticklabels(df["tool_id"], rotation=45, ha="right", fontsize=cfg.tick_font_size)
     ax.set_ylabel("Mean Absolute Difference (Pixels)")
     ax.set_xlabel("Tool ID")
-    ax.grid(axis="y", alpha=0.3)
+    normalized_thresholds = _normalize_threshold_lines(
+        threshold_lines=threshold_lines,
+        threshold_value=threshold_value,
+        show_threshold=show_threshold,
+    )
+
+    threshold_max = None
+    if normalized_thresholds:
+        threshold_max = max(float(t["value"]) for t in normalized_thresholds)
+
+    _apply_adaptive_summary_y_axis(
+        ax,
+        df["mean_abs_diff"].tolist(),
+        threshold_max,
+    )
 
     ax.set_title(
         "Mean Absolute Difference (0-90 vs 180-270, Right Half)",
@@ -1437,7 +1542,6 @@ def run_symmetry_summary(
 
     # Build legend from actually-present conditions.
     from matplotlib.patches import Patch as _Patch
-    from matplotlib.lines import Line2D as _Line2D
 
     seen: list[str] = []
     for cond in df["condition"]:
@@ -1456,11 +1560,8 @@ def run_symmetry_summary(
         for k in seen
     ]
 
-    # Add threshold line to legend if enabled
-    if show_threshold and threshold_value is not None:
-        threshold_line = _Line2D([0], [0], color='blue', linestyle='--', linewidth=2, label=f'Threshold (T = {threshold_value})')
-        legend_elements.append(threshold_line)
-        ax.axhline(threshold_value, color='blue', linestyle='--', linewidth=2)  # Draw the line
+    # Add threshold lines to legend and plot.
+    legend_elements.extend(_draw_threshold_lines(ax, normalized_thresholds))
 
     ax.legend(handles=legend_elements, fontsize=cfg.legend_font_size)
 
@@ -1486,6 +1587,7 @@ def run_custom_summary_graph(
     labels_config: list[dict],
     threshold_value: Optional[float] = None,
     show_threshold: bool = False,
+    threshold_lines: Optional[list[dict]] = None,
     custom_title: Optional[str] = None,
     show_title: bool = False,
     log_fn: Optional[Callable[[str], None]] = None,
@@ -1603,7 +1705,20 @@ def run_custom_summary_graph(
     ax.set_xticklabels(df["tool_id"], rotation=45, ha="right", fontsize=cfg.tick_font_size)
     ax.set_ylabel("Mean Absolute Difference (Pixels)")
     ax.set_xlabel("Tool ID")
-    ax.grid(axis="y", alpha=0.3)
+    normalized_thresholds = _normalize_threshold_lines(
+        threshold_lines=threshold_lines,
+        threshold_value=threshold_value,
+        show_threshold=show_threshold,
+    )
+    threshold_max = None
+    if normalized_thresholds:
+        threshold_max = max(float(t["value"]) for t in normalized_thresholds)
+
+    _apply_adaptive_summary_y_axis(
+        ax,
+        df["mean_abs_diff"].tolist(),
+        threshold_max,
+    )
     
     # Set title only if enabled
     if show_title:
@@ -1616,20 +1731,14 @@ def run_custom_summary_graph(
 
     # Build legend from labels_config
     from matplotlib.patches import Patch as _Patch
-    from matplotlib.lines import Line2D as _Line2D
 
     legend_elements = [
         _Patch(facecolor=label_config["color"], edgecolor="black", label=label_config["name"])
         for label_config in labels_config
     ]
 
-    # Add threshold line to legend if enabled
-    if show_threshold and threshold_value is not None:
-        ax.axhline(threshold_value, color='blue', linestyle='--', linewidth=2, label=f'Threshold (T = {threshold_value})')
-        # Create Line2D for legend instead of relying on axhline label (more reliable)
-        threshold_line = _Line2D([0], [0], color='blue', linestyle='--', linewidth=2, label=f'Threshold (T = {threshold_value})')
-        legend_elements.append(threshold_line)
-        ax.axhline(threshold_value, color='blue', linestyle='--', linewidth=2)  # Draw the line without label
+    # Add threshold lines to legend and plot.
+    legend_elements.extend(_draw_threshold_lines(ax, normalized_thresholds))
 
     ax.legend(handles=legend_elements, fontsize=cfg.legend_font_size)
 

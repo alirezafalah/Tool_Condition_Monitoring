@@ -38,12 +38,14 @@ from typing import Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
-from PyQt6.QtCore import QPoint, QPointF, QRect, Qt, QTimer
+from PyQt6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, QTimer
 from PyQt6.QtGui import (
     QColor,
+    QImage,
     QKeySequence,
     QMouseEvent,
     QPainter,
+    QPixmap,
     QPen,
     QShortcut,
     QSurfaceFormat,
@@ -54,11 +56,15 @@ from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QDialog,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QRadioButton,
     QSizePolicy,
@@ -66,6 +72,7 @@ from PyQt6.QtWidgets import (
     QStatusBar,
     QVBoxLayout,
     QWidget,
+    QScrollArea,
 )
 
 from OpenGL.GL import (
@@ -377,6 +384,11 @@ class GLCanvas(QOpenGLWidget):
         mw = self.main_window
         if mw is None:
             return
+        
+        # Draw ROI height line first (red horizontal line showing region of interest)
+        if self.mask is not None and self.cv_image is not None:
+            self._draw_roi_line(painter)
+        
         tool = mw.current_tool
 
         if tool in ("rectangle", "smart_select") and self._rect_start and self._rect_end:
@@ -416,6 +428,53 @@ class GLCanvas(QOpenGLWidget):
                 painter.drawRect(self._cursor_pos.x() - radius, self._cursor_pos.y() - radius, size, size)
             else:
                 painter.drawEllipse(self._cursor_pos, radius, radius)
+
+    def _find_mask_bottom(self) -> Optional[int]:
+        """Find the bottommost Y coordinate of white pixels in the mask.
+        
+        Returns:
+            Y coordinate of the bottommost white pixel, or None if mask is empty.
+        """
+        if self.mask is None:
+            return None
+        
+        # Find all rows that have white pixels
+        white_rows = np.where(np.any(self.mask > 0, axis=1))[0]
+        if len(white_rows) == 0:
+            return None
+        
+        # Return the maximum (bottommost) row index
+        return int(white_rows[-1])
+    
+    def _draw_roi_line(self, painter: QPainter):
+        """Draw a red horizontal line at the ROI height offset from the bottom of the mask."""
+        if self.main_window is None:
+            return
+        
+        mask_bottom_y = self._find_mask_bottom()
+        if mask_bottom_y is None:
+            return
+        
+        # Calculate the ROI line position (offset upward from bottom)
+        roi_y = mask_bottom_y - self.main_window.roi_height_offset
+        
+        # Clip to image bounds
+        if roi_y < 0 or roi_y >= self._img_h:
+            return
+        
+        # Convert image coordinates to widget coordinates
+        p1 = self.widget_from_image(0, roi_y)
+        p2 = self.widget_from_image(self._img_w - 1, roi_y)
+        
+        # Draw the red horizontal line
+        pen = QPen(QColor(255, 0, 0), 3, Qt.PenStyle.SolidLine)
+        painter.setPen(pen)
+        painter.drawLine(p1, p2)
+        
+        # Optional: Draw a label showing the offset value
+        painter.setPen(QPen(QColor(255, 255, 255), 1))
+        label_text = f"ROI: {self.main_window.roi_height_offset}px"
+        painter.drawText(p1.x() + 10, p1.y() - 5, label_text)
 
     def wheelEvent(self, event: QWheelEvent):
         old_zoom = self.zoom_level
@@ -771,6 +830,9 @@ class MaskRefinerWindow(QMainWindow):
         self.brush_shape = "circle"
         self.wand_tolerance = 25
         self.mask_blend = 1.0  # Mask visibility (0.0 = hidden, 1.0 = full)
+        self.roi_height_offset = 225  # Offset in pixels from bottom of mask
+        self.saved_zoom_level = 1.0  # Persist zoom level across image navigation
+        self.saved_pan_offset = QPointF(0.0, 0.0)  # Persist pan offset
 
         self._undo_stack: List[np.ndarray] = []
         self._redo_stack: List[np.ndarray] = []
@@ -873,6 +935,17 @@ class MaskRefinerWindow(QMainWindow):
         r3.addWidget(self._blend_label)
         pl.addLayout(r3)
 
+        pl.addWidget(QLabel("ROI Height Offset (px):"))
+        self._roi_slider = QSlider(Qt.Orientation.Horizontal)
+        self._roi_slider.setRange(0, 500)
+        self._roi_slider.setValue(self.roi_height_offset)
+        self._roi_label = QLabel(str(self.roi_height_offset))
+        self._roi_slider.valueChanged.connect(self._on_roi_offset_changed)
+        r4 = QHBoxLayout()
+        r4.addWidget(self._roi_slider)
+        r4.addWidget(self._roi_label)
+        pl.addLayout(r4)
+
         ll.addWidget(pg)
 
         ag = QGroupBox("Actions")
@@ -968,6 +1041,14 @@ class MaskRefinerWindow(QMainWindow):
         self._mask_info_label.setWordWrap(True)
         il.addWidget(self._mask_info_label)
         rl.addWidget(ig)
+
+        ag = QGroupBox("Compare")
+        al = QVBoxLayout(ag)
+        b_compare = QPushButton("📊 Compare Frames")
+        b_compare.clicked.connect(self._open_compare_dialog)
+        al.addWidget(b_compare)
+        rl.addWidget(ag)
+
         rl.addStretch()
 
         sg = QGroupBox("Shortcuts")
@@ -1051,6 +1132,11 @@ class MaskRefinerWindow(QMainWindow):
         self.mask_blend = value / 100.0
         self._blend_label.setText(f"{value}%")
         self.canvas.mark_texture_dirty()
+
+    def _on_roi_offset_changed(self, value: int):
+        self.roi_height_offset = value
+        self._roi_label.setText(str(value))
+        self.canvas.update()
 
     def _refresh_paths_label(self):
         mode = "Manual" if self._manual_mode else "Auto"
@@ -1191,6 +1277,11 @@ class MaskRefinerWindow(QMainWindow):
         if auto_save and self.current_index >= 0 and self.canvas.mask is not None and self._dirty:
             self._save_mask(silent=True)
 
+        # Save current zoom and pan state before loading new image
+        if self.current_index >= 0:
+            self.saved_zoom_level = self.canvas.zoom_level
+            self.saved_pan_offset = self.canvas.pan_offset
+
         idx = max(0, min(idx, len(self.image_paths) - 1))
         self.current_index = idx
 
@@ -1234,15 +1325,31 @@ class MaskRefinerWindow(QMainWindow):
         self._btn_next.setEnabled(idx < len(self.image_paths) - 1)
         self._update_mask_info()
         self.statusBar().showMessage(f"Loaded {frame_name}", 2000)
-        QTimer.singleShot(50, self.canvas.fit_image)
+        
+        # Restore zoom and pan, or fit if first image
+        def restore_zoom_state():
+            if self.current_index == 0:
+                self.canvas.fit_image()
+            else:
+                # Restore previous zoom and pan
+                self.canvas.zoom_level = self.saved_zoom_level
+                self.canvas.pan_offset = self.saved_pan_offset
+                self.canvas._img_h, self.canvas._img_w = h, w
+                self.canvas.mark_texture_dirty()
+        
+        QTimer.singleShot(50, restore_zoom_state)
 
     def _prev_image(self):
         if self.current_index > 0:
             self._go_to_image(self.current_index - 1)
+            # Force canvas to accept future input events
+            self.canvas.setFocus()
 
     def _next_image(self):
         if self.current_index < len(self.image_paths) - 1:
             self._go_to_image(self.current_index + 1)
+            # Force canvas to accept future input events
+            self.canvas.setFocus()
 
     def push_undo(self):
         if self.canvas.mask is None:
@@ -1351,6 +1458,89 @@ class MaskRefinerWindow(QMainWindow):
         if not silent:
             self.statusBar().showMessage(f"Saved: {os.path.basename(target)}", 2500)
 
+    def _open_compare_dialog(self):
+        """Open dialog to select two frames for comparison."""
+        if not self.image_paths:
+            QMessageBox.warning(self, "No Frames", "No frames loaded yet. Select a data folder first.")
+            return
+        
+        # Create a selection dialog for frame 1
+        frame1_idx, ok1 = self._select_frame_index("Select Frame 1")
+        if not ok1 or frame1_idx < 0:
+            return
+        
+        # Create a selection dialog for frame 2
+        frame2_idx, ok2 = self._select_frame_index("Select Frame 2")
+        if not ok2 or frame2_idx < 0:
+            return
+        
+        # Validate masks exist
+        img_path1 = self.image_paths[frame1_idx]
+        mask_path1 = self.mask_path_for_image.get(img_path1)
+        if not mask_path1 or not os.path.exists(mask_path1):
+            QMessageBox.warning(self, "Missing Mask", f"No mask found for frame {frame1_idx}")
+            return
+        
+        img_path2 = self.image_paths[frame2_idx]
+        mask_path2 = self.mask_path_for_image.get(img_path2)
+        if not mask_path2 or not os.path.exists(mask_path2):
+            QMessageBox.warning(self, "Missing Mask", f"No mask found for frame {frame2_idx}")
+            return
+        
+        # Open comparison dialog with navigation capability
+        dialog = FrameComparisonDialog(
+            self, 
+            image_paths=self.image_paths,
+            mask_path_for_image=self.mask_path_for_image,
+            roi_height_offset=self.roi_height_offset,
+            start_idx1=frame1_idx,
+            start_idx2=frame2_idx
+        )
+        dialog.exec()
+
+    def _select_frame_index(self, title: str) -> Tuple[int, bool]:
+        """Show dialog to select frame index from current frames."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setGeometry(200, 200, 400, 400)
+        
+        layout = QVBoxLayout(dialog)
+        
+        list_widget = QListWidget()
+        for i, path in enumerate(self.image_paths):
+            filename = os.path.basename(path)
+            item = QListWidgetItem(f"{i:3d}: {filename}")
+            item.setData(Qt.ItemDataRole.UserRole, i)
+            list_widget.addItem(item)
+        
+        layout.addWidget(list_widget)
+        
+        btn_layout = QHBoxLayout()
+        ok_btn = QPushButton("OK")
+        cancel_btn = QPushButton("Cancel")
+        
+        def accept():
+            dialog.accept()
+        
+        def reject():
+            dialog.reject()
+        
+        ok_btn.clicked.connect(accept)
+        cancel_btn.clicked.connect(reject)
+        
+        btn_layout.addWidget(ok_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
+        
+        result = dialog.exec()
+        selected_idx = -1
+        if result == QDialog.DialogCode.Accepted:
+            selected_item = list_widget.currentItem()
+            if selected_item:
+                selected_idx = selected_item.data(Qt.ItemDataRole.UserRole)
+        
+        return selected_idx, result == QDialog.DialogCode.Accepted
+
     def _update_mask_info(self):
         if self.canvas.mask is None:
             self._mask_info_label.setText("No mask")
@@ -1368,6 +1558,428 @@ class MaskRefinerWindow(QMainWindow):
         if self._dirty and self.canvas.mask is not None and self.current_index >= 0:
             self._save_mask(silent=True)
         super().closeEvent(event)
+
+
+class CompareImageView(QWidget):
+    """Interactive image view with wheel zoom and drag pan."""
+
+    def __init__(self, on_zoom=None, on_pan=None, parent=None):
+        super().__init__(parent)
+        self._pixmap: Optional[QPixmap] = None
+        self._zoom = 1.0
+        self._pan = QPointF(0.0, 0.0)
+        self._dragging = False
+        self._last_pos = QPointF(0.0, 0.0)
+        self._on_zoom = on_zoom
+        self._on_pan = on_pan
+        self.setMinimumSize(380, 280)
+        self.setStyleSheet("border: 1px solid #555; background-color: #1a1a1a;")
+
+    def set_image(self, bgr_image: np.ndarray):
+        rgb = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
+        h, w = rgb.shape[:2]
+        qimg = QImage(rgb.data, w, h, 3 * w, QImage.Format.Format_RGB888).copy()
+        self._pixmap = QPixmap.fromImage(qimg)
+        self.update()
+
+    def set_view_transform(self, zoom: float, pan: QPointF):
+        self._zoom = zoom
+        self._pan = QPointF(pan)
+        self.update()
+
+    def _fit_scale(self) -> float:
+        if self._pixmap is None or self._pixmap.width() <= 0 or self._pixmap.height() <= 0:
+            return 1.0
+        return min(self.width() / self._pixmap.width(), self.height() / self._pixmap.height())
+
+    def pan_for_zoom(self, current_zoom: float, new_zoom: float, current_pan: QPointF, anchor: QPointF) -> QPointF:
+        if self._pixmap is None:
+            return QPointF(current_pan)
+
+        fit = self._fit_scale()
+        img_w = float(self._pixmap.width())
+        img_h = float(self._pixmap.height())
+
+        old_scale = fit * current_zoom
+        new_scale = fit * new_zoom
+        if old_scale <= 0.0 or new_scale <= 0.0:
+            return QPointF(current_pan)
+
+        old_w = img_w * old_scale
+        old_h = img_h * old_scale
+        old_left = (self.width() - old_w) * 0.5 + current_pan.x()
+        old_top = (self.height() - old_h) * 0.5 + current_pan.y()
+
+        img_x = (anchor.x() - old_left) / old_scale
+        img_y = (anchor.y() - old_top) / old_scale
+
+        new_w = img_w * new_scale
+        new_h = img_h * new_scale
+        new_left = anchor.x() - img_x * new_scale
+        new_top = anchor.y() - img_y * new_scale
+
+        pan_x = new_left - (self.width() - new_w) * 0.5
+        pan_y = new_top - (self.height() - new_h) * 0.5
+        return QPointF(pan_x, pan_y)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor(26, 26, 26))
+
+        if self._pixmap is None:
+            painter.setPen(QColor(140, 140, 140))
+            painter.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "No image")
+            return
+
+        fit = self._fit_scale()
+        scale = fit * self._zoom
+        draw_w = self._pixmap.width() * scale
+        draw_h = self._pixmap.height() * scale
+        x = (self.width() - draw_w) * 0.5 + self._pan.x()
+        y = (self.height() - draw_h) * 0.5 + self._pan.y()
+        target = QRectF(x, y, draw_w, draw_h)
+        source = QRectF(0.0, 0.0, float(self._pixmap.width()), float(self._pixmap.height()))
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        painter.drawPixmap(target, self._pixmap, source)
+
+    def wheelEvent(self, event: QWheelEvent):
+        if self._pixmap is None:
+            return
+        delta = event.angleDelta().y()
+        if delta == 0:
+            return
+        factor = 1.15 if delta > 0 else (1.0 / 1.15)
+        if self._on_zoom is not None:
+            self._on_zoom(self, factor, event.position())
+        event.accept()
+
+    def mousePressEvent(self, event: QMouseEvent):
+        if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
+            self._dragging = True
+            self._last_pos = event.position()
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        if self._dragging and self._on_pan is not None:
+            delta = event.position() - self._last_pos
+            self._last_pos = event.position()
+            self._on_pan(self, delta)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent):
+        if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
+            self._dragging = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+
+class FrameComparisonDialog(QDialog):
+    """Side-by-side frame comparison with interactive zoom/pan and optional sync navigation."""
+
+    def __init__(
+        self,
+        parent=None,
+        image_paths: List[str] = None,
+        mask_path_for_image: Dict[str, str] = None,
+        roi_height_offset: int = 225,
+        start_idx1: int = 0,
+        start_idx2: int = 0,
+    ):
+        super().__init__(parent)
+        self.image_paths = image_paths or []
+        self.mask_path_for_image = mask_path_for_image or {}
+        self.roi_height_offset = roi_height_offset
+        self.current_idx1 = start_idx1
+        self.current_idx2 = start_idx2
+
+        self._view_zoom = 1.0
+        self._view_pan = QPointF(0.0, 0.0)
+
+        self.setWindowTitle("Frame Comparison")
+        self.setGeometry(150, 150, 1000, 650)
+        self.setMinimumWidth(800)
+        self.setMinimumHeight(450)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowMinMaxButtonsHint)
+        self.setModal(False)
+        self._init_ui()
+        self._update_zoom_label()
+        self._load_current_frames()
+
+    def _init_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(12)
+
+        control_layout = QHBoxLayout()
+        self._sync_nav = QCheckBox("Sync navigation")
+        self._sync_nav.setChecked(True)
+        control_layout.addWidget(self._sync_nav)
+        control_layout.addStretch()
+
+        b_zoom_out = QPushButton("Zoom -")
+        b_zoom_out.setMaximumWidth(70)
+        b_zoom_out.clicked.connect(lambda: self._apply_zoom_factor(1.0 / 1.15))
+        control_layout.addWidget(b_zoom_out)
+
+        self._zoom_label = QLabel("1.00x")
+        self._zoom_label.setMinimumWidth(70)
+        self._zoom_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._zoom_label.setStyleSheet("font-weight: bold;")
+        control_layout.addWidget(self._zoom_label)
+
+        b_zoom_in = QPushButton("Zoom +")
+        b_zoom_in.setMaximumWidth(70)
+        b_zoom_in.clicked.connect(lambda: self._apply_zoom_factor(1.15))
+        control_layout.addWidget(b_zoom_in)
+
+        b_zoom_reset = QPushButton("Reset")
+        b_zoom_reset.setMaximumWidth(70)
+        b_zoom_reset.clicked.connect(self._reset_view)
+        control_layout.addWidget(b_zoom_reset)
+
+        main_layout.addLayout(control_layout)
+
+        frames_layout = QHBoxLayout()
+        frames_layout.setSpacing(20)
+
+        left_section = QVBoxLayout()
+        left_nav = QHBoxLayout()
+        b_prev_left = QPushButton("◀ Prev L")
+        b_prev_left.clicked.connect(self._prev_left)
+        left_nav.addWidget(b_prev_left)
+        self._left_idx_label = QLabel("0")
+        self._left_idx_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._left_idx_label.setMinimumWidth(50)
+        left_nav.addWidget(self._left_idx_label)
+        b_next_left = QPushButton("Next L ▶")
+        b_next_left.clicked.connect(self._next_left)
+        left_nav.addWidget(b_next_left)
+        left_section.addLayout(left_nav)
+
+        self._left_label = QLabel("Frame 1")
+        self._left_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        left_section.addWidget(self._left_label)
+        self._left_view = CompareImageView(on_zoom=self._handle_zoom, on_pan=self._handle_pan)
+        left_section.addWidget(self._left_view, 1)
+        self._left_stats = QLabel()
+        self._left_stats.setStyleSheet("font-family: monospace; font-size: 11px; color: #0f0;")
+        self._left_stats.setWordWrap(True)
+        left_section.addWidget(self._left_stats)
+
+        right_section = QVBoxLayout()
+        right_nav = QHBoxLayout()
+        b_prev_right = QPushButton("◀ Prev R")
+        b_prev_right.clicked.connect(self._prev_right)
+        right_nav.addWidget(b_prev_right)
+        self._right_idx_label = QLabel("0")
+        self._right_idx_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._right_idx_label.setMinimumWidth(50)
+        right_nav.addWidget(self._right_idx_label)
+        b_next_right = QPushButton("Next R ▶")
+        b_next_right.clicked.connect(self._next_right)
+        right_nav.addWidget(b_next_right)
+        right_section.addLayout(right_nav)
+
+        self._right_label = QLabel("Frame 2")
+        self._right_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        right_section.addWidget(self._right_label)
+        self._right_view = CompareImageView(on_zoom=self._handle_zoom, on_pan=self._handle_pan)
+        right_section.addWidget(self._right_view, 1)
+        self._right_stats = QLabel()
+        self._right_stats.setStyleSheet("font-family: monospace; font-size: 11px; color: #0f0;")
+        self._right_stats.setWordWrap(True)
+        right_section.addWidget(self._right_stats)
+
+        frames_layout.addLayout(left_section, 1)
+        frames_layout.addLayout(right_section, 1)
+        main_layout.addLayout(frames_layout, 1)
+
+    def _update_zoom_label(self):
+        self._zoom_label.setText(f"{self._view_zoom:.2f}x")
+
+    def _apply_view_transform(self):
+        self._left_view.set_view_transform(self._view_zoom, self._view_pan)
+        self._right_view.set_view_transform(self._view_zoom, self._view_pan)
+
+    def _apply_zoom_factor(self, factor: float):
+        new_zoom = max(0.25, min(8.0, self._view_zoom * factor))
+        if abs(new_zoom - self._view_zoom) < 1e-9:
+            return
+        self._view_zoom = new_zoom
+        self._update_zoom_label()
+        self._apply_view_transform()
+
+    def _reset_view(self):
+        self._view_zoom = 1.0
+        self._view_pan = QPointF(0.0, 0.0)
+        self._update_zoom_label()
+        self._apply_view_transform()
+
+    def _handle_zoom(self, source_view: CompareImageView, factor: float, anchor: QPointF):
+        new_zoom = max(0.25, min(8.0, self._view_zoom * factor))
+        if abs(new_zoom - self._view_zoom) < 1e-9:
+            return
+        self._view_pan = source_view.pan_for_zoom(self._view_zoom, new_zoom, self._view_pan, anchor)
+        self._view_zoom = new_zoom
+        self._update_zoom_label()
+        self._apply_view_transform()
+
+    def _handle_pan(self, _source_view: CompareImageView, delta: QPointF):
+        self._view_pan += delta
+        self._apply_view_transform()
+
+    def _step_synced(self, step: int):
+        max_idx = len(self.image_paths) - 1
+        if max_idx < 0:
+            return
+        self.current_idx1 = max(0, min(max_idx, self.current_idx1 + step))
+        self.current_idx2 = max(0, min(max_idx, self.current_idx2 + step))
+        self._load_current_frames()
+
+    def _prev_left(self):
+        if self._sync_nav.isChecked():
+            self._step_synced(-1)
+            return
+        if self.current_idx1 > 0:
+            self.current_idx1 -= 1
+            self._load_left_frame()
+
+    def _next_left(self):
+        if self._sync_nav.isChecked():
+            self._step_synced(1)
+            return
+        if self.current_idx1 < len(self.image_paths) - 1:
+            self.current_idx1 += 1
+            self._load_left_frame()
+
+    def _prev_right(self):
+        if self._sync_nav.isChecked():
+            self._step_synced(-1)
+            return
+        if self.current_idx2 > 0:
+            self.current_idx2 -= 1
+            self._load_right_frame()
+
+    def _next_right(self):
+        if self._sync_nav.isChecked():
+            self._step_synced(1)
+            return
+        if self.current_idx2 < len(self.image_paths) - 1:
+            self.current_idx2 += 1
+            self._load_right_frame()
+
+    def _load_current_frames(self):
+        self._load_left_frame()
+        self._load_right_frame()
+
+    def _load_left_frame(self):
+        try:
+            if self.current_idx1 < 0 or self.current_idx1 >= len(self.image_paths):
+                return
+
+            img_path1 = self.image_paths[self.current_idx1]
+            mask_path1 = self.mask_path_for_image.get(img_path1)
+            if not mask_path1 or not os.path.exists(mask_path1):
+                QMessageBox.warning(self, "Error", f"Mask not found for frame {self.current_idx1}")
+                return
+
+            img1 = cv2.imread(img_path1)
+            mask1 = cv2.imread(mask_path1, cv2.IMREAD_GRAYSCALE)
+            if img1 is None or mask1 is None:
+                QMessageBox.warning(self, "Error", f"Failed to load frame {self.current_idx1}")
+                return
+
+            self._display_frame(img1, mask1, self._left_view, self._left_label, img_path1, self._left_stats)
+            self._left_idx_label.setText(str(self.current_idx1))
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load left frame: {str(e)}")
+
+    def _load_right_frame(self):
+        try:
+            if self.current_idx2 < 0 or self.current_idx2 >= len(self.image_paths):
+                return
+
+            img_path2 = self.image_paths[self.current_idx2]
+            mask_path2 = self.mask_path_for_image.get(img_path2)
+            if not mask_path2 or not os.path.exists(mask_path2):
+                QMessageBox.warning(self, "Error", f"Mask not found for frame {self.current_idx2}")
+                return
+
+            img2 = cv2.imread(img_path2)
+            mask2 = cv2.imread(mask_path2, cv2.IMREAD_GRAYSCALE)
+            if img2 is None or mask2 is None:
+                QMessageBox.warning(self, "Error", f"Failed to load frame {self.current_idx2}")
+                return
+
+            self._display_frame(img2, mask2, self._right_view, self._right_label, img_path2, self._right_stats)
+            self._right_idx_label.setText(str(self.current_idx2))
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to load right frame: {str(e)}")
+
+    def _find_mask_bottom(self, mask) -> int:
+        h, _w = mask.shape[:2]
+        for y in range(h - 1, -1, -1):
+            if np.any(mask[y, :] > 127):
+                return y
+        return h - 1
+
+    def _display_frame(self, image, mask, view_widget: CompareImageView, title_widget, image_path: str, stats_widget):
+        try:
+            h, w = image.shape[:2]
+            overlay = image.copy().astype(np.float32)
+
+            mask_bool = mask > 127
+            overlay[mask_bool] = overlay[mask_bool] * 0.5 + np.array([0, 255, 255], dtype=np.float32) * 0.5
+            overlay = np.clip(overlay, 0, 255).astype(np.uint8)
+
+            mask_bottom = self._find_mask_bottom(mask)
+            roi_y = max(0, mask_bottom - self.roi_height_offset)
+            cv2.line(overlay, (0, roi_y), (w, roi_y), (0, 0, 255), 3)
+
+            view_widget.set_image(overlay)
+            self._apply_view_transform()
+
+            filename = os.path.basename(image_path)
+            title_widget.setText(filename)
+
+            stats_text = self._calculate_stats(mask)
+            stats_widget.setText(stats_text)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to display frame: {str(e)}")
+
+    def _calculate_stats(self, mask) -> str:
+        h, w = mask.shape[:2]
+        total_pixels = h * w
+        white_pixels = int(np.count_nonzero(mask))
+        white_pct = (white_pixels / total_pixels * 100.0) if total_pixels else 0.0
+
+        mask_bottom = self._find_mask_bottom(mask)
+        roi_y_threshold = mask_bottom - self.roi_height_offset
+        if 0 < roi_y_threshold < h:
+            below_roi = int(np.count_nonzero(mask[roi_y_threshold:, :]))
+        elif roi_y_threshold <= 0:
+            below_roi = white_pixels
+        else:
+            below_roi = 0
+
+        below_roi_pct = (below_roi / white_pixels * 100.0) if white_pixels else 0.0
+        return (
+            f"Resolution:     {w}×{h}\n"
+            f"─────────────────────\n"
+            f"Total White:     {white_pixels:,} px\n"
+            f"Coverage:        {white_pct:.1f}%\n"
+            f"─────────────────────\n"
+            f"Below ROI:       {below_roi:,} px\n"
+            f"Below ROI %:     {below_roi_pct:.1f}%"
+        )
+
 
 
 def default_data_dir() -> str:

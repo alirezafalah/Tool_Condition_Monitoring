@@ -927,7 +927,7 @@
     "type": "drill",
     "diameter_mm": 0,
     "edges": 2,
-    "condition": "used",
+    "condition": "fractured",
     "material": "HSS",
     "coating": "Yes",
     "background_type": "",

@@ -6,7 +6,7 @@ import subprocess
 import sys
 import threading
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import colorchooser, filedialog, messagebox
 from tkinter.scrolledtext import ScrolledText
 
 import cv2
@@ -171,8 +171,14 @@ class MatrixPerspectiveGUI(tk.Tk):
         self.custom_graph_axis_font_var = tk.IntVar(value=12)
         self.custom_graph_tick_font_var = tk.IntVar(value=10)
         self.custom_graph_legend_font_var = tk.IntVar(value=10)
-        self.custom_graph_show_threshold_var = tk.BooleanVar(value=False)
-        self.custom_graph_threshold_var = tk.DoubleVar(value=0.0)
+        self.custom_graph_show_threshold1_var = tk.BooleanVar(value=False)
+        self.custom_graph_threshold1_var = tk.DoubleVar(value=0.0)
+        self.custom_graph_threshold1_label_var = tk.StringVar(value="Threshold A")
+        self.custom_graph_threshold1_color_var = tk.StringVar(value="#1f77b4")
+        self.custom_graph_show_threshold2_var = tk.BooleanVar(value=False)
+        self.custom_graph_threshold2_var = tk.DoubleVar(value=0.0)
+        self.custom_graph_threshold2_label_var = tk.StringVar(value="Threshold B")
+        self.custom_graph_threshold2_color_var = tk.StringVar(value="#ff7f0e")
 
         self._build_ui()
         self._load_mask_subfolders()
@@ -1257,21 +1263,62 @@ class MatrixPerspectiveGUI(tk.Tk):
                 activeforeground=FG_MAIN, font=("Consolas", 10),
             ).pack(side=tk.LEFT, padx=(0, 6))
 
-        # ── Row 4b: Threshold controls ──
+        # ── Row 4b/4c: Threshold controls (up to 2 custom lines) ──
+        self.summary_show_threshold1_var = tk.BooleanVar(value=False)
+        self.summary_threshold1_var = tk.DoubleVar(value=6261.0)
+        self.summary_threshold1_label_var = tk.StringVar(value="Threshold A")
+        self.summary_threshold1_color_var = tk.StringVar(value="#1f77b4")
+        self.summary_show_threshold2_var = tk.BooleanVar(value=False)
+        self.summary_threshold2_var = tk.DoubleVar(value=0.0)
+        self.summary_threshold2_label_var = tk.StringVar(value="Threshold B")
+        self.summary_threshold2_color_var = tk.StringVar(value="#ff7f0e")
+
         row4b = tk.Frame(wrapper, bg=BG_PANEL)
-        row4b.pack(fill=tk.X, padx=10, pady=(4, 4))
-        self.summary_show_threshold_var = tk.BooleanVar(value=False)
+        row4b.pack(fill=tk.X, padx=10, pady=(4, 2))
         tk.Checkbutton(
-            row4b, text="Show Threshold", variable=self.summary_show_threshold_var,
+            row4b, text="Threshold 1", variable=self.summary_show_threshold1_var,
             bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
             activeforeground=FG_MAIN, font=("Consolas", 10),
         ).pack(side=tk.LEFT, padx=(0, 8))
         make_label(row4b, "Value").pack(side=tk.LEFT, padx=(0, 4))
-        self.summary_threshold_var = tk.DoubleVar(value=6261.0)
         tk.Spinbox(
-            row4b, from_=0, to=100000, textvariable=self.summary_threshold_var, width=10,
+            row4b, from_=0, to=100000, textvariable=self.summary_threshold1_var, width=9,
             bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
             relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        make_label(row4b, "Label").pack(side=tk.LEFT, padx=(0, 4))
+        make_entry(row4b, self.summary_threshold1_label_var, width=18).pack(side=tk.LEFT, padx=(0, 6))
+        make_label(row4b, "Color").pack(side=tk.LEFT, padx=(0, 4))
+        make_entry(row4b, self.summary_threshold1_color_var, width=10).pack(side=tk.LEFT, padx=(0, 4))
+        make_button(
+            row4b,
+            "Pick",
+            lambda: self._pick_color(self.summary_threshold1_color_var),
+            width=6,
+        ).pack(side=tk.LEFT)
+
+        row4c = tk.Frame(wrapper, bg=BG_PANEL)
+        row4c.pack(fill=tk.X, padx=10, pady=(0, 4))
+        tk.Checkbutton(
+            row4c, text="Threshold 2", variable=self.summary_show_threshold2_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        make_label(row4c, "Value").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Spinbox(
+            row4c, from_=0, to=100000, textvariable=self.summary_threshold2_var, width=9,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        make_label(row4c, "Label").pack(side=tk.LEFT, padx=(0, 4))
+        make_entry(row4c, self.summary_threshold2_label_var, width=18).pack(side=tk.LEFT, padx=(0, 6))
+        make_label(row4c, "Color").pack(side=tk.LEFT, padx=(0, 4))
+        make_entry(row4c, self.summary_threshold2_color_var, width=10).pack(side=tk.LEFT, padx=(0, 4))
+        make_button(
+            row4c,
+            "Pick",
+            lambda: self._pick_color(self.summary_threshold2_color_var),
+            width=6,
         ).pack(side=tk.LEFT)
 
         row5 = tk.Frame(wrapper, bg=BG_PANEL)
@@ -1382,6 +1429,60 @@ class MatrixPerspectiveGUI(tk.Tk):
     def _summary_log_ts(self, text):
         self.after(0, lambda: self._summary_log(text))
 
+    def _pick_color(self, target_var):
+        """Open color picker and write selected hex color to a StringVar."""
+        initial = target_var.get().strip() or "#1f77b4"
+        result = colorchooser.askcolor(color=initial, title="Pick threshold color")
+        if result and result[1]:
+            target_var.set(result[1])
+
+    def _collect_threshold_lines(self, which: str) -> list[dict]:
+        """Collect up to two threshold line definitions from Summary/Custom tab vars."""
+        lines = []
+        if which == "summary":
+            entries = [
+                (
+                    self.summary_show_threshold1_var.get(),
+                    self.summary_threshold1_var.get(),
+                    self.summary_threshold1_label_var.get(),
+                    self.summary_threshold1_color_var.get(),
+                ),
+                (
+                    self.summary_show_threshold2_var.get(),
+                    self.summary_threshold2_var.get(),
+                    self.summary_threshold2_label_var.get(),
+                    self.summary_threshold2_color_var.get(),
+                ),
+            ]
+        else:
+            entries = [
+                (
+                    self.custom_graph_show_threshold1_var.get(),
+                    self.custom_graph_threshold1_var.get(),
+                    self.custom_graph_threshold1_label_var.get(),
+                    self.custom_graph_threshold1_color_var.get(),
+                ),
+                (
+                    self.custom_graph_show_threshold2_var.get(),
+                    self.custom_graph_threshold2_var.get(),
+                    self.custom_graph_threshold2_label_var.get(),
+                    self.custom_graph_threshold2_color_var.get(),
+                ),
+            ]
+
+        for idx, (enabled, value, label, color) in enumerate(entries, start=1):
+            if not enabled:
+                continue
+            try:
+                v = float(value)
+            except Exception:
+                continue
+            c = str(color).strip() or ("#1f77b4" if idx == 1 else "#ff7f0e")
+            l = str(label).strip() or f"Threshold {idx} (T = {v:g})"
+            lines.append({"value": v, "color": c, "label": l})
+
+        return lines
+
     def _browse_summary_dir(self):
         cur = self.summary_sym_var.get().strip() or DEFAULT_SYMMETRY_DIR
         folder = filedialog.askdirectory(initialdir=cur, title="Select symmetry results folder")
@@ -1441,26 +1542,28 @@ class MatrixPerspectiveGUI(tk.Tk):
         self.summary_run_btn.config(state=tk.DISABLED)
         self._summary_log("\n" + "=" * 90 + "\n")
         self._summary_log(f"Generating summary from: {sym_root}  ({len(include_tools)} tools included)\n")
-        
-        threshold_value = self.summary_threshold_var.get() if self.summary_show_threshold_var.get() else None
-        show_threshold = self.summary_show_threshold_var.get()
-        if show_threshold:
-            self._summary_log(f"Threshold: {threshold_value}\n")
+
+        threshold_lines = self._collect_threshold_lines("summary")
+        if threshold_lines:
+            self._summary_log("Threshold lines:\n")
+            for t in threshold_lines:
+                self._summary_log(f"  - {t['label']}: {t['value']} ({t['color']})\n")
 
         threading.Thread(
             target=self._summary_analysis_worker,
-            args=(sym_root, meta_csv, cfg, include_tools, threshold_value, show_threshold),
+            args=(sym_root, meta_csv, cfg, include_tools, threshold_lines),
             daemon=True,
         ).start()
 
-    def _summary_analysis_worker(self, sym_root, meta_csv, cfg, include_tools, threshold_value=None, show_threshold=False):
+    def _summary_analysis_worker(self, sym_root, meta_csv, cfg, include_tools, threshold_lines=None):
         try:
             result = run_symmetry_summary(
                 sym_root, meta_csv, cfg,
                 log_fn=self._summary_log_ts,
                 include_tools=include_tools,
-                threshold_value=threshold_value,
-                show_threshold=show_threshold,
+                threshold_lines=threshold_lines,
+                threshold_value=(threshold_lines[0]["value"] if threshold_lines else None),
+                show_threshold=bool(threshold_lines),
             )
             self._summary_log_ts(
                 f"\nDone! {result['tool_count']} tools in chart.\n"
@@ -1548,19 +1651,53 @@ class MatrixPerspectiveGUI(tk.Tk):
             activeforeground=FG_MAIN, font=("Consolas", 10),
         ).pack(side=tk.LEFT)
 
-        # ── Row 5b: Threshold controls ──
+        # ── Row 5b/5c: Threshold controls (up to 2 custom lines) ──
         row_thresh = tk.Frame(wrapper, bg=BG_PANEL)
-        row_thresh.pack(fill=tk.X, padx=10, pady=(4, 4))
+        row_thresh.pack(fill=tk.X, padx=10, pady=(4, 2))
         tk.Checkbutton(
-            row_thresh, text="Show Threshold", variable=self.custom_graph_show_threshold_var,
+            row_thresh, text="Threshold 1", variable=self.custom_graph_show_threshold1_var,
             bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
             activeforeground=FG_MAIN, font=("Consolas", 10),
         ).pack(side=tk.LEFT, padx=(0, 8))
         make_label(row_thresh, "Value").pack(side=tk.LEFT, padx=(0, 4))
         tk.Spinbox(
-            row_thresh, from_=0, to=100000, textvariable=self.custom_graph_threshold_var, width=10,
+            row_thresh, from_=0, to=100000, textvariable=self.custom_graph_threshold1_var, width=9,
             bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
             relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        make_label(row_thresh, "Label").pack(side=tk.LEFT, padx=(0, 4))
+        make_entry(row_thresh, self.custom_graph_threshold1_label_var, width=18).pack(side=tk.LEFT, padx=(0, 6))
+        make_label(row_thresh, "Color").pack(side=tk.LEFT, padx=(0, 4))
+        make_entry(row_thresh, self.custom_graph_threshold1_color_var, width=10).pack(side=tk.LEFT, padx=(0, 4))
+        make_button(
+            row_thresh,
+            "Pick",
+            lambda: self._pick_color(self.custom_graph_threshold1_color_var),
+            width=6,
+        ).pack(side=tk.LEFT)
+
+        row_thresh2 = tk.Frame(wrapper, bg=BG_PANEL)
+        row_thresh2.pack(fill=tk.X, padx=10, pady=(0, 4))
+        tk.Checkbutton(
+            row_thresh2, text="Threshold 2", variable=self.custom_graph_show_threshold2_var,
+            bg=BG_PANEL, fg=FG_MAIN, selectcolor=BG_ENTRY, activebackground=BG_PANEL,
+            activeforeground=FG_MAIN, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 8))
+        make_label(row_thresh2, "Value").pack(side=tk.LEFT, padx=(0, 4))
+        tk.Spinbox(
+            row_thresh2, from_=0, to=100000, textvariable=self.custom_graph_threshold2_var, width=9,
+            bg=BG_ENTRY, fg=FG_MAIN, insertbackground=FG_MAIN, buttonbackground="#0b2a0f",
+            relief=tk.FLAT, font=("Consolas", 10),
+        ).pack(side=tk.LEFT, padx=(0, 6))
+        make_label(row_thresh2, "Label").pack(side=tk.LEFT, padx=(0, 4))
+        make_entry(row_thresh2, self.custom_graph_threshold2_label_var, width=18).pack(side=tk.LEFT, padx=(0, 6))
+        make_label(row_thresh2, "Color").pack(side=tk.LEFT, padx=(0, 4))
+        make_entry(row_thresh2, self.custom_graph_threshold2_color_var, width=10).pack(side=tk.LEFT, padx=(0, 4))
+        make_button(
+            row_thresh2,
+            "Pick",
+            lambda: self._pick_color(self.custom_graph_threshold2_color_var),
+            width=6,
         ).pack(side=tk.LEFT)
 
         # ── Row 6: Font sizes ──
@@ -1875,8 +2012,7 @@ class MatrixPerspectiveGUI(tk.Tk):
             legend_font_size=max(1, int(self.custom_graph_legend_font_var.get())),
         )
 
-        threshold_value = self.custom_graph_threshold_var.get() if self.custom_graph_show_threshold_var.get() else None
-        show_threshold = self.custom_graph_show_threshold_var.get()
+        threshold_lines = self._collect_threshold_lines("custom")
         
         custom_title = self.custom_graph_title_var.get().strip() if self.custom_graph_show_title_var.get() else None
         show_title = self.custom_graph_show_title_var.get()
@@ -1885,23 +2021,26 @@ class MatrixPerspectiveGUI(tk.Tk):
         self.custom_graph_run_btn.config(state=tk.DISABLED)
         self._custom_graph_log("\n" + "=" * 90 + "\n")
         self._custom_graph_log(f"Generating custom summary with {len(labels_config)} label(s)...\n")
-        if show_threshold:
-            self._custom_graph_log(f"Threshold: {threshold_value}\n")
+        if threshold_lines:
+            self._custom_graph_log("Threshold lines:\n")
+            for t in threshold_lines:
+                self._custom_graph_log(f"  - {t['label']}: {t['value']} ({t['color']})\n")
         if show_title and custom_title:
             self._custom_graph_log(f"Title: {custom_title}\n")
 
         threading.Thread(
             target=self._custom_graph_worker,
-            args=(sym_root, meta_csv, cfg, labels_config, threshold_value, show_threshold, custom_title, show_title),
+            args=(sym_root, meta_csv, cfg, labels_config, threshold_lines, custom_title, show_title),
             daemon=True,
         ).start()
 
-    def _custom_graph_worker(self, sym_root, meta_csv, cfg, labels_config, threshold_value=None, show_threshold=False, custom_title=None, show_title=False):
+    def _custom_graph_worker(self, sym_root, meta_csv, cfg, labels_config, threshold_lines=None, custom_title=None, show_title=False):
         try:
             result = run_custom_summary_graph(
                 sym_root, meta_csv, cfg, labels_config,
-                threshold_value=threshold_value,
-                show_threshold=show_threshold,
+                threshold_lines=threshold_lines,
+                threshold_value=(threshold_lines[0]["value"] if threshold_lines else None),
+                show_threshold=bool(threshold_lines),
                 custom_title=custom_title,
                 show_title=show_title,
                 log_fn=self._custom_graph_log_ts,
