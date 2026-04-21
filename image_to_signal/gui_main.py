@@ -236,6 +236,7 @@ class ImageToSignalGUI(QMainWindow):
             'APPLY_MULTICHANNEL_MASK': False,
             'DIFFERENCE_THRESHOLD': 33,
             'roi_height': 200,
+            'analyze_full_picture': False,
             'WHITE_RATIO_OUTLIER_THRESHOLD': 0.8,
             'APPLY_MOVING_AVERAGE': True,
             'MOVING_AVERAGE_WINDOW': 5,
@@ -262,6 +263,7 @@ class ImageToSignalGUI(QMainWindow):
         tabs.addTab(self._create_pipeline_tab(), "▶️ Run Pipeline")
         tabs.addTab(self._create_360_utils_tab(), "🔄 360° Utilities")
         tabs.addTab(self._create_synthetic_masks_tab(), "🎭 Synthetic Dashboard")
+        tabs.addTab(self._create_compare_tools_tab(), "⚖️ Compare Tools")
         main_layout.addWidget(tabs, stretch=1)
         
         # Status bar
@@ -512,6 +514,10 @@ class ImageToSignalGUI(QMainWindow):
         roi_layout = QVBoxLayout()
         
         self.roi_height = self._add_spinbox_param(roi_layout, "ROI Height:", 1, 1000, 1, self.config['roi_height'])
+        
+        self.analyze_full_picture = QCheckBox("Analyze Full Picture (Ignore ROI Height)")
+        self.analyze_full_picture.setChecked(self.config.get('analyze_full_picture', False))
+        roi_layout.addWidget(self.analyze_full_picture)
         
         self.white_ratio_threshold = self._add_double_spinbox_param(roi_layout, "White Ratio Outlier Threshold:", 0.0, 1.0, self.config['WHITE_RATIO_OUTLIER_THRESHOLD'])
         
@@ -841,6 +847,65 @@ class ImageToSignalGUI(QMainWindow):
         layout.addStretch()
         return widget
 
+    def _create_compare_tools_tab(self):
+        """Create tab for comparing two tools side-by-side."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setSpacing(15)
+        
+        info = QLabel("Compare two tools mathematically and visually. Select the Masks folders for both tools.")
+        info.setStyleSheet("color: #ccc; font-style: italic;")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+        
+        # Tool A
+        group_A = QGroupBox("Tool A (e.g. Healthy Tool)")
+        layout_A = QVBoxLayout()
+        row_A = QHBoxLayout()
+        self.compare_A_input = QLineEdit(self.SYNTHETIC_DEFAULT_ROOT)
+        row_A.addWidget(self.compare_A_input, stretch=1)
+        btn_A = QPushButton("Browse...")
+        btn_A.clicked.connect(self._browse_compare_A)
+        row_A.addWidget(btn_A)
+        layout_A.addLayout(row_A)
+        group_A.setLayout(layout_A)
+        layout.addWidget(group_A)
+        
+        # Tool B
+        group_B = QGroupBox("Tool B (e.g. Broken Tool)")
+        layout_B = QVBoxLayout()
+        row_B = QHBoxLayout()
+        self.compare_B_input = QLineEdit(self.SYNTHETIC_DEFAULT_ROOT)
+        row_B.addWidget(self.compare_B_input, stretch=1)
+        btn_B = QPushButton("Browse...")
+        btn_B.clicked.connect(self._browse_compare_B)
+        row_B.addWidget(btn_B)
+        layout_B.addLayout(row_B)
+        group_B.setLayout(layout_B)
+        layout.addWidget(group_B)
+        
+        # Actions
+        actions_group = QGroupBox("Actions")
+        actions_layout = QVBoxLayout()
+        self.run_compare_btn = QPushButton("⚖️ Generate Comparison Dashboard")
+        self.run_compare_btn.setMinimumHeight(50)
+        self.run_compare_btn.setStyleSheet("""
+            QPushButton {
+                background: #FFB74D;
+                color: #333;
+                font-size: 16px;
+                font-weight: bold;
+                border-radius: 5px;
+            }
+            QPushButton:hover { background: #FFA726; }
+        """)
+        self.run_compare_btn.clicked.connect(self._run_compare_dashboard)
+        actions_layout.addWidget(self.run_compare_btn)
+        actions_group.setLayout(actions_layout)
+        layout.addWidget(actions_group)
+        
+        layout.addStretch()
+        return widget
     
     def _add_spinbox_param(self, layout, label, min_val, max_val, step, default):
         """Helper to add spinbox parameter."""
@@ -1227,7 +1292,12 @@ class ImageToSignalGUI(QMainWindow):
         self.config['b_threshold_max'] = self.b_max.value()
         
         # Analysis
-        self.config['roi_height'] = self.roi_height.value()
+        self.config['analyze_full_picture'] = self.analyze_full_picture.isChecked()
+        if self.config['analyze_full_picture']:
+            self.config['roi_height'] = 0
+        else:
+            self.config['roi_height'] = self.roi_height.value()
+            
         self.config['WHITE_RATIO_OUTLIER_THRESHOLD'] = self.white_ratio_threshold.value()
         self.config['APPLY_MOVING_AVERAGE'] = self.apply_moving_avg.isChecked()
         self.config['MOVING_AVERAGE_WINDOW'] = self.moving_avg_window.value()
@@ -1482,7 +1552,45 @@ class ImageToSignalGUI(QMainWindow):
             self.log_output.append("<span style='color: #4CAF50;'>✓ Dashboard opened in browser!</span>")
         else:
             self.log_output.append("<span style='color: #f44336;'>✗ Failed to generate dashboard.</span>")
-    
+
+    def _browse_compare_A(self):
+        start_dir = self.compare_A_input.text().strip() or self.SYNTHETIC_DEFAULT_ROOT
+        selected_dir = QFileDialog.getExistingDirectory(self, "Select Tool A Masks Folder", start_dir)
+        if selected_dir:
+            self.compare_A_input.setText(selected_dir)
+            
+    def _browse_compare_B(self):
+        start_dir = self.compare_B_input.text().strip() or self.SYNTHETIC_DEFAULT_ROOT
+        selected_dir = QFileDialog.getExistingDirectory(self, "Select Tool B Masks Folder", start_dir)
+        if selected_dir:
+            self.compare_B_input.setText(selected_dir)
+            
+    def _run_compare_dashboard(self):
+        dir_A = self.compare_A_input.text().strip()
+        dir_B = self.compare_B_input.text().strip()
+        
+        if not dir_A or not os.path.isdir(dir_A):
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Error", "Invalid directory for Tool A")
+            return
+        if not dir_B or not os.path.isdir(dir_B):
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Error", "Invalid directory for Tool B")
+            return
+            
+        import image_to_signal.compare_dashboard_generator as comp_gen
+        
+        # Output in the parent directory of Tool A's analysis
+        analysis_dir = os.path.join(dir_A, "analysis")
+        os.makedirs(analysis_dir, exist_ok=True)
+        
+        self.log_output.append("<span style='color: #2196F3;'>⚖️ Generating Comparison Dashboard...</span>")
+        success = comp_gen.generate_comparison_dashboard(dir_A, dir_B, analysis_dir)
+        if success:
+            self.log_output.append("<span style='color: #4CAF50;'>✓ Comparison Dashboard generated!</span>")
+        else:
+            self.log_output.append("<span style='color: #f44336;'>✗ Failed to generate comparison dashboard. Check if tools have been analyzed first.</span>")
+
     def _run_next_step(self):
         """Run the next step in the queue."""
         # Check if we finished all steps for current tool

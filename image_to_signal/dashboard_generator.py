@@ -12,43 +12,50 @@ def generate_dashboard(csv_path, masks_dir, output_dir, real_dir=None, output_fi
         print(f"Error: CSV file not found at {csv_path}")
         return False
         
-    df = pd.read_csv(csv_path)
-    if 'Angle (Degrees)' not in df.columns:
-        print("Error: 'Angle (Degrees)' column not found in CSV.")
-        return False
-        
-    area_col = 'Smoothed ROI Area' if 'Smoothed ROI Area' in df.columns else 'ROI Area (Pixels)'
-    if area_col not in df.columns:
-        print(f"Error: Area column '{area_col}' not found in CSV.")
-        return False
-        
-    angles = df['Angle (Degrees)'].tolist()
-    areas = df[area_col].tolist()
-    
-    # Determine phase shift if using processed data
-    shift_amount = 0
+    def read_csv_data(p_csv):
+        if not p_csv or not os.path.exists(p_csv): return None
+        try:
+            d = pd.read_csv(p_csv)
+            if 'Angle (Degrees)' not in d.columns: return None
+            ac = 'Smoothed ROI Area' if 'Smoothed ROI Area' in d.columns else 'ROI Area (Pixels)'
+            if ac not in d.columns: return None
+            return {
+                'angles': d['Angle (Degrees)'].tolist(),
+                'areas': d[ac].tolist()
+            }
+        except: return None
+
+    raw_path = None
+    processed_path = None
     if "processed" in csv_path:
+        processed_path = csv_path
         raw_path = csv_path.replace("_processed_data.csv", "_raw_data.csv")
-        if os.path.exists(raw_path):
-            try:
-                df_raw = pd.read_csv(raw_path)
-                area_col_raw = 'Smoothed ROI Area' if 'Smoothed ROI Area' in df_raw.columns else 'ROI Area (Pixels)'
-                if area_col_raw in df_raw.columns:
-                    shift_amount = df_raw[area_col_raw].idxmin()
-            except Exception as e:
-                print(f"Warning: Could not read raw data for phase shift mapping: {e}")
-                
+    elif "raw" in csv_path:
+        raw_path = csv_path
+        processed_path = csv_path.replace("_raw_data.csv", "_processed_data.csv")
+    else:
+        raw_path = csv_path
+
+    raw_data = read_csv_data(raw_path)
+    processed_data = read_csv_data(processed_path)
+    
+    if not raw_data and not processed_data:
+        print(f"Error: Could not read CSV data from {csv_path}")
+        return False
+
+    # Determine phase shift
+    shift_amount = 0
+    if raw_path and os.path.exists(raw_path):
+        try:
+            df_raw = pd.read_csv(raw_path)
+            area_col_raw = 'Smoothed ROI Area' if 'Smoothed ROI Area' in df_raw.columns else 'ROI Area (Pixels)'
+            if area_col_raw in df_raw.columns:
+                shift_amount = df_raw[area_col_raw].idxmin()
+        except: pass
+
     # Process mask images
     mask_images = sorted([f for f in os.listdir(masks_dir) if f.lower().endswith(('.png', '.tiff', '.tif', '.jpg', '.jpeg'))])
-    mask_paths = []
-    n_masks = len(mask_images)
-    for i in range(len(angles)):
-        if n_masks > 0:
-            idx = (i + shift_amount) % n_masks
-            abs_path = os.path.join(masks_dir, mask_images[idx])
-            mask_paths.append("file:///" + abs_path.replace("\\", "/"))
-        else:
-            mask_paths.append("")
+    mask_paths = ["file:///" + os.path.join(masks_dir, f).replace("\\", "/") for f in mask_images]
             
     # Process real images
     real_paths = []
@@ -56,20 +63,16 @@ def generate_dashboard(csv_path, masks_dir, output_dir, real_dir=None, output_fi
     if real_dir and os.path.isdir(real_dir):
         has_real = True
         real_images = sorted([f for f in os.listdir(real_dir) if f.lower().endswith(('.png', '.tiff', '.tif', '.jpg', '.jpeg'))])
-        n_real = len(real_images)
-        for i in range(len(angles)):
-            if n_real > 0:
-                idx = (i + shift_amount) % n_real
-                abs_path = os.path.join(real_dir, real_images[idx])
-                real_paths.append("file:///" + abs_path.replace("\\", "/"))
-            else:
-                real_paths.append("")
+        real_paths = ["file:///" + os.path.join(real_dir, f).replace("\\", "/") for f in real_images]
     else:
         real_paths = mask_paths # Fallback
             
     chart_data = {
-        'angles': angles,
-        'areas': areas,
+        'raw': raw_data,
+        'processed': processed_data,
+        'has_raw': bool(raw_data),
+        'has_processed': bool(processed_data),
+        'shift_amount': shift_amount,
         'masks': mask_paths,
         'reals': real_paths,
         'has_real': has_real
@@ -244,6 +247,7 @@ def generate_dashboard(csv_path, masks_dir, output_dir, real_dir=None, output_fi
             <p>Interactive 1D Signal and Frame Visualization</p>
         </div>
         <div class="controls">
+            <button id="btn-toggle-data" class="hidden">📊 View Raw Data</button>
             <button id="btn-toggle-img" class="{'' if has_real else 'hidden'}">👁️ View Real Image</button>
             <button id="btn-compare">🔄 Compare Mode: OFF</button>
         </div>
@@ -274,14 +278,14 @@ def generate_dashboard(csv_path, masks_dir, output_dir, real_dir=None, output_fi
             <div class="slider-row" id="slider-row-1">
                 <div class="slider-label" id="label-1">Angle: 0°</div>
                 <div class="slider-input-wrap">
-                    <input type="range" id="slider-1" min="0" max="{len(angles)-1}" value="0">
+                    <input type="range" id="slider-1" min="0" max="100" value="0">
                 </div>
             </div>
             
             <div class="slider-row hidden" id="slider-row-2">
                 <div class="slider-label" style="color: #64B5F6;" id="label-2">Angle: 0°</div>
                 <div class="slider-input-wrap">
-                    <input type="range" id="slider-2" min="0" max="{len(angles)-1}" value="0" style="accent-color: #64B5F6;">
+                    <input type="range" id="slider-2" min="0" max="100" value="0" style="accent-color: #64B5F6;">
                 </div>
             </div>
             <div class="info-text">Drag the sliders or click on the plot to update frames.</div>
@@ -293,12 +297,17 @@ def generate_dashboard(csv_path, masks_dir, output_dir, real_dir=None, output_fi
         
         let compareMode = false;
         let viewReal = false;
+        let viewProcessed = false; // Default to raw
+        
+        let currentData = data.has_raw ? data.raw : data.processed; // fallback to processed if raw missing
+        
         let idx1 = 0;
-        let idx2 = Math.min(90, data.angles.length - 1); // Default offset
+        let idx2 = Math.min(90, currentData.angles.length - 1); // Default offset
         
         const chartDiv = document.getElementById('plotly-chart');
         
         // DOM Elements
+        const btnToggleData = document.getElementById('btn-toggle-data');
         const btnToggleImg = document.getElementById('btn-toggle-img');
         const btnCompare = document.getElementById('btn-compare');
         
@@ -314,24 +323,38 @@ def generate_dashboard(csv_path, masks_dir, output_dir, real_dir=None, output_fi
         const info2 = document.getElementById('info-2');
         const slider2 = document.getElementById('slider-2');
         const label2 = document.getElementById('label-2');
+        
+        // Setup data toggle button
+        if (data.has_raw && data.has_processed) {{
+            btnToggleData.classList.remove('hidden');
+            btnToggleData.innerText = "📊 View Processed Data";
+        }}
+
+        function getImgSrc(i) {{
+            const arr = viewReal ? data.reals : data.masks;
+            if (arr.length === 0) return "";
+            if (i < 0 || i >= currentData.angles.length) return "";
+            
+            const shift = viewProcessed ? data.shift_amount : 0;
+            const actualIdx = (i + shift) % arr.length;
+            return arr[actualIdx];
+        }}
 
         function updateUI() {{
-            const arr = viewReal ? data.reals : data.masks;
-            
             // Update 1
-            if (idx1 >= 0 && idx1 < data.angles.length) {{
-                const a1 = data.angles[idx1];
-                img1.src = arr[idx1];
-                info1.innerText = "Angle: " + a1.toFixed(1) + "° | Area: " + Math.round(data.areas[idx1]).toLocaleString();
+            if (idx1 >= 0 && idx1 < currentData.angles.length) {{
+                const a1 = currentData.angles[idx1];
+                img1.src = getImgSrc(idx1);
+                info1.innerText = "Angle: " + a1.toFixed(1) + "° | Area: " + Math.round(currentData.areas[idx1]).toLocaleString();
                 label1.innerText = "Angle: " + a1.toFixed(1) + "°";
                 slider1.value = idx1;
             }}
             
             // Update 2
-            if (compareMode && idx2 >= 0 && idx2 < data.angles.length) {{
-                const a2 = data.angles[idx2];
-                img2.src = arr[idx2];
-                info2.innerText = "Angle: " + a2.toFixed(1) + "° | Area: " + Math.round(data.areas[idx2]).toLocaleString();
+            if (compareMode && idx2 >= 0 && idx2 < currentData.angles.length) {{
+                const a2 = currentData.angles[idx2];
+                img2.src = getImgSrc(idx2);
+                info2.innerText = "Angle: " + a2.toFixed(1) + "° | Area: " + Math.round(currentData.areas[idx2]).toLocaleString();
                 label2.innerText = "Angle: " + a2.toFixed(1) + "°";
                 slider2.value = idx2;
             }}
@@ -343,12 +366,12 @@ def generate_dashboard(csv_path, masks_dir, output_dir, real_dir=None, output_fi
             const shapes = [];
             
             // Line 1
-            if (idx1 >= 0 && idx1 < data.angles.length) {{
+            if (idx1 >= 0 && idx1 < currentData.angles.length) {{
                 shapes.push({{
                     type: 'line',
-                    x0: data.angles[idx1],
+                    x0: currentData.angles[idx1],
                     y0: 0,
-                    x1: data.angles[idx1],
+                    x1: currentData.angles[idx1],
                     y1: 1,
                     yref: 'paper',
                     line: {{ color: '#FF5252', width: 2, dash: 'dot' }}
@@ -356,12 +379,12 @@ def generate_dashboard(csv_path, masks_dir, output_dir, real_dir=None, output_fi
             }}
             
             // Line 2
-            if (compareMode && idx2 >= 0 && idx2 < data.angles.length) {{
+            if (compareMode && idx2 >= 0 && idx2 < currentData.angles.length) {{
                 shapes.push({{
                     type: 'line',
-                    x0: data.angles[idx2],
+                    x0: currentData.angles[idx2],
                     y0: 0,
-                    x1: data.angles[idx2],
+                    x1: currentData.angles[idx2],
                     y1: 1,
                     yref: 'paper',
                     line: {{ color: '#64B5F6', width: 2, dash: 'dot' }}
@@ -373,8 +396,8 @@ def generate_dashboard(csv_path, masks_dir, output_dir, real_dir=None, output_fi
 
         // Initialize Plotly
         const trace = {{
-            x: data.angles,
-            y: data.areas,
+            x: currentData.angles,
+            y: currentData.areas,
             type: 'scatter',
             mode: 'lines+markers',
             marker: {{ size: 4, color: '#81C784' }},
@@ -412,7 +435,6 @@ def generate_dashboard(csv_path, masks_dir, output_dir, real_dir=None, output_fi
         }});
         
         // Plotly Click (to set points)
-        // Click sets slider 1, Shift+Click sets slider 2
         chartDiv.on('plotly_click', (eventData) => {{
             if (eventData.points.length > 0) {{
                 const i = eventData.points[0].pointIndex;
@@ -426,6 +448,36 @@ def generate_dashboard(csv_path, masks_dir, output_dir, real_dir=None, output_fi
         }});
         
         // Buttons
+        btnToggleData.addEventListener('click', () => {{
+            viewProcessed = !viewProcessed;
+            currentData = viewProcessed ? data.processed : data.raw;
+            
+            if (viewProcessed) {{
+                btnToggleData.innerText = "📊 View Raw Data";
+                btnToggleData.classList.add('active');
+            }} else {{
+                btnToggleData.innerText = "📊 View Processed Data";
+                btnToggleData.classList.remove('active');
+            }}
+            
+            // Update chart data and force autorange
+            Plotly.update(chartDiv, {{
+                x: [currentData.angles],
+                y: [currentData.areas]
+            }}, {{
+                'yaxis.autorange': true
+            }});
+            
+            // Update slider max and indices if needed
+            const maxIdx = currentData.angles.length - 1;
+            slider1.max = maxIdx;
+            slider2.max = maxIdx;
+            if (idx1 > maxIdx) idx1 = 0;
+            if (idx2 > maxIdx) idx2 = 0;
+            
+            updateUI();
+        }});
+
         btnToggleImg.addEventListener('click', () => {{
             viewReal = !viewReal;
             if (viewReal) {{
@@ -455,6 +507,8 @@ def generate_dashboard(csv_path, masks_dir, output_dir, real_dir=None, output_fi
         }});
         
         // Initial load
+        slider1.max = currentData.angles.length - 1;
+        slider2.max = currentData.angles.length - 1;
         updateUI();
     </script>
 </body>

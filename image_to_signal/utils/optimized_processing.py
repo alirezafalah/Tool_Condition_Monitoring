@@ -368,14 +368,17 @@ def _analyze_roi_single(args):
         total_pixels = mask_np.size
         white_ratio = total_white_pixels / total_pixels
         
-        white_pixel_coords = np.where(mask_np == 255)
-        if white_pixel_coords[0].size == 0:
-            roi_area = 0
+        if roi_height <= 0:
+            roi_area = total_white_pixels
         else:
-            last_row = white_pixel_coords[0].max()
-            first_row = max(0, last_row - roi_height)
-            roi = mask_np[first_row:last_row, :]
-            roi_area = np.sum(roi) / 255
+            white_pixel_coords = np.where(mask_np == 255)
+            if white_pixel_coords[0].size == 0:
+                roi_area = 0
+            else:
+                last_row = white_pixel_coords[0].max()
+                first_row = max(0, last_row - roi_height)
+                roi = mask_np[first_row:last_row, :]
+                roi_area = np.sum(roi) / 255
         
         return True, {
             'Angle (Degrees)': angle,

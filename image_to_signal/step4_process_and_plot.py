@@ -186,9 +186,8 @@ def run(config):
     plt.close()
     
     # Open the saved plot with default system application (e.g., Edge)
-    import subprocess
     try:
-        subprocess.Popen(['cmd', '/c', 'start', '', plot_path], shell=False)
+        os.startfile(plot_path)
         print(f"Opening plot with default application...")
     except Exception as e:
         print(f"Could not open plot automatically: {e}")
