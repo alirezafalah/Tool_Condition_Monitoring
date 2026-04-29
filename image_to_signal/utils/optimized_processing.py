@@ -358,7 +358,12 @@ def generate_masks(image_files, input_dir, output_dir, config, method='gpu'):
 
 def _analyze_roi_single(args):
     """Analyze ROI for a single mask image."""
-    filename, input_dir, roi_height = args
+    if len(args) == 4:
+        filename, input_dir, roi_height, global_last_row = args
+    else:
+        filename, input_dir, roi_height = args
+        global_last_row = None
+
     try:
         angle = float(filename.split('_')[0])
         image_path = os.path.join(input_dir, filename)
@@ -371,14 +376,20 @@ def _analyze_roi_single(args):
         if roi_height <= 0:
             roi_area = total_white_pixels
         else:
-            white_pixel_coords = np.where(mask_np == 255)
-            if white_pixel_coords[0].size == 0:
-                roi_area = 0
-            else:
-                last_row = white_pixel_coords[0].max()
+            if global_last_row is not None:
+                last_row = global_last_row
                 first_row = max(0, last_row - roi_height)
                 roi = mask_np[first_row:last_row, :]
                 roi_area = np.sum(roi) / 255
+            else:
+                white_pixel_coords = np.where(mask_np == 255)
+                if white_pixel_coords[0].size == 0:
+                    roi_area = 0
+                else:
+                    last_row = white_pixel_coords[0].max()
+                    first_row = max(0, last_row - roi_height)
+                    roi = mask_np[first_row:last_row, :]
+                    roi_area = np.sum(roi) / 255
         
         return True, {
             'Angle (Degrees)': angle,
@@ -392,14 +403,31 @@ def _analyze_roi_single(args):
         return False, f"Error processing {filename}: {e}"
 
 
-def analyze_roi(image_files, input_dir, roi_height, method='gpu'):
+def analyze_roi(image_files, input_dir, roi_height, method='gpu', is_synthetic=False):
     """
     Analyze ROI for all mask images using the specified optimization method.
     
     Returns: (results_list, failed_list)
     """
     effective = get_effective_method(method)
-    tasks = [(f, input_dir, roi_height) for f in image_files]
+
+    global_last_row = None
+    if is_synthetic and roi_height > 0:
+        print("Calculating global bottom-most pixel for synthetic data...")
+        max_row = 0
+        for f in tqdm(image_files, desc="Finding Global Bottom"):
+            image_path = os.path.join(input_dir, f)
+            mask_np = np.array(Image.open(image_path))
+            white_coords = np.where(mask_np == 255)
+            if white_coords[0].size > 0:
+                max_row = max(max_row, white_coords[0].max())
+        global_last_row = max_row if max_row > 0 else None
+        if global_last_row is not None:
+            print(f"Global bottom-most pixel found at row: {global_last_row}")
+        else:
+            print("No white pixels found in any image.")
+
+    tasks = [(f, input_dir, roi_height, global_last_row) for f in image_files]
     
     results = []
     failed = []

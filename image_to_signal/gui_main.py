@@ -1369,6 +1369,7 @@ class ImageToSignalGUI(QMainWindow):
         config['BLURRED_DIR'] = masks_dir
         config['FINAL_MASKS_DIR'] = masks_dir
         config['ANALYSIS_OUTPUT_DIR'] = analysis_dir
+        config['IS_SYNTHETIC'] = True
         config['ROI_CSV_PATH'] = os.path.join(analysis_dir, f'{tool_id}_raw_data.csv')
         config['ROI_PLOT_PATH'] = os.path.join(analysis_dir, f'{tool_id}_raw_plot.svg')
         config['PROCESSED_CSV_PATH'] = os.path.join(analysis_dir, f'{tool_id}_processed_data.csv')

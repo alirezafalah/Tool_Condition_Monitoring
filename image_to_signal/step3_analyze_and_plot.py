@@ -36,7 +36,8 @@ def run(config):
         image_files=image_files,
         input_dir=input_dir,
         roi_height=config['roi_height'],
-        method=optimization_method
+        method=optimization_method,
+        is_synthetic=config.get('IS_SYNTHETIC', False)
     )
     
     duration = time.time() - start_time
