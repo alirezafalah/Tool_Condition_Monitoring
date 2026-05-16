@@ -321,12 +321,19 @@ class MainWindow(QMainWindow):
                     return int(item_text)
                 except (ValueError, TypeError):
                     return 0
+            
+            def safe_float(item_text):
+                try:
+                    return float(item_text)
+                except (ValueError, TypeError):
+                    return 0.0
+
             status_widget = self.table.cellWidget(row, 10)
             status_text = status_widget.currentText() if status_widget else ""
             data.append({
                 "tool_id": self.table.item(row, 0).text(), 
                 "type": self.table.item(row, 1).text(),
-                "diameter_mm": safe_int(self.table.item(row, 2).text()), 
+                "diameter_mm": safe_float(self.table.item(row, 2).text()), 
                 "edges": safe_int(self.table.item(row, 3).text()),
                 "condition": self.table.item(row, 4).text(), 
                 "material": self.table.item(row, 5).text(),
