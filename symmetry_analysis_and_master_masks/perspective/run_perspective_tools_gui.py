@@ -245,6 +245,15 @@ class MatrixPerspectiveGUI(tk.Tk):
         wrapper = tk.Frame(tab, bg=BG_MAIN)
         wrapper.pack(fill=tk.BOTH, expand=True)
 
+        desc = (
+            "Select tool mask folders to estimate perspective tilt, export corrected masks, "
+            "and generate publication-quality debug figures (master mask, angle calculation, centerline)."
+        )
+        tk.Label(
+            wrapper, text=desc, bg=BG_MAIN, fg=FG_DIM, font=("Consolas", 10, "italic"),
+            wraplength=1100, justify=tk.LEFT
+        ).pack(anchor="w", padx=10, pady=(0, 10))
+
         left = tk.Frame(wrapper, bg=BG_PANEL, highlightbackground=BORDER, highlightthickness=1, width=470)
         left.pack(side=tk.LEFT, fill=tk.BOTH, expand=False, padx=(0, 10))
         left.pack_propagate(False)
@@ -326,6 +335,15 @@ class MatrixPerspectiveGUI(tk.Tk):
 
         wrapper = tk.Frame(tab, bg=BG_PANEL, highlightbackground=BORDER, highlightthickness=1)
         wrapper.pack(fill=tk.BOTH, expand=True)
+
+        desc = (
+            "Load processed tools from masks_tilted and generate ROI visualization figures. "
+            "Includes dynamic ROI box (left=blue, right=red) and manual edge/centerline adjustment tools."
+        )
+        tk.Label(
+            wrapper, text=desc, bg=BG_PANEL, fg=FG_DIM, font=("Consolas", 10, "italic"),
+            wraplength=1100, justify=tk.LEFT
+        ).pack(anchor="w", padx=10, pady=(10, 0))
 
         # tool selection
         row1 = tk.Frame(wrapper, bg=BG_PANEL)
@@ -438,6 +456,15 @@ class MatrixPerspectiveGUI(tk.Tk):
 
         wrapper = tk.Frame(tab, bg=BG_PANEL, highlightbackground=BORDER, highlightthickness=1)
         wrapper.pack(fill=tk.BOTH, expand=True)
+
+        desc = (
+            "Find the optimal angular offset for symmetry analysis or compare fixed frame ranges directly. "
+            "Results are saved to the symmetry folder with detailed plots and metrics."
+        )
+        tk.Label(
+            wrapper, text=desc, bg=BG_PANEL, fg=FG_DIM, font=("Consolas", 10, "italic"),
+            wraplength=1100, justify=tk.LEFT
+        ).pack(anchor="w", padx=10, pady=(10, 0))
 
         row1 = tk.Frame(wrapper, bg=BG_PANEL)
         row1.pack(fill=tk.X, padx=10, pady=(10, 4))
@@ -1185,6 +1212,15 @@ class MatrixPerspectiveGUI(tk.Tk):
         wrapper = tk.Frame(tab, bg=BG_PANEL, highlightbackground=BORDER, highlightthickness=1)
         wrapper.pack(fill=tk.BOTH, expand=True)
 
+        desc = (
+            "Generate a summary bar chart of symmetry metrics (Mean Absolute Difference) across multiple tools. "
+            "Configure thresholds and include/exclude tools to build publication-quality comparison figures."
+        )
+        tk.Label(
+            wrapper, text=desc, bg=BG_PANEL, fg=FG_DIM, font=("Consolas", 10, "italic"),
+            wraplength=1100, justify=tk.LEFT
+        ).pack(anchor="w", padx=10, pady=(10, 0))
+
         # ── Row 1: Symmetry folder ──
         row1 = tk.Frame(wrapper, bg=BG_PANEL)
         row1.pack(fill=tk.X, padx=10, pady=(10, 4))
@@ -1585,6 +1621,15 @@ class MatrixPerspectiveGUI(tk.Tk):
 
         wrapper = tk.Frame(tab, bg=BG_PANEL, highlightbackground=BORDER, highlightthickness=1)
         wrapper.pack(fill=tk.BOTH, expand=True)
+
+        desc = (
+            "Create custom summary graphs with user-defined labels and colors. "
+            "Use the drag-and-drop interface to assign tools from the symmetry results to specific categories."
+        )
+        tk.Label(
+            wrapper, text=desc, bg=BG_PANEL, fg=FG_DIM, font=("Consolas", 10, "italic"),
+            wraplength=1100, justify=tk.LEFT
+        ).pack(anchor="w", padx=10, pady=(10, 0))
 
         # ── Row 1: Symmetry folder & Metadata CSV ──
         row1 = tk.Frame(wrapper, bg=BG_PANEL)

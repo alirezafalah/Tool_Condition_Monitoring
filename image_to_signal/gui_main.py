@@ -29,6 +29,133 @@ from .utils.filters import (create_multichannel_mask, fill_holes, morph_closing,
                             keep_largest_contour, background_subtraction_absdiff,
                             background_subtraction_lab)
 
+import glob
+import re
+import pandas as pd
+import matplotlib
+matplotlib.use('Qt5Agg')
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+
+
+def extract_frame_num(filepath):
+    """Extract frame number or angle from filename."""
+    basename = os.path.basename(filepath)
+    name = os.path.splitext(basename)[0]
+    # First try beginning of file
+    match = re.match(r"^(\d+\.?\d*)", name)
+    if match:
+        return float(match.group(1))
+    # Then try finding numbers separated by underscores
+    parts = name.split("_")
+    for part in reversed(parts):
+        try:
+            return float(part)
+        except ValueError:
+            continue
+    return 0.0
+
+
+class AnalysisWorker(QThread):
+    progress = pyqtSignal(str)
+    finished = pyqtSignal(object, object, int) # df, master_mask, centerline
+    error = pyqtSignal(str)
+
+    def __init__(self, masks_dir, roi_height, full_picture):
+        super().__init__()
+        self.masks_dir = masks_dir
+        self.roi_height = roi_height
+        self.full_picture = full_picture
+
+    def run(self):
+        try:
+            # 1. Find all images
+            self.progress.emit(f"Scanning directory: {self.masks_dir}")
+            image_files = []
+            for ext in ('*.png', '*.tiff', '*.tif', '*.jpg', '*.jpeg'):
+                image_files.extend(glob.glob(os.path.join(self.masks_dir, ext)))
+            
+            if not image_files:
+                self.error.emit("No images found in the selected directory.")
+                return
+
+            image_files.sort(key=extract_frame_num)
+            self.progress.emit(f"Found {len(image_files)} images. Building master mask...")
+
+            # 2. Build Master Mask
+            first_img = np.array(Image.open(image_files[0]))
+            master_mask = np.zeros(first_img.shape[:2], dtype=np.uint8)
+
+            for i, fpath in enumerate(image_files):
+                if i % 10 == 0:
+                    self.progress.emit(f"Building master mask: {i}/{len(image_files)}")
+                img = np.array(Image.open(fpath))
+                if img.ndim == 3:
+                    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+                _, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
+                master_mask = cv2.bitwise_or(master_mask, binary)
+
+            self.progress.emit("Master mask built. Finding centerline...")
+
+            # 3. Find Centerline
+            white_coords = np.where(master_mask == 255)
+            if white_coords[1].size == 0:
+                self.error.emit("Master mask is completely black. Cannot find centerline.")
+                return
+            
+            min_x = white_coords[1].min()
+            max_x = white_coords[1].max()
+            centerline = int((min_x + max_x) / 2)
+            self.progress.emit(f"Centerline found at X={centerline} (Tool width: {min_x} to {max_x})")
+
+            # 4. Analyze each frame
+            results = []
+            for i, fpath in enumerate(image_files):
+                if i % 10 == 0:
+                    self.progress.emit(f"Analyzing right half: frame {i}/{len(image_files)}")
+                
+                angle = extract_frame_num(fpath)
+                img = np.array(Image.open(fpath))
+                if img.ndim == 3:
+                    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+                _, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
+                
+                # Keep only right half
+                right_half = binary[:, centerline:]
+                
+                white_pixels = np.where(right_half == 255)
+                
+                if self.full_picture or self.roi_height <= 0:
+                    area = white_pixels[0].size
+                else:
+                    if white_pixels[0].size == 0:
+                        area = 0
+                    else:
+                        last_row = white_pixels[0].max()
+                        first_row = max(0, last_row - self.roi_height)
+                        roi = right_half[first_row:last_row, :]
+                        area = np.sum(roi == 255)
+                
+                results.append({
+                    'Angle': angle,
+                    'Area': area,
+                    'Filename': os.path.basename(fpath)
+                })
+
+            df = pd.DataFrame(results)
+            
+            # Save CSV
+            out_dir = os.path.join(self.masks_dir, "half_tool_analysis")
+            os.makedirs(out_dir, exist_ok=True)
+            csv_path = os.path.join(out_dir, "right_half_analysis.csv")
+            df.to_csv(csv_path, index=False)
+            self.progress.emit(f"Analysis saved to {csv_path}")
+
+            self.finished.emit(df, master_mask, centerline)
+
+        except Exception as e:
+            self.error.emit(f"Error during analysis: {str(e)}")
+
 
 class ProcessingThread(QThread):
     """Thread for running processing steps without blocking UI."""
@@ -262,6 +389,7 @@ class ImageToSignalGUI(QMainWindow):
         tabs.addTab(self._create_analysis_params_tab(), "📊 Analysis Parameters")
         tabs.addTab(self._create_pipeline_tab(), "▶️ Run Pipeline")
         tabs.addTab(self._create_360_utils_tab(), "🔄 360° Utilities")
+        tabs.addTab(self._create_half_tool_tab(), "🌗 Half-Tool Analysis")
         tabs.addTab(self._create_synthetic_masks_tab(), "🎭 Synthetic Dashboard")
         tabs.addTab(self._create_compare_tools_tab(), "⚖️ Compare Tools")
         main_layout.addWidget(tabs, stretch=1)
@@ -659,6 +787,213 @@ class ImageToSignalGUI(QMainWindow):
         layout.addLayout(open_layout)
         
         return widget
+
+    def _create_half_tool_tab(self):
+        """Create Matrix-themed Half-Tool Analysis tab."""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        
+        # Matrix Style Label for the Tab Header
+        header_desc = QLabel(
+            "🌗 HALF-TOOL SYMMETRY ANALYSIS\n"
+            "Builds a master mask, finds the tool centerline, and analyzes the white pixel area "
+            "of the right half for every frame. Perfect for detecting asymmetry and fractures."
+        )
+        header_desc.setStyleSheet("color: #4CAF50; font-family: 'Consolas'; font-style: italic; margin-bottom: 10px;")
+        header_desc.setWordWrap(True)
+        layout.addWidget(header_desc)
+
+        # 1. Inputs
+        input_group = QGroupBox("⚙️ Analysis Parameters")
+        input_layout = QVBoxLayout()
+        
+        dir_layout = QHBoxLayout()
+        dir_layout.addWidget(QLabel("Masks Folder:"))
+        self.ht_dir_input = QLineEdit()
+        self.ht_dir_input.setPlaceholderText("Select folder containing tool masks...")
+        # Auto-fill if tool_id is set
+        primary_tool = self._get_primary_tool_id()
+        if primary_tool:
+            masks_path = os.path.join(self.DATA_ROOT, 'masks', f'{primary_tool}_final_masks')
+            if os.path.isdir(masks_path):
+                self.ht_dir_input.setText(masks_path)
+        
+        dir_layout.addWidget(self.ht_dir_input)
+        browse_btn = QPushButton("Browse...")
+        browse_btn.clicked.connect(self._ht_browse_dir)
+        dir_layout.addWidget(browse_btn)
+        input_layout.addLayout(dir_layout)
+
+        roi_layout = QHBoxLayout()
+        roi_layout.addWidget(QLabel("ROI Height (px):"))
+        self.ht_roi_input = QSpinBox()
+        self.ht_roi_input.setRange(1, 4000)
+        self.ht_roi_input.setValue(200)
+        roi_layout.addWidget(self.ht_roi_input)
+        
+        self.ht_full_pic_checkbox = QCheckBox("Analyze Full Tool Height")
+        self.ht_full_pic_checkbox.toggled.connect(lambda checked: self.ht_roi_input.setEnabled(not checked))
+        roi_layout.addWidget(self.ht_full_pic_checkbox)
+        roi_layout.addStretch()
+        input_layout.addLayout(roi_layout)
+
+        input_group.setLayout(input_layout)
+        layout.addWidget(input_group)
+
+        # 2. Run Button
+        self.ht_run_btn = QPushButton("🚀 START MATRIX ANALYSIS")
+        self.ht_run_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0d6f2b; 
+                color: #65ff7a; 
+                font-weight: bold; 
+                font-size: 14px; 
+                padding: 12px;
+                border: 1px solid #1c8c33;
+                border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #1c8c33; }
+            QPushButton:disabled { background-color: #111; color: #333; }
+        """)
+        self.ht_run_btn.clicked.connect(self._ht_run_analysis)
+        layout.addWidget(self.ht_run_btn)
+
+        # 3. Log Output (Matrix style)
+        self.ht_log_output = QTextEdit()
+        self.ht_log_output.setReadOnly(True)
+        self.ht_log_output.setMaximumHeight(80)
+        self.ht_log_output.setStyleSheet("background: #010601; color: #2abf49; font-family: 'Consolas'; border: 1px solid #1c8c33;")
+        layout.addWidget(self.ht_log_output)
+
+        # 4. Plots
+        plot_wrapper = QFrame()
+        plot_wrapper.setStyleSheet("background: #031103; border: 1px solid #1c8c33; border-radius: 4px;")
+        plot_layout = QHBoxLayout(plot_wrapper)
+        
+        # Line Graph
+        self.ht_fig_graph = Figure(facecolor='#031103')
+        self.ht_canvas_graph = FigureCanvas(self.ht_fig_graph)
+        self.ht_ax_graph = self.ht_fig_graph.add_subplot(111)
+        self.ht_ax_graph.set_facecolor('#020802')
+        plot_layout.addWidget(self.ht_canvas_graph, stretch=2)
+
+        # Master Mask Preview
+        self.ht_fig_mask = Figure(facecolor='#031103')
+        self.ht_canvas_mask = FigureCanvas(self.ht_fig_mask)
+        self.ht_ax_mask = self.ht_fig_mask.add_subplot(111)
+        self.ht_ax_mask.set_facecolor('#020802')
+        plot_layout.addWidget(self.ht_canvas_mask, stretch=1)
+
+        layout.addWidget(plot_wrapper, stretch=1)
+        
+        return widget
+
+    def _ht_browse_dir(self):
+        d = QFileDialog.getExistingDirectory(self, "Select Masks Directory")
+        if d:
+            self.ht_dir_input.setText(d)
+
+    def _ht_log(self, text):
+        self.ht_log_output.append(f"> {text}")
+        self.ht_log_output.verticalScrollBar().setValue(self.ht_log_output.verticalScrollBar().maximum())
+
+    def _ht_run_analysis(self):
+        masks_dir = self.ht_dir_input.text().strip()
+        if not masks_dir or not os.path.isdir(masks_dir):
+            QMessageBox.warning(self, "Error", "Please select a valid masks directory.")
+            return
+
+        self.ht_run_btn.setEnabled(False)
+        self._ht_log("Initializing Matrix Analysis Worker...")
+        
+        roi = self.ht_roi_input.value()
+        full_pic = self.ht_full_pic_checkbox.isChecked()
+
+        self.ht_worker = AnalysisWorker(masks_dir, roi, full_pic)
+        self.ht_worker.progress.connect(self._ht_log)
+        self.ht_worker.error.connect(self._ht_handle_error)
+        self.ht_worker.finished.connect(self._ht_handle_finished)
+        self.ht_worker.start()
+
+    def _ht_handle_error(self, err):
+        self._ht_log(f"ERROR: {err}")
+        QMessageBox.critical(self, "Error", err)
+        self.ht_run_btn.setEnabled(True)
+
+    def _ht_handle_finished(self, df, master_mask, centerline):
+        self._ht_log("Analysis Complete! Rendering visualization...")
+        
+        # Update Graph
+        self.ht_ax_graph.clear()
+        self.ht_ax_graph.plot(df['Angle'], df['Area'], color='#65ff7a', linewidth=2)
+        self.ht_ax_graph.set_title("Right-Side ROI Area vs Angle", color='#65ff7a')
+        self.ht_ax_graph.set_xlabel("Angle / Frame", color='#2abf49')
+        self.ht_ax_graph.set_ylabel("White Pixel Count", color='#2abf49')
+        self.ht_ax_graph.tick_params(colors='#2abf49')
+        self.ht_ax_graph.grid(True, color='#1c8c33', alpha=0.3)
+        for spine in self.ht_ax_graph.spines.values():
+            spine.set_color('#1c8c33')
+        self.ht_canvas_graph.draw()
+
+        # Update Master Mask
+        self.ht_ax_mask.clear()
+        self.ht_ax_mask.imshow(master_mask, cmap='gray')
+        self.ht_ax_mask.axvline(x=centerline, color='#f44336', linestyle='--', label='Centerline')
+        self.ht_ax_mask.axvspan(centerline, master_mask.shape[1], color='#f44336', alpha=0.2, label='Analyzed')
+        self.ht_ax_mask.set_title("Master Mask Split", color='#65ff7a')
+        self.ht_ax_mask.axis('off')
+        self.ht_canvas_mask.draw()
+
+        # Save Plots
+        try:
+            masks_dir = self.ht_dir_input.text().strip()
+            out_dir = os.path.join(masks_dir, "half_tool_analysis")
+            os.makedirs(out_dir, exist_ok=True)
+            
+            tool_id = os.path.basename(os.path.normpath(masks_dir)).replace('_final_masks', '')
+            
+            # 1. Individual High-DPI Plots
+            graph_png = os.path.join(out_dir, f"{tool_id}_right_half_signal.png")
+            graph_pdf = os.path.join(out_dir, f"{tool_id}_right_half_signal.pdf")
+            self.ht_fig_graph.savefig(graph_png, dpi=300, bbox_inches='tight', facecolor='#031103')
+            self.ht_fig_graph.savefig(graph_pdf, bbox_inches='tight', facecolor='#031103')
+            
+            mask_png = os.path.join(out_dir, f"{tool_id}_master_mask_centerline.png")
+            self.ht_fig_mask.savefig(mask_png, dpi=300, bbox_inches='tight', facecolor='#031103')
+            
+            # 2. Combined High-DPI Plot
+            combined_fig = Figure(figsize=(15, 6), facecolor='#031103')
+            ax1 = combined_fig.add_subplot(121)
+            ax2 = combined_fig.add_subplot(122)
+            
+            # Copy graph
+            ax1.plot(df['Angle'], df['Area'], color='#65ff7a', linewidth=2)
+            ax1.set_title("Right-Side ROI Area vs Angle", color='#65ff7a')
+            ax1.set_xlabel("Angle / Frame", color='#2abf49')
+            ax1.set_ylabel("White Pixel Count", color='#2abf49')
+            ax1.tick_params(colors='#2abf49')
+            ax1.grid(True, color='#1c8c33', alpha=0.3)
+            ax1.set_facecolor('#020802')
+            for spine in ax1.spines.values(): spine.set_color('#1c8c33')
+            
+            # Copy mask
+            ax2.imshow(master_mask, cmap='gray')
+            ax2.axvline(x=centerline, color='#f44336', linestyle='--', linewidth=2)
+            ax2.axvspan(centerline, master_mask.shape[1], color='#f44336', alpha=0.2)
+            ax2.set_title("Master Mask & Centerline", color='#65ff7a')
+            ax2.axis('off')
+            
+            combined_png = os.path.join(out_dir, f"{tool_id}_combined_analysis.png")
+            combined_pdf = os.path.join(out_dir, f"{tool_id}_combined_analysis.pdf")
+            combined_fig.savefig(combined_png, dpi=300, bbox_inches='tight', facecolor='#031103')
+            combined_fig.savefig(combined_pdf, bbox_inches='tight', facecolor='#031103')
+            
+            self._ht_log(f"All artifacts (Individual + Combined) saved to:")
+            self._ht_log(f"-> {out_dir}")
+        except Exception as e:
+            self._ht_log(f"Error during artifact export: {str(e)}")
+
+        self.ht_run_btn.setEnabled(True)
 
     def _create_360_utils_tab(self):
         """Create dedicated tab for 360° detection and renaming."""

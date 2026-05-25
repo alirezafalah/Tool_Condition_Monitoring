@@ -51,6 +51,39 @@ Select tool mask folders from `DATA/masks/`, estimate perspective tilt, export c
 5. Click **Run Optimal Offset Analysis**.
 6. Outputs are written to each tool's `information/` directory.
 
+## How to Run the Automated Workflow
+
+1. **Generate Master Mask & ROI Sample (The "One-Click" Start)**
+   * **Where**: Matrix Perspective GUI (`run_perspective_tools_gui.py`) -> **Tab 1: Tilt Processing**.
+   * **Action**: Select your tool folders and click **"Run Tilt Processing"**.
+   * **Result**:
+       * Estimates tilt and straightens the masks.
+       * **Automatically saves** the following to `symmetry/{tool_id}/`:
+           * `{tool_id}_master_mask.png`: The combined master mask.
+           * `{tool_id}_roi_visualization.png`: A sample frame with the ROI box (blue/red) at a random angle.
+
+2. **Generate Right-Side Signal Graph**
+   * **Where**: `half_tool_analysis_gui.py`.
+   * **Action**: Select the folder containing your masks and click **"Run Analysis"**.
+   * **Result**:
+       * Calculates the area of the right side for every frame.
+       * **Automatically saves** the following to `{masks_dir}/half_tool_analysis/`:
+           * `right_half_analysis_graph.png` (High-res 300 DPI).
+           * `right_half_analysis_graph.pdf` (Vector).
+           * `master_mask_centerline.png`: Shows exactly where the split occurred.
+
+3. **Analyze Symmetry (Phase Shift)**
+   * **Where**: Matrix Perspective GUI (`run_perspective_tools_gui.py`) -> **Tab 3: Optimal Offset**.
+   * **Action**: Click **"Run Optimal Offset Analysis"**.
+   * **Result**:
+       * Finds the best angular match for symmetry.
+       * **Automatically saves** high-quality comparison graphs and absolute difference plots to the symmetry folder.
+
+**Key GUI Features Added:**
+* **Italicized Descriptions**: Each tab in the Matrix GUI now has a header explaining exactly what it does.
+* **High-DPI Export**: All generated graphs now default to 300 DPI PNG and PDF formats for publication.
+* **Unified Symmetry Folder**: All vital visual evidence (Master Mask, ROI, and Symmetry results) is now automatically centralized in the `symmetry/` directory.
+
 ## Output Structure
 
 For each tool, outputs are saved to:

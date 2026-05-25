@@ -263,6 +263,24 @@ class HalfToolAnalysisGUI(QMainWindow):
         self.ax_mask.legend(loc="upper right")
         self.canvas_mask.draw()
 
+        # Save Plots
+        try:
+            masks_dir = self.dir_input.text().strip()
+            out_dir = os.path.join(masks_dir, "half_tool_analysis")
+            
+            graph_png = os.path.join(out_dir, "right_half_analysis_graph.png")
+            graph_pdf = os.path.join(out_dir, "right_half_analysis_graph.pdf")
+            
+            self.fig_graph.savefig(graph_png, dpi=300, bbox_inches='tight')
+            self.fig_graph.savefig(graph_pdf, bbox_inches='tight')
+            
+            mask_png = os.path.join(out_dir, "master_mask_centerline.png")
+            self.fig_mask.savefig(mask_png, dpi=300, bbox_inches='tight')
+            
+            self.log(f"Plots saved to {out_dir}")
+        except Exception as e:
+            self.log(f"Error saving plots: {str(e)}")
+
         self.run_btn.setEnabled(True)
 
 if __name__ == '__main__':

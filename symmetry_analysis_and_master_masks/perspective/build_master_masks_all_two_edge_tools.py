@@ -47,22 +47,22 @@ def read_tools_metadata(path):
     return metadata
 
 
-def find_tiff_files(mask_folder):
-    files = glob.glob(os.path.join(mask_folder, "*.tiff"))
-    files.extend(glob.glob(os.path.join(mask_folder, "*.tif")))
+def find_mask_files(mask_folder):
+    files = []
+    for ext in ("*.tiff", "*.tif", "*.png", "*.jpg", "*.jpeg"):
+        files.extend(glob.glob(os.path.join(mask_folder, ext)))
+    
     if not files:
         return []
 
     def extract_frame_num(filepath):
         basename = os.path.basename(filepath)
-        name = basename.replace(".tiff", "").replace(".tif", "")
+        name = os.path.splitext(basename)[0]
         match = re.match(r"^(\d+\.?\d*)", name)
         if match:
             return float(match.group(1))
         parts = name.split("_")
         for part in reversed(parts):
-            if part.isdigit():
-                return float(part)
             try:
                 return float(part)
             except ValueError:
@@ -310,7 +310,7 @@ def render_roi_figure(
         MplRect((0, 0), 1, 1, edgecolor="lime", facecolor="none", linewidth=2, label="ROI Box"),
     ]
     ax.legend(handles=legend_handles, loc="upper right", frameon=True, fontsize=11)
-    ax.set_title(title_text, fontsize=18)
+    # ax.set_title(title_text, fontsize=18)
     ax.set_axis_off()
     fig.tight_layout(pad=0.15)
     fig.savefig(out_path, dpi=FIG_DPI, bbox_inches="tight", pad_inches=0.02)
@@ -377,9 +377,9 @@ def process_selected_folder(
     folder_name = os.path.basename(mask_folder.rstrip("/\\"))
     tool_id = normalize_tool_id(folder_name)
 
-    mask_files = find_tiff_files(mask_folder)
+    mask_files = find_mask_files(mask_folder)
     if not mask_files:
-        return {"tool_id": tool_id, "mask_folder": mask_folder, "status": "no_tiff_files"}
+        return {"tool_id": tool_id, "mask_folder": mask_folder, "status": "no_mask_files"}
 
     master_mask, skipped_white = build_master_mask(mask_files)
     if master_mask is None:
@@ -473,6 +473,31 @@ def process_selected_folder(
     metadata_path = os.path.join(out_info_dir, f"{tool_id}_tilt_metadata.json")
     with open(metadata_path, "w", encoding="utf-8") as file:
         json.dump(per_tool_metadata, file, indent=2)
+
+    # ── NEW: Export to symmetry folder for easy access ──
+    try:
+        # Construct path to base symmetry folder (assuming standard structure)
+        # We need base_data_dir, which isn't passed here. 
+        # But we can infer it from masks_tilted_root (DATA/masks_tilted)
+        base_data_dir = os.path.dirname(masks_tilted_root.rstrip("/\\"))
+        sym_root = os.path.join(base_data_dir, "symmetry")
+        if os.path.isdir(sym_root):
+            sym_tool_dir = os.path.join(sym_root, tool_id)
+            os.makedirs(sym_tool_dir, exist_ok=True)
+            
+            # Copy Master Mask
+            sym_master_path = os.path.join(sym_tool_dir, f"{tool_id}_master_mask.png")
+            cv2.imwrite(sym_master_path, master_mask)
+            
+            # Copy ROI visualization if it was generated
+            if rotated_center is not None:
+                roi_src = os.path.join(out_info_dir, f"{tool_id}_roi_visualization.png")
+                if os.path.exists(roi_src):
+                    import shutil
+                    sym_roi_path = os.path.join(sym_tool_dir, f"{tool_id}_roi_visualization.png")
+                    shutil.copy2(roi_src, sym_roi_path)
+    except Exception:
+        pass # Silent fail to ensure main process finishes
 
     return {
         "tool_id": tool_id,
