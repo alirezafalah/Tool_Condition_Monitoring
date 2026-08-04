@@ -38,6 +38,108 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 
+WIDTH_PERCENTILE_FOR_FIT = 50.0
+MIN_ROWS_FOR_FIT = 20
+
+def get_boundaries(binary_mask):
+    h, _ = binary_mask.shape
+    ys, left_x, right_x = [], [], []
+    for y in range(h):
+        white = np.where(binary_mask[y, :] == 255)[0]
+        if white.size > 0:
+            ys.append(y)
+            left_x.append(white[0])
+            right_x.append(white[-1])
+    if len(ys) < 2:
+        return None, None, None
+    return (
+        np.array(ys, dtype=np.float64),
+        np.array(left_x, dtype=np.float64),
+        np.array(right_x, dtype=np.float64),
+    )
+
+def select_widest_rows(ys, left_x, right_x):
+    widths = right_x - left_x
+    threshold = np.percentile(widths, WIDTH_PERCENTILE_FOR_FIT)
+    keep = widths >= threshold
+    if np.sum(keep) < MIN_ROWS_FOR_FIT:
+        top_idx = np.argsort(widths)[-MIN_ROWS_FOR_FIT:]
+        keep = np.zeros_like(widths, dtype=bool)
+        keep[top_idx] = True
+    return ys[keep], left_x[keep], right_x[keep]
+
+def fit_lines(ys, left_x, right_x):
+    m_left, b_left = np.polyfit(ys, left_x, 1)
+    m_right, b_right = np.polyfit(ys, right_x, 1)
+    m_center = (m_left + m_right) / 2.0
+    b_center = (b_left + b_right) / 2.0
+    return (m_left, b_left), (m_right, b_right), (m_center, b_center)
+
+def compute_tilt_deg(m_center):
+    return float(np.degrees(np.arctan(m_center)))
+
+def render_tilt_angle_figure(binary_mask, ys, line_left, line_right, line_center, tilt_deg, out_path):
+    h, w = binary_mask.shape
+    y_plot = np.array([ys.min(), ys.max()])
+    m_l, b_l = line_left
+    m_r, b_r = line_right
+    m_c, b_c = line_center
+    x_left = m_l * y_plot + b_l
+    x_right = m_r * y_plot + b_r
+    x_center = m_c * y_plot + b_c
+    vertical_x = w / 2.0
+
+    fig = Figure(figsize=(8, 10), dpi=300, facecolor='#031103')
+    ax = fig.add_subplot(111)
+    ax.set_facecolor('#020802')
+    ax.imshow(binary_mask, cmap="gray", origin="upper")
+    ax.plot(x_left, y_plot, color="red", linewidth=2.5, label="Outer Boundaries (Left/Right)")
+    ax.plot(x_right, y_plot, color="red", linewidth=2.5)
+    ax.plot(x_center, y_plot, color="green", linewidth=2.8, label="Center Bisector")
+    ax.plot([vertical_x, vertical_x], [y_plot.min(), y_plot.max()],
+            color="blue", linewidth=2.8, linestyle="--", label="True Vertical Reference")
+    
+    # Styling text for Matrix theme
+    ax.text(0.03, 0.97, f"Tilt angle: {tilt_deg:.3f}°",
+            transform=ax.transAxes, va="top", ha="left", fontsize=16, color="#65ff7a",
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="#031103", edgecolor="#1c8c33", alpha=0.9))
+    
+    legend = ax.legend(loc="lower right", frameon=True, fontsize=12)
+    legend.get_frame().set_facecolor('#031103')
+    legend.get_frame().set_edgecolor('#1c8c33')
+    for text in legend.get_texts(): text.set_color('#2abf49')
+    
+    ax.set_title("Tilt Angle Calculation from Master Mask", fontsize=18, color="#65ff7a")
+    ax.set_axis_off()
+    fig.tight_layout(pad=0.15)
+    fig.savefig(out_path, dpi=300, bbox_inches="tight", pad_inches=0.02, facecolor='#031103')
+
+
+def render_centerline_figure(rotated_mask, ys, line_left, line_right, out_path):
+    y_plot = np.array([ys.min(), ys.max()])
+    m_l, b_l = line_left
+    m_r, b_r = line_right
+    x_left = m_l * y_plot + b_l
+    x_right = m_r * y_plot + b_r
+    center_x = (x_left + x_right) / 2.0
+
+    fig = Figure(figsize=(8, 10), dpi=300, facecolor='#031103')
+    ax = fig.add_subplot(111)
+    ax.set_facecolor('#020802')
+    ax.imshow(rotated_mask, cmap="gray", origin="upper")
+    ax.plot(x_left, y_plot, color="red", linewidth=2.5, label="Outer Boundaries")
+    ax.plot(x_right, y_plot, color="red", linewidth=2.5)
+    ax.plot(center_x, y_plot, color="magenta", linewidth=3.2, linestyle="--", label="Geometric Centerline")
+    legend = ax.legend(loc="lower right", frameon=True, fontsize=12)
+    legend.get_frame().set_facecolor('#031103')
+    legend.get_frame().set_edgecolor('#1c8c33')
+    for text in legend.get_texts(): text.set_color('#2abf49')
+    ax.set_title("Individual Tilted Mask Centerline", fontsize=18, color="#65ff7a")
+    ax.set_axis_off()
+    fig.tight_layout(pad=0.15)
+    fig.savefig(out_path, dpi=300, bbox_inches="tight", pad_inches=0.02, facecolor='#031103')
+
+
 def extract_frame_num(filepath):
     """Extract frame number or angle from filename."""
     basename = os.path.basename(filepath)
@@ -155,6 +257,110 @@ class AnalysisWorker(QThread):
 
         except Exception as e:
             self.error.emit(f"Error during analysis: {str(e)}")
+
+
+class TiltWorker(QThread):
+    progress = pyqtSignal(str)
+    finished = pyqtSignal(str, float) # image path, angle
+    error = pyqtSignal(str)
+
+    def __init__(self, masks_dir, generate_debug=False):
+        super().__init__()
+        self.masks_dir = masks_dir
+        self.generate_debug = generate_debug
+
+    def run(self):
+        try:
+            self.progress.emit(f"Scanning directory for tilt analysis: {self.masks_dir}")
+            image_files = []
+            for ext in ('*.png', '*.tiff', '*.tif', '*.jpg', '*.jpeg'):
+                image_files.extend(glob.glob(os.path.join(self.masks_dir, ext)))
+            
+            if not image_files:
+                self.error.emit("No images found in the selected directory.")
+                return
+
+            image_files.sort(key=extract_frame_num)
+            self.progress.emit(f"Found {len(image_files)} images. Building master mask...")
+
+            first_img = np.array(Image.open(image_files[0]))
+            master_mask = np.zeros(first_img.shape[:2], dtype=np.uint8)
+
+            for i, fpath in enumerate(image_files):
+                if i % 10 == 0:
+                    self.progress.emit(f"Building master mask: {i}/{len(image_files)}")
+                img = np.array(Image.open(fpath))
+                if img.ndim == 3:
+                    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+                _, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
+                if np.all(binary == 255):
+                    continue
+                master_mask = cv2.bitwise_or(master_mask, binary)
+
+            self.progress.emit("Master mask built. Calculating tilt angle...")
+            
+            ys, left_x, right_x = get_boundaries(master_mask)
+            if ys is None:
+                self.error.emit("Empty master mask. Cannot find boundaries.")
+                return
+
+            ys_fit, left_fit, right_fit = select_widest_rows(ys, left_x, right_x)
+            line_left, line_right, line_center = fit_lines(ys_fit, left_fit, right_fit)
+            tilt_deg = compute_tilt_deg(line_center[0])
+
+            self.progress.emit(f"Calculated tilt angle: {tilt_deg:.3f}°")
+
+            out_dir = os.path.join(self.masks_dir, "half_tool_analysis")
+            tilted_dir = os.path.join(out_dir, "tilted_masks")
+            os.makedirs(out_dir, exist_ok=True)
+            os.makedirs(tilted_dir, exist_ok=True)
+            
+            if self.generate_debug:
+                debug_dir = os.path.join(out_dir, "debug")
+                os.makedirs(debug_dir, exist_ok=True)
+            
+            fig_path = os.path.join(out_dir, "tilt_angle_calculation.png")
+            render_tilt_angle_figure(master_mask, ys, line_left, line_right, line_center, tilt_deg, fig_path)
+            
+            angle_path = os.path.join(out_dir, "tilt_angle.txt")
+            with open(angle_path, "w") as f:
+                f.write(f"Tilt angle (degrees): {tilt_deg}\n")
+
+            self.progress.emit("Rotating individual frames and saving...")
+            rotation_angle = -tilt_deg
+            height, width = master_mask.shape
+            center = (width // 2, height // 2)
+            rot_matrix = cv2.getRotationMatrix2D(center, rotation_angle, 1.0)
+            
+            for i, fpath in enumerate(image_files):
+                if i % 10 == 0:
+                    self.progress.emit(f"Processing and saving tilted frames: {i}/{len(image_files)}")
+                img = np.array(Image.open(fpath))
+                if img.ndim == 3:
+                    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+                _, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
+                
+                rotated_mask = cv2.warpAffine(binary, rot_matrix, (width, height), flags=cv2.INTER_NEAREST)
+                base_name = os.path.basename(fpath)
+                out_path = os.path.join(tilted_dir, base_name)
+                cv2.imwrite(out_path, rotated_mask)
+                
+                if self.generate_debug:
+                    ys_ind, left_ind, right_ind = get_boundaries(rotated_mask)
+                    if ys_ind is not None:
+                        ys_fit_ind, left_fit_ind, right_fit_ind = select_widest_rows(ys_ind, left_ind, right_ind)
+                        if len(ys_fit_ind) > 0:
+                            line_left_ind, line_right_ind, _ = fit_lines(ys_fit_ind, left_fit_ind, right_fit_ind)
+                            debug_out_path = os.path.join(debug_dir, base_name)
+                            render_centerline_figure(rotated_mask, ys_ind, line_left_ind, line_right_ind, debug_out_path)
+
+            self.progress.emit(f"Tilt figure saved to {fig_path}")
+            self.finished.emit(fig_path, tilt_deg)
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.error.emit(f"Error during tilt analysis: {str(e)}")
 
 
 class ProcessingThread(QThread):
@@ -837,10 +1043,35 @@ class ImageToSignalGUI(QMainWindow):
         roi_layout.addStretch()
         input_layout.addLayout(roi_layout)
 
+        debug_layout = QHBoxLayout()
+        self.ht_debug_checkbox = QCheckBox("Save Individual Centerline Debug Figures (Slower)")
+        debug_layout.addWidget(self.ht_debug_checkbox)
+        debug_layout.addStretch()
+        input_layout.addLayout(debug_layout)
+
         input_group.setLayout(input_layout)
         layout.addWidget(input_group)
 
-        # 2. Run Button
+        # 2. Run Buttons
+        button_layout = QHBoxLayout()
+        
+        self.ht_tilt_btn = QPushButton("📐 FIND TILT ANGLE")
+        self.ht_tilt_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0d4f6f; 
+                color: #65d5ff; 
+                font-weight: bold; 
+                font-size: 14px; 
+                padding: 12px;
+                border: 1px solid #1c5c8c;
+                border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #1c5c8c; }
+            QPushButton:disabled { background-color: #111; color: #333; }
+        """)
+        self.ht_tilt_btn.clicked.connect(self._ht_run_tilt_analysis)
+        button_layout.addWidget(self.ht_tilt_btn)
+
         self.ht_run_btn = QPushButton("🚀 START MATRIX ANALYSIS")
         self.ht_run_btn.setStyleSheet("""
             QPushButton {
@@ -856,7 +1087,9 @@ class ImageToSignalGUI(QMainWindow):
             QPushButton:disabled { background-color: #111; color: #333; }
         """)
         self.ht_run_btn.clicked.connect(self._ht_run_analysis)
-        layout.addWidget(self.ht_run_btn)
+        button_layout.addWidget(self.ht_run_btn)
+
+        layout.addLayout(button_layout)
 
         # 3. Log Output (Matrix style)
         self.ht_log_output = QTextEdit()
@@ -897,6 +1130,43 @@ class ImageToSignalGUI(QMainWindow):
         self.ht_log_output.append(f"> {text}")
         self.ht_log_output.verticalScrollBar().setValue(self.ht_log_output.verticalScrollBar().maximum())
 
+    def _ht_run_tilt_analysis(self):
+        masks_dir = self.ht_dir_input.text().strip()
+        if not masks_dir or not os.path.isdir(masks_dir):
+            QMessageBox.warning(self, "Error", "Please select a valid masks directory.")
+            return
+
+        self.ht_run_btn.setEnabled(False)
+        self.ht_tilt_btn.setEnabled(False)
+        self._ht_log("Initializing Tilt Analysis Worker...")
+        
+        generate_debug = self.ht_debug_checkbox.isChecked()
+        self.ht_tilt_worker = TiltWorker(masks_dir, generate_debug=generate_debug)
+        self.ht_tilt_worker.progress.connect(self._ht_log)
+        self.ht_tilt_worker.error.connect(self._ht_handle_tilt_error)
+        self.ht_tilt_worker.finished.connect(self._ht_handle_tilt_finished)
+        self.ht_tilt_worker.start()
+
+    def _ht_handle_tilt_error(self, err):
+        self._ht_log(f"ERROR: {err}")
+        QMessageBox.critical(self, "Error", err)
+        self.ht_run_btn.setEnabled(True)
+        self.ht_tilt_btn.setEnabled(True)
+
+    def _ht_handle_tilt_finished(self, fig_path, tilt_deg):
+        self._ht_log(f"Tilt Calculation Complete! Angle: {tilt_deg:.3f}°")
+        
+        img = Image.open(fig_path)
+        img_arr = np.array(img)
+        self.ht_ax_mask.clear()
+        self.ht_ax_mask.imshow(img_arr)
+        self.ht_ax_mask.set_title(f"Calculated Tilt Angle: {tilt_deg:.3f}°", color='#65ff7a')
+        self.ht_ax_mask.axis('off')
+        self.ht_canvas_mask.draw()
+
+        self.ht_run_btn.setEnabled(True)
+        self.ht_tilt_btn.setEnabled(True)
+
     def _ht_run_analysis(self):
         masks_dir = self.ht_dir_input.text().strip()
         if not masks_dir or not os.path.isdir(masks_dir):
@@ -904,6 +1174,7 @@ class ImageToSignalGUI(QMainWindow):
             return
 
         self.ht_run_btn.setEnabled(False)
+        self.ht_tilt_btn.setEnabled(False)
         self._ht_log("Initializing Matrix Analysis Worker...")
         
         roi = self.ht_roi_input.value()
@@ -919,6 +1190,7 @@ class ImageToSignalGUI(QMainWindow):
         self._ht_log(f"ERROR: {err}")
         QMessageBox.critical(self, "Error", err)
         self.ht_run_btn.setEnabled(True)
+        self.ht_tilt_btn.setEnabled(True)
 
     def _ht_handle_finished(self, df, master_mask, centerline):
         self._ht_log("Analysis Complete! Rendering visualization...")
@@ -994,6 +1266,7 @@ class ImageToSignalGUI(QMainWindow):
             self._ht_log(f"Error during artifact export: {str(e)}")
 
         self.ht_run_btn.setEnabled(True)
+        self.ht_tilt_btn.setEnabled(True)
 
     def _create_360_utils_tab(self):
         """Create dedicated tab for 360° detection and renaming."""
