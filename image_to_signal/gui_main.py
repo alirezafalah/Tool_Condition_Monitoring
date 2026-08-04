@@ -34,9 +34,12 @@ import glob
 import re
 import pandas as pd
 import matplotlib
-matplotlib.use('Qt5Agg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from symmetry_analysis_and_master_masks.perspective.find_optimal_offset import (
+    OffsetAnalysisConfig,
+    run_optimal_offset_analysis_for_tool,
+)
 
 
 WIDTH_PERCENTILE_FOR_FIT = 50.0
@@ -159,110 +162,9 @@ def extract_frame_num(filepath):
     return 0.0
 
 
-class AnalysisWorker(QThread):
-    progress = pyqtSignal(str)
-    finished = pyqtSignal(object, object, int) # df, master_mask, centerline
-    error = pyqtSignal(str)
-
-    def __init__(self, masks_dir, roi_height, full_picture):
-        super().__init__()
-        self.masks_dir = masks_dir
-        self.roi_height = roi_height
-        self.full_picture = full_picture
-
-    def run(self):
-        try:
-            # 1. Find all images
-            self.progress.emit(f"Scanning directory: {self.masks_dir}")
-            image_files = []
-            for ext in ('*.png', '*.tiff', '*.tif', '*.jpg', '*.jpeg'):
-                image_files.extend(glob.glob(os.path.join(self.masks_dir, ext)))
-            
-            if not image_files:
-                self.error.emit("No images found in the selected directory.")
-                return
-
-            image_files.sort(key=extract_frame_num)
-            self.progress.emit(f"Found {len(image_files)} images. Building master mask...")
-
-            # 2. Build Master Mask
-            first_img = np.array(Image.open(image_files[0]))
-            master_mask = np.zeros(first_img.shape[:2], dtype=np.uint8)
-
-            for i, fpath in enumerate(image_files):
-                if i % 10 == 0:
-                    self.progress.emit(f"Building master mask: {i}/{len(image_files)}")
-                img = np.array(Image.open(fpath))
-                if img.ndim == 3:
-                    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-                _, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
-                master_mask = cv2.bitwise_or(master_mask, binary)
-
-            self.progress.emit("Master mask built. Finding centerline...")
-
-            # 3. Find Centerline
-            white_coords = np.where(master_mask == 255)
-            if white_coords[1].size == 0:
-                self.error.emit("Master mask is completely black. Cannot find centerline.")
-                return
-            
-            min_x = white_coords[1].min()
-            max_x = white_coords[1].max()
-            centerline = int((min_x + max_x) / 2)
-            self.progress.emit(f"Centerline found at X={centerline} (Tool width: {min_x} to {max_x})")
-
-            # 4. Analyze each frame
-            results = []
-            for i, fpath in enumerate(image_files):
-                if i % 10 == 0:
-                    self.progress.emit(f"Analyzing right half: frame {i}/{len(image_files)}")
-                
-                angle = extract_frame_num(fpath)
-                img = np.array(Image.open(fpath))
-                if img.ndim == 3:
-                    img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-                _, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
-                
-                # Keep only right half
-                right_half = binary[:, centerline:]
-                
-                white_pixels = np.where(right_half == 255)
-                
-                if self.full_picture or self.roi_height <= 0:
-                    area = white_pixels[0].size
-                else:
-                    if white_pixels[0].size == 0:
-                        area = 0
-                    else:
-                        last_row = white_pixels[0].max()
-                        first_row = max(0, last_row - self.roi_height)
-                        roi = right_half[first_row:last_row, :]
-                        area = np.sum(roi == 255)
-                
-                results.append({
-                    'Angle': angle,
-                    'Area': area,
-                    'Filename': os.path.basename(fpath)
-                })
-
-            df = pd.DataFrame(results)
-            
-            # Save CSV
-            out_dir = os.path.join(self.masks_dir, "half_tool_analysis")
-            os.makedirs(out_dir, exist_ok=True)
-            csv_path = os.path.join(out_dir, "right_half_analysis.csv")
-            df.to_csv(csv_path, index=False)
-            self.progress.emit(f"Analysis saved to {csv_path}")
-
-            self.finished.emit(df, master_mask, centerline)
-
-        except Exception as e:
-            self.error.emit(f"Error during analysis: {str(e)}")
-
-
 class TiltWorker(QThread):
     progress = pyqtSignal(str)
-    finished = pyqtSignal(str, float) # image path, angle
+    finished = pyqtSignal(str, float, str) # figure path, angle, tilted masks directory
     error = pyqtSignal(str)
 
     def __init__(self, masks_dir, generate_debug=False, debug_interval=1):
@@ -331,7 +233,13 @@ class TiltWorker(QThread):
             with open(angle_path, "w") as f:
                 f.write(f"Tilt angle (degrees): {tilt_deg}\n")
 
-            self.progress.emit("Rotating individual frames and saving in parallel...")
+            if self.generate_debug:
+                self.progress.emit(
+                    "Rotating frames and rendering debug figures sequentially "
+                    "(safe mode; this can take a while)..."
+                )
+            else:
+                self.progress.emit("Rotating individual frames and saving in parallel...")
             rotation_angle = -tilt_deg
             height, width = master_mask.shape
             center = (width // 2, height // 2)
@@ -351,27 +259,73 @@ class TiltWorker(QThread):
                 
                 base_name = os.path.basename(fpath)
                 out_path = os.path.join(tilted_dir, base_name)
-                cv2.imwrite(out_path, rotated_mask)
+                if not cv2.imwrite(out_path, rotated_mask):
+                    raise OSError(f"Could not save tilted mask: {out_path}")
                 
                 if self.generate_debug and (i % self.debug_interval == 0):
-                    ys_ind, left_ind, right_ind = get_boundaries(rotated_mask)
-                    if ys_ind is not None:
-                        ys_fit_ind, left_fit_ind, right_fit_ind = select_widest_rows(ys_ind, left_ind, right_ind)
-                        if len(ys_fit_ind) > 0:
-                            line_left_ind, line_right_ind, _ = fit_lines(ys_fit_ind, left_fit_ind, right_fit_ind)
-                            debug_out_path = os.path.join(debug_dir, base_name)
-                            render_centerline_figure(rotated_mask, ys_ind, line_left_ind, line_right_ind, debug_out_path)
-            
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                list(executor.map(process_frame, enumerate(image_files)))
+                    try:
+                        ys_ind, left_ind, right_ind = get_boundaries(rotated_mask)
+                        if ys_ind is None or len(ys_ind) < 2:
+                            self.progress.emit(f"Skipping debug for {base_name}: insufficient tool rows.")
+                            return
+                        ys_fit_ind, left_fit_ind, right_fit_ind = select_widest_rows(
+                            ys_ind, left_ind, right_ind
+                        )
+                        if len(ys_fit_ind) < 2:
+                            self.progress.emit(f"Skipping debug for {base_name}: centerline fit unavailable.")
+                            return
+                        line_left_ind, line_right_ind, _ = fit_lines(
+                            ys_fit_ind, left_fit_ind, right_fit_ind
+                        )
+                        debug_out_path = os.path.join(debug_dir, base_name)
+                        render_centerline_figure(
+                            rotated_mask, ys_ind, line_left_ind, line_right_ind, debug_out_path
+                        )
+                    except Exception as debug_exc:
+                        # A single malformed frame must not abort hundreds of valid outputs.
+                        self.progress.emit(f"Skipping debug for {base_name}: {debug_exc}")
+
+            if self.generate_debug:
+                # Matplotlib figure rendering is not thread-safe. Running this loop
+                # sequentially prevents the native crashes seen with ThreadPoolExecutor.
+                for frame_args in enumerate(image_files):
+                    process_frame(frame_args)
+            else:
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    list(executor.map(process_frame, enumerate(image_files)))
 
             self.progress.emit(f"Tilt figure saved to {fig_path}")
-            self.finished.emit(fig_path, tilt_deg)
+            self.finished.emit(fig_path, tilt_deg, tilted_dir)
 
         except Exception as e:
             import traceback
             traceback.print_exc()
             self.error.emit(f"Error during tilt analysis: {str(e)}")
+
+
+class OffsetWorker(QThread):
+    """Run offset search or the final fixed-range comparison off the UI thread."""
+    progress = pyqtSignal(str)
+    finished = pyqtSignal(object)
+    error = pyqtSignal(str)
+
+    def __init__(self, tilted_dir, config, output_dir):
+        super().__init__()
+        self.tilted_dir = tilted_dir
+        self.config = config
+        self.output_dir = output_dir
+
+    def run(self):
+        try:
+            result = run_optimal_offset_analysis_for_tool(
+                self.tilted_dir,
+                self.config,
+                log_fn=lambda message: self.progress.emit(message.strip()),
+                symmetry_dir=self.output_dir,
+            )
+            self.finished.emit(result)
+        except Exception as exc:
+            self.error.emit(str(exc))
 
 
 class ProcessingThread(QThread):
@@ -607,6 +561,7 @@ class ImageToSignalGUI(QMainWindow):
         tabs.addTab(self._create_pipeline_tab(), "▶️ Run Pipeline")
         tabs.addTab(self._create_360_utils_tab(), "🔄 360° Utilities")
         tabs.addTab(self._create_half_tool_tab(), "🌗 Half-Tool Analysis")
+        tabs.addTab(self._create_offset_tab(), "📐 Offset & Pixel Comparison")
         tabs.addTab(self._create_synthetic_masks_tab(), "🎭 Synthetic Dashboard")
         tabs.addTab(self._create_compare_tools_tab(), "⚖️ Compare Tools")
         main_layout.addWidget(tabs, stretch=1)
@@ -1012,9 +967,9 @@ class ImageToSignalGUI(QMainWindow):
         
         # Matrix Style Label for the Tab Header
         header_desc = QLabel(
-            "🌗 HALF-TOOL SYMMETRY ANALYSIS\n"
-            "Builds a master mask, finds the tool centerline, and analyzes the white pixel area "
-            "of the right half for every frame. Perfect for detecting asymmetry and fractures."
+            "🌗 HALF-TOOL PREPARATION\n"
+            "Builds the master mask, finds perspective tilt, and writes corrected masks. "
+            "The Offset & Pixel Comparison tab receives that output automatically."
         )
         header_desc.setStyleSheet("color: #4CAF50; font-family: 'Consolas'; font-style: italic; margin-bottom: 10px;")
         header_desc.setWordWrap(True)
@@ -1040,19 +995,6 @@ class ImageToSignalGUI(QMainWindow):
         browse_btn.clicked.connect(self._ht_browse_dir)
         dir_layout.addWidget(browse_btn)
         input_layout.addLayout(dir_layout)
-
-        roi_layout = QHBoxLayout()
-        roi_layout.addWidget(QLabel("ROI Height (px):"))
-        self.ht_roi_input = QSpinBox()
-        self.ht_roi_input.setRange(1, 4000)
-        self.ht_roi_input.setValue(200)
-        roi_layout.addWidget(self.ht_roi_input)
-        
-        self.ht_full_pic_checkbox = QCheckBox("Analyze Full Tool Height")
-        self.ht_full_pic_checkbox.toggled.connect(lambda checked: self.ht_roi_input.setEnabled(not checked))
-        roi_layout.addWidget(self.ht_full_pic_checkbox)
-        roi_layout.addStretch()
-        input_layout.addLayout(roi_layout)
 
         debug_layout = QHBoxLayout()
         self.ht_debug_checkbox = QCheckBox("Save Individual Centerline Debug Figures")
@@ -1091,23 +1033,6 @@ class ImageToSignalGUI(QMainWindow):
         """)
         self.ht_tilt_btn.clicked.connect(self._ht_run_tilt_analysis)
         button_layout.addWidget(self.ht_tilt_btn)
-
-        self.ht_run_btn = QPushButton("🚀 START MATRIX ANALYSIS")
-        self.ht_run_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #0d6f2b; 
-                color: #65ff7a; 
-                font-weight: bold; 
-                font-size: 14px; 
-                padding: 12px;
-                border: 1px solid #1c8c33;
-                border-radius: 4px;
-            }
-            QPushButton:hover { background-color: #1c8c33; }
-            QPushButton:disabled { background-color: #111; color: #333; }
-        """)
-        self.ht_run_btn.clicked.connect(self._ht_run_analysis)
-        button_layout.addWidget(self.ht_run_btn)
 
         layout.addLayout(button_layout)
 
@@ -1156,7 +1081,6 @@ class ImageToSignalGUI(QMainWindow):
             QMessageBox.warning(self, "Error", "Please select a valid masks directory.")
             return
 
-        self.ht_run_btn.setEnabled(False)
         self.ht_tilt_btn.setEnabled(False)
         self._ht_log("Initializing Tilt Analysis Worker...")
         
@@ -1171,11 +1095,12 @@ class ImageToSignalGUI(QMainWindow):
     def _ht_handle_tilt_error(self, err):
         self._ht_log(f"ERROR: {err}")
         QMessageBox.critical(self, "Error", err)
-        self.ht_run_btn.setEnabled(True)
         self.ht_tilt_btn.setEnabled(True)
 
-    def _ht_handle_tilt_finished(self, fig_path, tilt_deg):
+    def _ht_handle_tilt_finished(self, fig_path, tilt_deg, tilted_dir):
         self._ht_log(f"Tilt Calculation Complete! Angle: {tilt_deg:.3f}°")
+        self._ht_log(f"Tilted masks saved to: {tilted_dir}")
+        self.offset_tilted_input.setText(tilted_dir)
         
         img = Image.open(fig_path)
         img_arr = np.array(img)
@@ -1185,109 +1110,342 @@ class ImageToSignalGUI(QMainWindow):
         self.ht_ax_mask.axis('off')
         self.ht_canvas_mask.draw()
 
-        self.ht_run_btn.setEnabled(True)
         self.ht_tilt_btn.setEnabled(True)
 
-    def _ht_run_analysis(self):
-        masks_dir = self.ht_dir_input.text().strip()
-        if not masks_dir or not os.path.isdir(masks_dir):
-            QMessageBox.warning(self, "Error", "Please select a valid masks directory.")
+    def _create_offset_tab(self):
+        """Create the staged optimal-offset and final pixel-comparison workflow."""
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        content = QWidget()
+        layout = QVBoxLayout(content)
+
+        description = QLabel(
+            "Use the tilted masks from Half-Tool Analysis. First find the recording offset; "
+            "then review/edit the resulting frame ranges and run the final right-side ROI "
+            "white-pixel comparison. The centerline is fitted independently from each corrected "
+            "frame; the master-mask centerline is used only to calculate tilt. Every output is "
+            "stored beside the selected masks."
+        )
+        description.setWordWrap(True)
+        description.setStyleSheet("color: #4CAF50; font-family: 'Consolas'; font-style: italic;")
+        layout.addWidget(description)
+
+        source_group = QGroupBox("1. Data source")
+        source_layout = QVBoxLayout(source_group)
+        source_row = QHBoxLayout()
+        source_row.addWidget(QLabel("Tilted masks folder:"))
+        self.offset_tilted_input = QLineEdit()
+        self.offset_tilted_input.setPlaceholderText(
+            "Filled automatically after FIND TILT ANGLE, or select an existing tilted_masks folder"
+        )
+        source_row.addWidget(self.offset_tilted_input, stretch=1)
+        source_browse = QPushButton("Browse…")
+        source_browse.clicked.connect(self._offset_browse_tilted)
+        source_row.addWidget(source_browse)
+        source_layout.addLayout(source_row)
+        self.offset_output_label = QLabel("Output root: select a tilted masks folder")
+        self.offset_output_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.offset_output_label.setStyleSheet("color: #9E9E9E;")
+        source_layout.addWidget(self.offset_output_label)
+        self.offset_tilted_input.textChanged.connect(self._offset_update_output_label)
+        layout.addWidget(source_group)
+
+        search_group = QGroupBox("2. Find optimal offset (alignment only)")
+        search_layout = QVBoxLayout(search_group)
+        search_controls = QHBoxLayout()
+        search_controls.addWidget(QLabel("Frames in region A:"))
+        self.offset_frames = QSpinBox()
+        self.offset_frames.setRange(2, 2000)
+        self.offset_frames.setValue(90)
+        search_controls.addWidget(self.offset_frames)
+        search_controls.addWidget(QLabel("ROI height:"))
+        self.offset_roi = QSpinBox()
+        self.offset_roi.setRange(1, 10000)
+        self.offset_roi.setValue(200)
+        search_controls.addWidget(self.offset_roi)
+        search_controls.addWidget(QLabel("Offset min:"))
+        self.offset_min = QSpinBox()
+        self.offset_min.setRange(1, 10000)
+        self.offset_min.setValue(176)
+        search_controls.addWidget(self.offset_min)
+        search_controls.addWidget(QLabel("Offset max:"))
+        self.offset_max = QSpinBox()
+        self.offset_max.setRange(1, 10000)
+        self.offset_max.setValue(186)
+        search_controls.addWidget(self.offset_max)
+        search_controls.addStretch()
+        search_layout.addLayout(search_controls)
+        self.offset_search_btn = QPushButton("🔍 FIND OPTIMAL OFFSET")
+        self.offset_search_btn.clicked.connect(self._offset_run_search)
+        search_layout.addWidget(self.offset_search_btn)
+        self.offset_result_label = QLabel("No offset search has been run.")
+        self.offset_result_label.setStyleSheet("color: #FFA726; font-weight: bold;")
+        self.offset_result_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        search_layout.addWidget(self.offset_result_label)
+        layout.addWidget(search_group)
+
+        compare_group = QGroupBox("3. Final right-side white-pixel comparison")
+        compare_layout = QVBoxLayout(compare_group)
+        range_row = QHBoxLayout()
+        range_row.addWidget(QLabel("Frame regions (inclusive):"))
+        self.offset_regions = QLineEdit("0-89, 182-271")
+        self.offset_regions.setToolTip("Two or more comma-separated ranges, for example 0-89, 182-271")
+        range_row.addWidget(self.offset_regions, stretch=1)
+        range_row.addWidget(QLabel("Displayed degrees:"))
+        self.offset_degree_regions = QLineEdit("0-90, 180-270")
+        self.offset_degree_regions.setToolTip("One display range per frame region")
+        range_row.addWidget(self.offset_degree_regions, stretch=1)
+        compare_layout.addLayout(range_row)
+
+        smoothing_row = QHBoxLayout()
+        self.offset_smoothing = QCheckBox("Smooth pixel signals before comparison")
+        self.offset_smoothing.setChecked(False)
+        smoothing_row.addWidget(self.offset_smoothing)
+        smoothing_row.addWidget(QLabel("Window size:"))
+        self.offset_smoothing_window = QSpinBox()
+        self.offset_smoothing_window.setRange(1, 101)
+        self.offset_smoothing_window.setSingleStep(2)
+        self.offset_smoothing_window.setValue(5)
+        smoothing_row.addWidget(self.offset_smoothing_window)
+        smoothing_row.addWidget(QLabel("Strength:"))
+        self.offset_smoothing_strength = QSpinBox()
+        self.offset_smoothing_strength.setRange(0, 100)
+        self.offset_smoothing_strength.setValue(100)
+        self.offset_smoothing_strength.setSuffix(" %")
+        smoothing_row.addWidget(self.offset_smoothing_strength)
+        smoothing_help = QLabel("0% = raw signal, 100% = full centered moving average")
+        smoothing_help.setStyleSheet("color: #888; font-style: italic;")
+        smoothing_row.addWidget(smoothing_help)
+        smoothing_row.addStretch()
+        compare_layout.addLayout(smoothing_row)
+        self.offset_smoothing.toggled.connect(self.offset_smoothing_window.setEnabled)
+        self.offset_smoothing.toggled.connect(self.offset_smoothing_strength.setEnabled)
+        self.offset_smoothing_window.setEnabled(False)
+        self.offset_smoothing_strength.setEnabled(False)
+
+        format_row = QHBoxLayout()
+        format_row.addWidget(QLabel("Figures:"))
+        self.offset_png = QCheckBox("PNG")
+        self.offset_png.setChecked(True)
+        self.offset_pdf = QCheckBox("PDF")
+        self.offset_pdf.setChecked(True)
+        self.offset_svg = QCheckBox("SVG")
+        self.offset_stacked = QCheckBox("Combined overlay + difference")
+        self.offset_stacked.setChecked(True)
+        for control in (self.offset_png, self.offset_pdf, self.offset_svg, self.offset_stacked):
+            format_row.addWidget(control)
+        format_row.addStretch()
+        compare_layout.addLayout(format_row)
+
+        action_row = QHBoxLayout()
+        self.offset_compare_btn = QPushButton("📊 CALCULATE & SAVE WHITE-PIXEL COMPARISON")
+        self.offset_compare_btn.clicked.connect(self._offset_run_comparison)
+        action_row.addWidget(self.offset_compare_btn, stretch=1)
+        self.offset_open_btn = QPushButton("📁 OPEN RESULTS FOLDER")
+        self.offset_open_btn.clicked.connect(self._offset_open_results)
+        action_row.addWidget(self.offset_open_btn)
+        compare_layout.addLayout(action_row)
+        layout.addWidget(compare_group)
+
+        self.offset_log = QTextEdit()
+        self.offset_log.setReadOnly(True)
+        self.offset_log.setMinimumHeight(180)
+        self.offset_log.setStyleSheet(
+            "background: #010601; color: #2abf49; font-family: 'Consolas'; border: 1px solid #1c8c33;"
+        )
+        layout.addWidget(self.offset_log)
+        layout.addStretch()
+        scroll.setWidget(content)
+        return scroll
+
+    def _offset_browse_tilted(self):
+        selected = QFileDialog.getExistingDirectory(self, "Select tilted masks folder")
+        if selected:
+            self.offset_tilted_input.setText(selected)
+
+    def _offset_output_root(self):
+        tilted_dir = os.path.abspath(self.offset_tilted_input.text().strip())
+        if os.path.basename(tilted_dir).lower() == "tilted_masks":
+            return os.path.dirname(tilted_dir)
+        return os.path.join(tilted_dir, "analysis")
+
+    def _offset_update_output_label(self):
+        if self.offset_tilted_input.text().strip():
+            self.offset_output_label.setText(f"Output root: {self._offset_output_root()}")
+        else:
+            self.offset_output_label.setText("Output root: select a tilted masks folder")
+
+    def _offset_log_message(self, message):
+        if message:
+            self.offset_log.append(f"> {message}")
+            self.offset_log.verticalScrollBar().setValue(self.offset_log.verticalScrollBar().maximum())
+
+    @staticmethod
+    def _offset_parse_ranges(text):
+        ranges = []
+        for item in text.split(','):
+            match = re.fullmatch(r"\s*(\d+)\s*-\s*(\d+)\s*", item)
+            if not match:
+                raise ValueError(f"Invalid range '{item.strip()}'. Use start-end, separated by commas.")
+            start, end = map(int, match.groups())
+            if end < start:
+                raise ValueError(f"Range {start}-{end} ends before it starts.")
+            ranges.append((start, end))
+        if len(ranges) < 2:
+            raise ValueError("Enter at least two regions to compare.")
+        return tuple(ranges)
+
+    def _offset_validate_source(self):
+        tilted_dir = os.path.abspath(self.offset_tilted_input.text().strip())
+        if not os.path.isdir(tilted_dir):
+            raise ValueError("Select a valid tilted masks folder first.")
+        image_count = sum(
+            name.lower().endswith((".png", ".tif", ".tiff"))
+            for name in os.listdir(tilted_dir)
+        )
+        if not image_count:
+            raise ValueError("The selected folder contains no PNG/TIF mask images.")
+        return tilted_dir, image_count
+
+    def _offset_set_busy(self, busy):
+        self.offset_search_btn.setEnabled(not busy)
+        self.offset_compare_btn.setEnabled(not busy)
+        self.ht_tilt_btn.setEnabled(not busy)
+
+    def _offset_run_search(self):
+        try:
+            tilted_dir, image_count = self._offset_validate_source()
+            if self.offset_min.value() > self.offset_max.value():
+                raise ValueError("Offset min must be less than or equal to offset max.")
+            required = self.offset_max.value() + self.offset_frames.value()
+            if required > image_count:
+                raise ValueError(
+                    f"This search needs at least {required} images, but the folder contains {image_count}."
+                )
+        except ValueError as exc:
+            QMessageBox.warning(self, "Invalid offset search", str(exc))
             return
 
-        self.ht_run_btn.setEnabled(False)
-        self.ht_tilt_btn.setEnabled(False)
-        self._ht_log("Initializing Matrix Analysis Worker...")
-        
-        roi = self.ht_roi_input.value()
-        full_pic = self.ht_full_pic_checkbox.isChecked()
+        output_dir = os.path.join(self._offset_output_root(), "optimal_offset")
+        os.makedirs(output_dir, exist_ok=True)
+        config = OffsetAnalysisConfig(
+            analysis_mode="search_offset",
+            num_frames=self.offset_frames.value(),
+            search_num_regions=2,
+            roi_height=self.offset_roi.value(),
+            use_metadata_roi_height=False,
+            offset_min=self.offset_min.value(),
+            offset_max=self.offset_max.value(),
+            output_formats=("png",),
+            smoothing_enabled=self.offset_smoothing.isChecked(),
+            smoothing_window=self.offset_smoothing_window.value(),
+            smoothing_strength=self.offset_smoothing_strength.value() / 100.0,
+        )
+        self._offset_log_message(f"Searching offsets; results will be saved to {output_dir}")
+        self._offset_set_busy(True)
+        self.offset_worker = OffsetWorker(tilted_dir, config, output_dir)
+        self.offset_worker.progress.connect(self._offset_log_message)
+        self.offset_worker.error.connect(self._offset_worker_error)
+        self.offset_worker.finished.connect(self._offset_search_finished)
+        self.offset_worker.start()
 
-        self.ht_worker = AnalysisWorker(masks_dir, roi, full_pic)
-        self.ht_worker.progress.connect(self._ht_log)
-        self.ht_worker.error.connect(self._ht_handle_error)
-        self.ht_worker.finished.connect(self._ht_handle_finished)
-        self.ht_worker.start()
+    def _offset_search_finished(self, result):
+        offset = int(result["optimal_offset"])
+        frame_count = self.offset_frames.value()
+        self.offset_regions.setText(f"0-{frame_count - 1}, {offset}-{offset + frame_count - 1}")
+        self.offset_result_label.setText(
+            f"Optimal offset: {offset} frames | matched region B: {result['frame_range']} | "
+            f"mean absolute difference: {result['mean_abs_diff']:.3f}"
+        )
+        self.offset_result_label.setStyleSheet("color: #65ff7a; font-weight: bold;")
+        self._offset_log_message(f"Offset search complete. Exact output: {result['output_dir']}")
+        self._offset_set_busy(False)
 
-    def _ht_handle_error(self, err):
-        self._ht_log(f"ERROR: {err}")
-        QMessageBox.critical(self, "Error", err)
-        self.ht_run_btn.setEnabled(True)
-        self.ht_tilt_btn.setEnabled(True)
-
-    def _ht_handle_finished(self, df, master_mask, centerline):
-        self._ht_log("Analysis Complete! Rendering visualization...")
-        
-        # Update Graph
-        self.ht_ax_graph.clear()
-        self.ht_ax_graph.plot(df['Angle'], df['Area'], color='#65ff7a', linewidth=2)
-        self.ht_ax_graph.set_title("Right-Side ROI Area vs Angle", color='#65ff7a')
-        self.ht_ax_graph.set_xlabel("Angle / Frame", color='#2abf49')
-        self.ht_ax_graph.set_ylabel("White Pixel Count", color='#2abf49')
-        self.ht_ax_graph.tick_params(colors='#2abf49')
-        self.ht_ax_graph.grid(True, color='#1c8c33', alpha=0.3)
-        for spine in self.ht_ax_graph.spines.values():
-            spine.set_color('#1c8c33')
-        self.ht_canvas_graph.draw()
-
-        # Update Master Mask
-        self.ht_ax_mask.clear()
-        self.ht_ax_mask.imshow(master_mask, cmap='gray')
-        self.ht_ax_mask.axvline(x=centerline, color='#f44336', linestyle='--', label='Centerline')
-        self.ht_ax_mask.axvspan(centerline, master_mask.shape[1], color='#f44336', alpha=0.2, label='Analyzed')
-        self.ht_ax_mask.set_title("Master Mask Split", color='#65ff7a')
-        self.ht_ax_mask.axis('off')
-        self.ht_canvas_mask.draw()
-
-        # Save Plots
+    def _offset_run_comparison(self):
         try:
-            masks_dir = self.ht_dir_input.text().strip()
-            out_dir = os.path.join(masks_dir, "half_tool_analysis")
-            os.makedirs(out_dir, exist_ok=True)
-            
-            tool_id = os.path.basename(os.path.normpath(masks_dir)).replace('_final_masks', '')
-            
-            # 1. Individual High-DPI Plots
-            graph_png = os.path.join(out_dir, f"{tool_id}_right_half_signal.png")
-            graph_pdf = os.path.join(out_dir, f"{tool_id}_right_half_signal.pdf")
-            self.ht_fig_graph.savefig(graph_png, dpi=300, bbox_inches='tight', facecolor='#031103')
-            self.ht_fig_graph.savefig(graph_pdf, bbox_inches='tight', facecolor='#031103')
-            
-            mask_png = os.path.join(out_dir, f"{tool_id}_master_mask_centerline.png")
-            self.ht_fig_mask.savefig(mask_png, dpi=300, bbox_inches='tight', facecolor='#031103')
-            
-            # 2. Combined High-DPI Plot
-            combined_fig = Figure(figsize=(15, 6), facecolor='#031103')
-            ax1 = combined_fig.add_subplot(121)
-            ax2 = combined_fig.add_subplot(122)
-            
-            # Copy graph
-            ax1.plot(df['Angle'], df['Area'], color='#65ff7a', linewidth=2)
-            ax1.set_title("Right-Side ROI Area vs Angle", color='#65ff7a')
-            ax1.set_xlabel("Angle / Frame", color='#2abf49')
-            ax1.set_ylabel("White Pixel Count", color='#2abf49')
-            ax1.tick_params(colors='#2abf49')
-            ax1.grid(True, color='#1c8c33', alpha=0.3)
-            ax1.set_facecolor('#020802')
-            for spine in ax1.spines.values(): spine.set_color('#1c8c33')
-            
-            # Copy mask
-            ax2.imshow(master_mask, cmap='gray')
-            ax2.axvline(x=centerline, color='#f44336', linestyle='--', linewidth=2)
-            ax2.axvspan(centerline, master_mask.shape[1], color='#f44336', alpha=0.2)
-            ax2.set_title("Master Mask & Centerline", color='#65ff7a')
-            ax2.axis('off')
-            
-            combined_png = os.path.join(out_dir, f"{tool_id}_combined_analysis.png")
-            combined_pdf = os.path.join(out_dir, f"{tool_id}_combined_analysis.pdf")
-            combined_fig.savefig(combined_png, dpi=300, bbox_inches='tight', facecolor='#031103')
-            combined_fig.savefig(combined_pdf, bbox_inches='tight', facecolor='#031103')
-            
-            self._ht_log(f"All artifacts (Individual + Combined) saved to:")
-            self._ht_log(f"-> {out_dir}")
-        except Exception as e:
-            self._ht_log(f"Error during artifact export: {str(e)}")
+            tilted_dir, image_count = self._offset_validate_source()
+            regions = self._offset_parse_ranges(self.offset_regions.text())
+            degree_regions = self._offset_parse_ranges(self.offset_degree_regions.text())
+            if len(degree_regions) != len(regions):
+                raise ValueError("Displayed degree ranges must have the same count as frame regions.")
+            if any(end >= image_count for _start, end in regions):
+                raise ValueError(f"A frame range exceeds the available indices 0-{image_count - 1}.")
+            lengths = {end - start + 1 for start, end in regions}
+            if len(lengths) != 1:
+                raise ValueError("All frame regions must contain the same number of frames.")
+        except ValueError as exc:
+            QMessageBox.warning(self, "Invalid comparison", str(exc))
+            return
 
-        self.ht_run_btn.setEnabled(True)
-        self.ht_tilt_btn.setEnabled(True)
+        formats = tuple(
+            fmt for fmt, checked in (
+                ("png", self.offset_png.isChecked()),
+                ("pdf", self.offset_pdf.isChecked()),
+                ("svg", self.offset_svg.isChecked()),
+            ) if checked
+        ) or ("png",)
+        output_dir = os.path.join(self._offset_output_root(), "pixel_comparison")
+        os.makedirs(output_dir, exist_ok=True)
+        config = OffsetAnalysisConfig(
+            analysis_mode="fixed_ranges",
+            region_ranges=regions,
+            roi_height=self.offset_roi.value(),
+            use_metadata_roi_height=False,
+            output_formats=formats,
+            stack_overlay_abs_diff=self.offset_stacked.isChecked(),
+            manual_legend_ranges=True,
+            legend_ranges=degree_regions,
+            smoothing_enabled=self.offset_smoothing.isChecked(),
+            smoothing_window=self.offset_smoothing_window.value(),
+            smoothing_strength=self.offset_smoothing_strength.value() / 100.0,
+        )
+        smoothing_text = (
+            f"enabled (window={self.offset_smoothing_window.value()}, "
+            f"strength={self.offset_smoothing_strength.value()}%)"
+            if self.offset_smoothing.isChecked() else "disabled"
+        )
+        self._offset_log_message(
+            f"Calculating right-side ROI white pixels; smoothing {smoothing_text}; "
+            f"results will be saved to {output_dir}"
+        )
+        self._offset_set_busy(True)
+        self.offset_worker = OffsetWorker(tilted_dir, config, output_dir)
+        self.offset_worker.progress.connect(self._offset_log_message)
+        self.offset_worker.error.connect(self._offset_worker_error)
+        self.offset_worker.finished.connect(self._offset_comparison_finished)
+        self.offset_worker.start()
+
+    def _offset_comparison_finished(self, result):
+        self._offset_log_message(
+            f"Pixel comparison complete: {result['region_count']} regions, "
+            f"{result['pair_count']} aligned positions, mean absolute difference "
+            f"{result['mean_abs_diff']:.3f}."
+        )
+        self._offset_log_message(f"Exact output: {result['output_dir']}")
+        self.offset_result_label.setText(f"Final results saved to: {result['output_dir']}")
+        self.offset_result_label.setStyleSheet("color: #65ff7a; font-weight: bold;")
+        self._offset_set_busy(False)
+
+    def _offset_worker_error(self, message):
+        self._offset_log_message(f"ERROR: {message}")
+        self._offset_set_busy(False)
+        QMessageBox.critical(self, "Offset analysis failed", message)
+
+    def _offset_open_results(self):
+        output_root = self._offset_output_root()
+        if not os.path.isdir(output_root):
+            QMessageBox.information(self, "No results", "Run an offset search or pixel comparison first.")
+            return
+        import subprocess
+        try:
+            if sys.platform.startswith("win"):
+                os.startfile(output_root)
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", output_root])
+            else:
+                subprocess.Popen(["xdg-open", output_root])
+        except Exception as exc:
+            QMessageBox.warning(self, "Could not open folder", f"{output_root}\n\n{exc}")
 
     def _create_360_utils_tab(self):
         """Create dedicated tab for 360° detection and renaming."""

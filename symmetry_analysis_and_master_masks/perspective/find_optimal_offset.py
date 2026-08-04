@@ -19,13 +19,16 @@ import numpy as np
 import pandas as pd
 from matplotlib.ticker import MultipleLocator
 
-matplotlib.use("Agg")
+# Keep the Qt backend when this module is embedded in gui_main; use the
+# non-interactive backend for command-line/batch execution.
+if "qt" not in matplotlib.get_backend().lower():
+    matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
 VALID_OUTPUT_FORMATS = ("png", "svg", "pdf")
 VALID_ANALYSIS_MODES = ("search_offset", "fixed_ranges")
-CENTERLINE_MODE = "per_frame_midpoint"
+CENTERLINE_MODE = "per_frame_full_frame_fitted_line_v3"
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,23 @@ class OffsetAnalysisConfig:
     legend_b_start_deg: int = 180
     legend_b_end_deg: int = 270
     legend_ranges: tuple[tuple[int, int], ...] = ()
+
+    # Optional smoothing before offset scoring / absolute differences.
+    smoothing_enabled: bool = False
+    smoothing_window: int = 5
+    smoothing_strength: float = 1.0
+
+
+def _smooth_values(values: Iterable[float], cfg: OffsetAnalysisConfig) -> np.ndarray:
+    raw = np.asarray(list(values), dtype=np.float64)
+    if not cfg.smoothing_enabled or len(raw) < 2:
+        return raw.copy()
+    window = max(1, min(int(cfg.smoothing_window), len(raw)))
+    strength = float(np.clip(cfg.smoothing_strength, 0.0, 1.0))
+    if window <= 1 or strength <= 0.0:
+        return raw.copy()
+    smoothed = pd.Series(raw).rolling(window=window, center=True, min_periods=1).mean().to_numpy()
+    return raw * (1.0 - strength) + smoothed * strength
 
 
 def _normalize_output_formats(values: Iterable[str]) -> tuple[str, ...]:
@@ -130,8 +150,8 @@ def _extract_right_half_stats(
     mask: np.ndarray,
     global_roi_bottom: int,
     roi_height: int,
-    center_col: int,
-) -> Optional[tuple[int, int]]:
+    _unused_reference_center_col: int = 0,
+) -> Optional[tuple[int, int, int, float, float]]:
     roi_top = max(0, global_roi_bottom - roi_height)
     roi_bottom = global_roi_bottom + 1
     roi_mask = mask[roi_top:roi_bottom, :]
@@ -140,21 +160,54 @@ def _extract_right_half_stats(
     if len(white_pixels[1]) == 0:
         return None
 
-    left_col = int(np.min(white_pixels[1]))
-    right_col = int(np.max(white_pixels[1]))
-
     width = int(roi_mask.shape[1])
-    # Dynamic centerline per frame: midpoint of current ROI's left/right white extent.
-    dynamic_center_col = int(round((left_col + right_col) / 2.0))
-    dynamic_center_col = int(np.clip(dynamic_center_col, 0, max(0, width - 1)))
-    start_col = dynamic_center_col + 1
-    end_col = min(width, right_col + 1)
-    right_half = roi_mask[:, start_col:end_col]
-    right_count = int(np.sum(right_half == 255))
+    # Each corrected frame gets its own centerline. Fit the left and right tool
+    # boundaries over that frame's widest rows (the same principle used by the
+    # tilt debug figure), then evaluate the bisector at the middle of the ROI.
+    ys = []
+    left_edges = []
+    right_edges = []
+    for y in range(mask.shape[0]):
+        cols = np.flatnonzero(mask[y] == 255)
+        if cols.size:
+            ys.append(y)
+            left_edges.append(int(cols[0]))
+            right_edges.append(int(cols[-1]))
 
-    half_width = max(1, end_col - start_col)
-    half_area = max(1, roi_height * half_width)
-    return right_count, half_area
+    full_white = np.where(mask == 255)
+    full_left = int(np.min(full_white[1]))
+    full_right = int(np.max(full_white[1]))
+    center_slope = 0.0
+    center_intercept = (full_left + full_right) / 2.0
+    if len(ys) >= 2:
+        ys_arr = np.asarray(ys, dtype=np.float64)
+        left_arr = np.asarray(left_edges, dtype=np.float64)
+        right_arr = np.asarray(right_edges, dtype=np.float64)
+        widths = right_arr - left_arr
+        keep = widths >= np.percentile(widths, 50.0)
+        if np.count_nonzero(keep) < 2:
+            keep = np.ones_like(widths, dtype=bool)
+        if np.count_nonzero(keep) >= 2:
+            left_slope, left_intercept = np.polyfit(ys_arr[keep], left_arr[keep], 1)
+            right_slope, right_intercept = np.polyfit(ys_arr[keep], right_arr[keep], 1)
+            center_slope = float((left_slope + right_slope) / 2.0)
+            center_intercept = float((left_intercept + right_intercept) / 2.0)
+
+    # Apply that full-frame fitted line row by row inside the ROI. The ROI only
+    # limits which pixels are counted; it never participates in centerline fitting.
+    right_count = 0
+    half_area = 0
+    for local_y, global_y in enumerate(range(roi_top, roi_bottom)):
+        center_x = int(round(center_slope * global_y + center_intercept))
+        center_x = int(np.clip(center_x, 0, max(0, width - 1)))
+        start_col = center_x + 1
+        right_count += int(np.sum(roi_mask[local_y, start_col:] == 255))
+        half_area += max(0, width - start_col)
+
+    roi_mid_y = (roi_top + roi_bottom - 1) / 2.0
+    center_at_roi_mid = int(round(center_slope * roi_mid_y + center_intercept))
+    center_at_roi_mid = int(np.clip(center_at_roi_mid, 0, max(0, width - 1)))
+    return right_count, max(1, half_area), center_at_roi_mid, center_slope, center_intercept
 
 
 def _find_global_roi_bottom_for_indices(mask_files: list[str], indices: Iterable[int]) -> int:
@@ -186,9 +239,11 @@ def _test_offset(
     roi_height: int,
     num_frames: int,
     center_col: int,
+    cfg: OffsetAnalysisConfig,
+    stats_cache: Optional[dict[int, Optional[tuple[int, int, int, float, float]]]] = None,
 ) -> Optional[dict]:
-    differences = []
-    ratios = []
+    counts1 = []
+    counts2 = []
 
     for i in range(num_frames):
         frame1_idx = i
@@ -196,28 +251,36 @@ def _test_offset(
         if frame2_idx >= len(mask_files):
             continue
 
-        mask1 = _read_binary_mask(mask_files[frame1_idx])
-        mask2 = _read_binary_mask(mask_files[frame2_idx])
-        if mask1 is None or mask2 is None:
-            continue
+        def get_stats(frame_idx):
+            if stats_cache is not None and frame_idx in stats_cache:
+                return stats_cache[frame_idx]
+            mask = _read_binary_mask(mask_files[frame_idx])
+            stats = None if mask is None else _extract_right_half_stats(
+                mask, global_roi_bottom, roi_height, center_col
+            )
+            if stats_cache is not None:
+                stats_cache[frame_idx] = stats
+            return stats
 
-        stats1 = _extract_right_half_stats(mask1, global_roi_bottom, roi_height, center_col)
-        stats2 = _extract_right_half_stats(mask2, global_roi_bottom, roi_height, center_col)
+        stats1 = get_stats(frame1_idx)
+        stats2 = get_stats(frame2_idx)
         if stats1 is None or stats2 is None:
             continue
 
-        count1, _ = stats1
-        count2, _ = stats2
+        count1, _, _center1, _slope1, _intercept1 = stats1
+        count2, _, _center2, _slope2, _intercept2 = stats2
 
-        diff = abs(count1 - count2)
-        total = count1 + count2
-        ratio = (diff / total) if total > 0 else 0.0
+        counts1.append(count1)
+        counts2.append(count2)
 
-        differences.append(diff)
-        ratios.append(ratio)
-
-    if not differences:
+    if not counts1:
         return None
+
+    processed1 = _smooth_values(counts1, cfg)
+    processed2 = _smooth_values(counts2, cfg)
+    differences = np.abs(processed1 - processed2)
+    totals = processed1 + processed2
+    ratios = np.divide(differences, totals, out=np.zeros_like(differences), where=totals > 0)
 
     return {
         "offset": int(offset),
@@ -240,10 +303,14 @@ def _find_optimal_offset(
     log_fn: Optional[Callable[[str], None]] = None,
 ) -> tuple[pd.DataFrame, int]:
     rows = []
+    stats_cache = {}
     for offset in range(cfg.offset_min, cfg.offset_max + 1):
         if log_fn:
             log_fn(f"  Testing offset {offset} deg... ")
-        result = _test_offset(mask_files, offset, global_roi_bottom, roi_height, cfg.num_frames, center_col)
+        result = _test_offset(
+            mask_files, offset, global_roi_bottom, roi_height, cfg.num_frames,
+            center_col, cfg, stats_cache=stats_cache,
+        )
         if result is None:
             if log_fn:
                 log_fn("no valid data\n")
@@ -276,6 +343,7 @@ def _compare_regions(
     global_roi_bottom: int,
     roi_height: int,
     center_col: int,
+    cfg: OffsetAnalysisConfig,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, list[list[int]]]:
     if len(region_ranges) < 2:
         raise ValueError("At least two regions are required for comparison.")
@@ -288,8 +356,6 @@ def _compare_regions(
     region_indices = [idx_list[:pair_count] for idx_list in region_indices]
 
     counts_rows = []
-    pair_rows = []
-
     for pair_idx in range(pair_count):
         frame_indices = [idx_list[pair_idx] for idx_list in region_indices]
         if any(idx < 0 or idx >= len(mask_files) for idx in frame_indices):
@@ -297,6 +363,9 @@ def _compare_regions(
 
         counts = []
         areas = []
+        centerlines = []
+        centerline_slopes = []
+        centerline_intercepts = []
         valid = True
         for frame_idx in frame_indices:
             mask = _read_binary_mask(mask_files[frame_idx])
@@ -307,9 +376,12 @@ def _compare_regions(
             if stats is None:
                 valid = False
                 break
-            count, area = stats
+            count, area, frame_centerline, centerline_slope, centerline_intercept = stats
             counts.append(count)
             areas.append(area)
+            centerlines.append(frame_centerline)
+            centerline_slopes.append(centerline_slope)
+            centerline_intercepts.append(centerline_intercept)
 
         if not valid:
             continue
@@ -317,36 +389,46 @@ def _compare_regions(
         count_row = {"pair_idx": int(pair_idx)}
         for r_i, frame_idx in enumerate(frame_indices):
             count_row[f"frame_r{r_i+1}"] = int(frame_idx)
+            count_row[f"centerline_x_r{r_i+1}"] = int(centerlines[r_i])
+            count_row[f"centerline_slope_r{r_i+1}"] = float(centerline_slopes[r_i])
+            count_row[f"centerline_intercept_r{r_i+1}"] = float(centerline_intercepts[r_i])
             count_row[f"count_r{r_i+1}"] = int(counts[r_i])
+            count_row[f"_area_r{r_i+1}"] = int(areas[r_i])
         counts_rows.append(count_row)
 
+    counts_df = pd.DataFrame(counts_rows)
+    if counts_df.empty:
+        raise ValueError("No valid paired frames were produced for region comparison.")
+
+    for r_i in range(len(region_ranges)):
+        raw_col = f"count_r{r_i+1}"
+        counts_df[f"processed_count_r{r_i+1}"] = _smooth_values(counts_df[raw_col], cfg)
+
+    pair_rows = []
+    for _, row in counts_df.iterrows():
         for i in range(len(region_ranges)):
             for j in range(i + 1, len(region_ranges)):
-                diff = abs(counts[i] - counts[j])
-                total = counts[i] + counts[j]
-                ratio = (diff / total) if total > 0 else 0.0
-                avg_area = max(1.0, (areas[i] + areas[j]) / 2.0)
-                normalized_diff = diff / avg_area
-                pair_key = f"R{i+1}_vs_R{j+1}"
-                pair_rows.append(
-                    {
-                        "pair_idx": int(pair_idx),
-                        "pair_key": pair_key,
-                        "region_i": f"R{i+1}",
-                        "region_j": f"R{j+1}",
-                        "region_i_range": _range_to_str(region_ranges[i]),
-                        "region_j_range": _range_to_str(region_ranges[j]),
-                        "frame_i": int(frame_indices[i]),
-                        "frame_j": int(frame_indices[j]),
-                        "count_i": int(counts[i]),
-                        "count_j": int(counts[j]),
-                        "abs_difference": int(diff),
-                        "ratio": float(ratio),
-                        "normalized_diff": float(normalized_diff),
-                    }
-                )
-
-    counts_df = pd.DataFrame(counts_rows)
+                processed_i = float(row[f"processed_count_r{i+1}"])
+                processed_j = float(row[f"processed_count_r{j+1}"])
+                diff = abs(processed_i - processed_j)
+                total = processed_i + processed_j
+                avg_area = max(1.0, (float(row[f"_area_r{i+1}"]) + float(row[f"_area_r{j+1}"])) / 2.0)
+                pair_rows.append({
+                    "pair_idx": int(row["pair_idx"]),
+                    "pair_key": f"R{i+1}_vs_R{j+1}",
+                    "region_i": f"R{i+1}", "region_j": f"R{j+1}",
+                    "region_i_range": _range_to_str(region_ranges[i]),
+                    "region_j_range": _range_to_str(region_ranges[j]),
+                    "frame_i": int(row[f"frame_r{i+1}"]), "frame_j": int(row[f"frame_r{j+1}"]),
+                    "centerline_x_i": int(row[f"centerline_x_r{i+1}"]),
+                    "centerline_x_j": int(row[f"centerline_x_r{j+1}"]),
+                    "raw_count_i": int(row[f"count_r{i+1}"]), "raw_count_j": int(row[f"count_r{j+1}"]),
+                    "count_i": processed_i, "count_j": processed_j,
+                    "abs_difference": diff,
+                    "ratio": (diff / total) if total > 0 else 0.0,
+                    "normalized_diff": diff / avg_area,
+                })
+    counts_df = counts_df.drop(columns=[c for c in counts_df.columns if c.startswith("_area_")])
     pairwise_df = pd.DataFrame(pair_rows)
 
     if counts_df.empty or pairwise_df.empty:
@@ -408,12 +490,18 @@ def _resolve_metadata_centerline(
     2) Fallback: build a master mask from available frames, estimate centerline,
        and persist it into tool metadata for future runs.
     """
-    info_dir = os.path.join(tool_dir, "information")
+    info_parent = os.path.dirname(tool_dir) if os.path.basename(os.path.normpath(tool_dir)).lower() == "tilted_masks" else tool_dir
+    info_dir = os.path.join(info_parent, "information")
     os.makedirs(info_dir, exist_ok=True)
 
     tool_folder_name = os.path.basename(os.path.normpath(tool_dir))
-    match = re.search(r"(tool\d+)", tool_folder_name, re.IGNORECASE)
-    tool_id = match.group(1).lower() if match else tool_folder_name
+    identity_name = tool_folder_name
+    if tool_folder_name.lower() == "tilted_masks":
+        analysis_parent = os.path.dirname(os.path.normpath(tool_dir))
+        masks_parent = os.path.dirname(analysis_parent)
+        identity_name = os.path.basename(masks_parent).removesuffix("_final_masks")
+    match = re.search(r"(tool\d+)", identity_name, re.IGNORECASE)
+    tool_id = match.group(1).lower() if match else identity_name
 
     meta_files = sorted(
         f for f in os.listdir(info_dir)
@@ -693,7 +781,7 @@ def _plot_overlay_pixel_counts(
 
     fig, ax = plt.subplots(figsize=(12, 6))
     for r_i in range(region_count):
-        y_col = f"count_r{r_i + 1}"
+        y_col = f"processed_count_r{r_i + 1}" if cfg.smoothing_enabled else f"count_r{r_i + 1}"
         label = f"P({display_ranges[r_i][0]}\u00b0\u2013{display_ranges[r_i][1]}\u00b0)"
         ax.plot(x_progression, counts_df[y_col], linewidth=1.5, label=label)
 
@@ -828,7 +916,7 @@ def _plot_overlay_abs_diff_stacked(
     fig, (ax_top, ax_bottom) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
 
     for r_i in range(region_count):
-        y_col = f"count_r{r_i + 1}"
+        y_col = f"processed_count_r{r_i + 1}" if cfg.smoothing_enabled else f"count_r{r_i + 1}"
         label = f"P({display_ranges[r_i][0]}\u00b0\u2013{display_ranges[r_i][1]}\u00b0)"
         ax_top.plot(x_progression, counts_df[y_col], linewidth=1.5, label=label)
 
@@ -934,7 +1022,6 @@ def _try_load_cached_search_result(
     metadata_path: str,
     sweep_csv_path: str,
     cfg: OffsetAnalysisConfig,
-    center_col: int,
     log_fn: Optional[Callable[[str], None]] = None,
 ) -> tuple[Optional[int], Optional[pd.DataFrame], Optional[int]]:
     """Load previously computed search results when settings match.
@@ -964,7 +1051,11 @@ def _try_load_cached_search_result(
     try:
         if int(meta.get("num_frames", -1)) != int(cfg.num_frames):
             return None, None, None
-        if int(meta.get("centerline_column_px_used", -1)) != int(center_col):
+        if bool(meta.get("smoothing_enabled", False)) != bool(cfg.smoothing_enabled):
+            return None, None, None
+        if int(meta.get("smoothing_window", 1)) != int(cfg.smoothing_window):
+            return None, None, None
+        if not np.isclose(float(meta.get("smoothing_strength", 0.0)), float(cfg.smoothing_strength)):
             return None, None, None
         optimal_offset = int(meta.get("optimal_offset"))
     except Exception:
@@ -991,7 +1082,8 @@ def _try_load_cached_search_result(
     if log_fn:
         log_fn(
             f"Reusing cached search result from metadata: optimal_offset={optimal_offset}, "
-            f"offset_range={expected_range}, num_frames={cfg.num_frames}, centerline_x={center_col}.\n"
+            f"offset_range={expected_range}, num_frames={cfg.num_frames}; "
+            "centerlines are fitted independently from each full frame.\n"
         )
 
     return optimal_offset, sweep_df, global_roi_bottom
@@ -1038,18 +1130,26 @@ def run_optimal_offset_analysis_for_tool(
         raise ValueError(f"Unsupported analysis mode: {cfg.analysis_mode}")
 
     tool_folder_name = os.path.basename(os.path.normpath(tool_dir))
-    match = re.search(r"(tool\d+)", tool_folder_name, re.IGNORECASE)
-    tool_id = match.group(1).lower() if match else tool_folder_name
+    identity_name = tool_folder_name
+    if tool_folder_name.lower() == "tilted_masks":
+        analysis_parent = os.path.dirname(os.path.normpath(tool_dir))
+        masks_parent = os.path.dirname(analysis_parent)
+        identity_name = os.path.basename(masks_parent).removesuffix("_final_masks")
+    match = re.search(r"(tool\d+)", identity_name, re.IGNORECASE)
+    tool_id = match.group(1).lower() if match else identity_name
 
-    # Tilt metadata lives in tool_dir/information/ (created by Tab 1).
-    info_dir = os.path.join(tool_dir, "information")
+    # Keep metadata beside tilted_masks when the GUI passes that folder directly.
+    info_parent = os.path.dirname(tool_dir) if tool_folder_name.lower() == "tilted_masks" else tool_dir
+    info_dir = os.path.join(info_parent, "information")
     # Analysis outputs go to symmetry_dir when provided.
     out_dir = symmetry_dir if symmetry_dir else info_dir
     os.makedirs(out_dir, exist_ok=True)
 
     mask_files = get_tilted_mask_files(tool_dir)
     roi_height = _resolve_roi_height(tool_dir, cfg, log_fn=log_fn)
-    center_col = _resolve_metadata_centerline(tool_dir, mask_files, log_fn=log_fn)
+    # The master-mask centerline is intentionally not loaded here. Every frame
+    # fits its own full-frame centerline inside _extract_right_half_stats().
+    center_col = 0
 
     if log_fn:
         log_fn(f"Found {len(mask_files)} frames in {tool_folder_name}.\n")
@@ -1070,7 +1170,6 @@ def run_optimal_offset_analysis_for_tool(
             metadata_path,
             sweep_csv_path,
             cfg,
-            center_col,
             log_fn=log_fn,
         )
 
@@ -1120,9 +1219,14 @@ def run_optimal_offset_analysis_for_tool(
             global_roi_bottom,
             roi_height,
             center_col,
+            cfg,
         )
         abs_diff_csv_path = f"{out_prefix}_abs_diff_per_angle.csv"
         pairwise_df.to_csv(abs_diff_csv_path, index=False)
+        pixel_counts_csv_path = f"{out_prefix}_right_side_pixel_counts.csv"
+        counts_df.to_csv(pixel_counts_csv_path, index=False)
+        summary_csv_path = f"{out_prefix}_comparison_summary.csv"
+        summary_df.to_csv(summary_csv_path, index=False)
 
         plot_paths = []
         if sweep_df is not None and not sweep_df.empty:
@@ -1166,7 +1270,10 @@ def run_optimal_offset_analysis_for_tool(
             "optimal_frame_range": f"{optimal_offset}-{optimal_offset + cfg.num_frames - 1}",
             "roi_height_px": int(roi_height),
             "centerline_mode": CENTERLINE_MODE,
-            "centerline_column_px_used": int(center_col),
+            "pixel_count_centerline": "fitted independently from each complete frame",
+            "smoothing_enabled": bool(cfg.smoothing_enabled),
+            "smoothing_window": int(cfg.smoothing_window),
+            "smoothing_strength": float(cfg.smoothing_strength),
             "global_roi_bottom": int(global_roi_bottom),
             "use_metadata_roi_height": bool(cfg.use_metadata_roi_height),
             "used_cached_search": bool(used_cached_search),
@@ -1196,13 +1303,15 @@ def run_optimal_offset_analysis_for_tool(
             "tool_folder_name": tool_folder_name,
             "output_dir": out_dir,
             "roi_height_px": int(roi_height),
-            "centerline_column_px": int(center_col),
             "global_roi_bottom": int(global_roi_bottom),
             "optimal_offset": int(optimal_offset),
             "used_cached_search": bool(used_cached_search),
             "frame_range": f"{optimal_offset}-{optimal_offset + cfg.num_frames - 1}",
             "mean_abs_diff": mean_abs_diff,
             "metadata_path": metadata_path,
+            "pixel_counts_csv_path": pixel_counts_csv_path,
+            "abs_diff_csv_path": abs_diff_csv_path,
+            "summary_csv_path": summary_csv_path,
             "plot_paths": plot_paths,
         }
 
@@ -1233,12 +1342,17 @@ def run_optimal_offset_analysis_for_tool(
         global_roi_bottom,
         roi_height,
         center_col,
+        cfg,
     )
 
     out_prefix = os.path.join(out_dir, tool_id)
 
     abs_diff_csv_path = f"{out_prefix}_abs_diff_per_angle.csv"
     pairwise_df.to_csv(abs_diff_csv_path, index=False)
+    pixel_counts_csv_path = f"{out_prefix}_right_side_pixel_counts.csv"
+    counts_df.to_csv(pixel_counts_csv_path, index=False)
+    summary_csv_path = f"{out_prefix}_comparison_summary.csv"
+    summary_df.to_csv(summary_csv_path, index=False)
 
     plot_paths, display_ranges = _plot_fixed_ranges(
         counts_df,
@@ -1258,7 +1372,10 @@ def run_optimal_offset_analysis_for_tool(
         "tool_id": tool_id,
         "roi_height_px": int(roi_height),
         "centerline_mode": CENTERLINE_MODE,
-        "centerline_column_px_used": int(center_col),
+        "pixel_count_centerline": "fitted independently from each complete frame",
+        "smoothing_enabled": bool(cfg.smoothing_enabled),
+        "smoothing_window": int(cfg.smoothing_window),
+        "smoothing_strength": float(cfg.smoothing_strength),
         "global_roi_bottom": int(global_roi_bottom),
         "use_metadata_roi_height": bool(cfg.use_metadata_roi_height),
         "internal_regions": [_range_to_str(r) for r in region_ranges],
@@ -1292,7 +1409,6 @@ def run_optimal_offset_analysis_for_tool(
         "tool_folder_name": tool_folder_name,
         "output_dir": out_dir,
         "roi_height_px": int(roi_height),
-        "centerline_column_px": int(center_col),
         "global_roi_bottom": int(global_roi_bottom),
         "region_count": int(len(region_ranges)),
         "internal_regions": [_range_to_str(r) for r in region_ranges],
@@ -1300,6 +1416,9 @@ def run_optimal_offset_analysis_for_tool(
         "pair_count": int(len(counts_df)),
         "mean_abs_diff": mean_abs_diff,
         "metadata_path": metadata_path,
+        "pixel_counts_csv_path": pixel_counts_csv_path,
+        "abs_diff_csv_path": abs_diff_csv_path,
+        "summary_csv_path": summary_csv_path,
         "plot_paths": plot_paths,
     }
 
@@ -1755,4 +1874,3 @@ def run_custom_summary_graph(
         "tool_count": len(df),
         "results": df.to_dict("records"),
     }
-
