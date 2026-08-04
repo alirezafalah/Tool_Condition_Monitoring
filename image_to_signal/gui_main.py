@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                             QMessageBox)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt6.QtGui import QFont, QColor, QPalette, QIcon, QImage, QPixmap, QShortcut, QKeySequence
+import concurrent.futures
 
 # Suppress matplotlib threading warnings
 warnings.filterwarnings('ignore', message='Starting a Matplotlib GUI outside of the main thread')
@@ -264,10 +265,11 @@ class TiltWorker(QThread):
     finished = pyqtSignal(str, float) # image path, angle
     error = pyqtSignal(str)
 
-    def __init__(self, masks_dir, generate_debug=False):
+    def __init__(self, masks_dir, generate_debug=False, debug_interval=1):
         super().__init__()
         self.masks_dir = masks_dir
         self.generate_debug = generate_debug
+        self.debug_interval = debug_interval
 
     def run(self):
         try:
@@ -292,10 +294,13 @@ class TiltWorker(QThread):
                 img = np.array(Image.open(fpath))
                 if img.ndim == 3:
                     img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+                
                 _, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
-                if np.all(binary == 255):
+                
+                if cv2.countNonZero(binary) == binary.size:
                     continue
-                master_mask = cv2.bitwise_or(master_mask, binary)
+                
+                cv2.bitwise_or(master_mask, binary, dst=master_mask)
 
             self.progress.emit("Master mask built. Calculating tilt angle...")
             
@@ -326,26 +331,29 @@ class TiltWorker(QThread):
             with open(angle_path, "w") as f:
                 f.write(f"Tilt angle (degrees): {tilt_deg}\n")
 
-            self.progress.emit("Rotating individual frames and saving...")
+            self.progress.emit("Rotating individual frames and saving in parallel...")
             rotation_angle = -tilt_deg
             height, width = master_mask.shape
             center = (width // 2, height // 2)
             rot_matrix = cv2.getRotationMatrix2D(center, rotation_angle, 1.0)
             
-            for i, fpath in enumerate(image_files):
+            def process_frame(args):
+                i, fpath = args
                 if i % 10 == 0:
                     self.progress.emit(f"Processing and saving tilted frames: {i}/{len(image_files)}")
                 img = np.array(Image.open(fpath))
                 if img.ndim == 3:
                     img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+                
                 _, binary = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)
                 
                 rotated_mask = cv2.warpAffine(binary, rot_matrix, (width, height), flags=cv2.INTER_NEAREST)
+                
                 base_name = os.path.basename(fpath)
                 out_path = os.path.join(tilted_dir, base_name)
                 cv2.imwrite(out_path, rotated_mask)
                 
-                if self.generate_debug:
+                if self.generate_debug and (i % self.debug_interval == 0):
                     ys_ind, left_ind, right_ind = get_boundaries(rotated_mask)
                     if ys_ind is not None:
                         ys_fit_ind, left_fit_ind, right_fit_ind = select_widest_rows(ys_ind, left_ind, right_ind)
@@ -353,6 +361,9 @@ class TiltWorker(QThread):
                             line_left_ind, line_right_ind, _ = fit_lines(ys_fit_ind, left_fit_ind, right_fit_ind)
                             debug_out_path = os.path.join(debug_dir, base_name)
                             render_centerline_figure(rotated_mask, ys_ind, line_left_ind, line_right_ind, debug_out_path)
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                list(executor.map(process_frame, enumerate(image_files)))
 
             self.progress.emit(f"Tilt figure saved to {fig_path}")
             self.finished.emit(fig_path, tilt_deg)
@@ -1044,8 +1055,17 @@ class ImageToSignalGUI(QMainWindow):
         input_layout.addLayout(roi_layout)
 
         debug_layout = QHBoxLayout()
-        self.ht_debug_checkbox = QCheckBox("Save Individual Centerline Debug Figures (Slower)")
+        self.ht_debug_checkbox = QCheckBox("Save Individual Centerline Debug Figures")
         debug_layout.addWidget(self.ht_debug_checkbox)
+        
+        debug_layout.addWidget(QLabel("  Interval (every N frames):"))
+        self.ht_debug_interval = QSpinBox()
+        self.ht_debug_interval.setRange(1, 10000)
+        self.ht_debug_interval.setValue(10)
+        self.ht_debug_interval.setEnabled(False)
+        self.ht_debug_checkbox.toggled.connect(self.ht_debug_interval.setEnabled)
+        debug_layout.addWidget(self.ht_debug_interval)
+        
         debug_layout.addStretch()
         input_layout.addLayout(debug_layout)
 
@@ -1141,7 +1161,8 @@ class ImageToSignalGUI(QMainWindow):
         self._ht_log("Initializing Tilt Analysis Worker...")
         
         generate_debug = self.ht_debug_checkbox.isChecked()
-        self.ht_tilt_worker = TiltWorker(masks_dir, generate_debug=generate_debug)
+        debug_interval = self.ht_debug_interval.value()
+        self.ht_tilt_worker = TiltWorker(masks_dir, generate_debug=generate_debug, debug_interval=debug_interval)
         self.ht_tilt_worker.progress.connect(self._ht_log)
         self.ht_tilt_worker.error.connect(self._ht_handle_tilt_error)
         self.ht_tilt_worker.finished.connect(self._ht_handle_tilt_finished)
