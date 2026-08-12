@@ -53,6 +53,8 @@ class OffsetAnalysisConfig:
     # ROI height behavior.
     roi_height: int = 200
     use_metadata_roi_height: bool = True
+    dynamic_roi_enabled: bool = False
+    dynamic_roi_height_factor: float = 0.45
 
     # Figure and output.
     output_formats: tuple[str, ...] = ("png",)
@@ -72,8 +74,8 @@ class OffsetAnalysisConfig:
     legend_ranges: tuple[tuple[int, int], ...] = ()
 
     # Optional smoothing before offset scoring / absolute differences.
-    smoothing_enabled: bool = False
-    smoothing_window: int = 5
+    smoothing_enabled: bool = True
+    smoothing_window: int = 20
     smoothing_strength: float = 1.0
 
 
@@ -337,6 +339,13 @@ def _resolve_fixed_regions(cfg: OffsetAnalysisConfig) -> list[tuple[int, int]]:
     ]
 
 
+def _overall_dsi_percent(pairwise_df: pd.DataFrame) -> float:
+    """DSI = mean absolute difference / pooled mean profile count * 100."""
+    numerator = float(pairwise_df["abs_difference"].sum())
+    denominator = float((pairwise_df["count_i"] + pairwise_df["count_j"]).sum())
+    return 200.0 * numerator / max(1.0, denominator)
+
+
 def _compare_regions(
     mask_files: list[str],
     region_ranges: list[tuple[int, int]],
@@ -426,6 +435,7 @@ def _compare_regions(
                     "count_i": processed_i, "count_j": processed_j,
                     "abs_difference": diff,
                     "ratio": (diff / total) if total > 0 else 0.0,
+                    "dsi_percent_per_angle": (200.0 * diff / total) if total > 0 else 0.0,
                     "normalized_diff": diff / avg_area,
                 })
     counts_df = counts_df.drop(columns=[c for c in counts_df.columns if c.startswith("_area_")])
@@ -446,11 +456,49 @@ def _compare_regions(
         )
         .fillna(0.0)
     )
+    dsi_by_pair = pairwise_df.groupby("pair_key").apply(
+        lambda group: 200.0 * group["abs_difference"].sum()
+        / max(1.0, (group["count_i"] + group["count_j"]).sum()),
+        include_groups=False,
+    )
+    summary_df["dsi_percent"] = summary_df["pair_key"].map(dsi_by_pair)
 
     return counts_df, pairwise_df, summary_df, region_indices
 
 
-def _resolve_roi_height(tool_dir: str, cfg: OffsetAnalysisConfig, log_fn: Optional[Callable[[str], None]] = None) -> int:
+def _resolve_roi_height(
+    tool_dir: str,
+    cfg: OffsetAnalysisConfig,
+    mask_files: list[str],
+    log_fn: Optional[Callable[[str], None]] = None,
+) -> tuple[int, Optional[int]]:
+    if cfg.dynamic_roi_enabled:
+        master_mask = None
+        for path in mask_files:
+            mask = _read_binary_mask(path)
+            if mask is None:
+                continue
+            if master_mask is None:
+                master_mask = np.zeros_like(mask, dtype=np.uint8)
+            if mask.shape != master_mask.shape:
+                raise ValueError("Dynamic ROI requires all tilted masks to have the same dimensions.")
+            cv2.bitwise_or(master_mask, mask, dst=master_mask)
+        if master_mask is None:
+            raise ValueError("Cannot calculate dynamic ROI: no readable mask frames.")
+        white_columns = np.flatnonzero(np.any(master_mask == 255, axis=0))
+        if not white_columns.size:
+            raise ValueError("Cannot calculate dynamic ROI: master mask is empty.")
+        master_width = int(white_columns[-1] - white_columns[0] + 1)
+        factor = max(0.01, float(cfg.dynamic_roi_height_factor))
+        roi_height = max(1, int(round(master_width * factor)))
+        roi_height = min(roi_height, int(master_mask.shape[0]))
+        if log_fn:
+            log_fn(
+                f"Dynamic ROI: master-mask width W={master_width}px, factor={factor:.3f}, "
+                f"shared height H={roi_height}px.\n"
+            )
+        return roi_height, master_width
+
     if cfg.use_metadata_roi_height:
         info_dir = os.path.join(tool_dir, "information")
         if os.path.isdir(info_dir):
@@ -469,13 +517,13 @@ def _resolve_roi_height(tool_dir: str, cfg: OffsetAnalysisConfig, log_fn: Option
                         if roi_h > 0:
                             if log_fn:
                                 log_fn(f"ROI height loaded from metadata: {roi_h} px ({path})\n")
-                            return roi_h
+                            return roi_h, None
                 except Exception:
                     continue
         if log_fn:
             log_fn("ROI height metadata not found; using manual ROI Height value.\n")
 
-    return max(1, int(cfg.roi_height))
+    return max(1, int(cfg.roi_height)), None
 
 
 def _resolve_metadata_centerline(
@@ -844,7 +892,8 @@ def _plot_abs_diff(
         if len(parts) == 2:
             ri, rj = int(parts[0]) - 1, int(parts[1]) - 1
             lbl = (
-                f"R{ri+1} vs R{rj+1}  "
+                f"{display_ranges[ri][0]}°-{display_ranges[ri][1]}° vs "
+                f"{display_ranges[rj][0]}°-{display_ranges[rj][1]}°  "
                 f"(mean\u2009=\u2009{mean_val:.2f})"
             )
         else:
@@ -887,7 +936,60 @@ def _plot_abs_diff(
     return _save_plot_formats(fig, f"{out_prefix}_abs_diff", cfg, log_fn=log_fn)
 
 
-def _plot_overlay_abs_diff_stacked(
+def _plot_dsi(
+    pairwise_df: pd.DataFrame,
+    tool_id: str,
+    out_prefix: str,
+    cfg: OffsetAnalysisConfig,
+    display_ranges: list[tuple[int, int]],
+    log_fn: Optional[Callable[[str], None]] = None,
+) -> list[str]:
+    """Standalone per-angle normalized deviation with the tool-level DSI."""
+    pair_count = int(pairwise_df["pair_idx"].nunique())
+    x_progression = np.arange(pair_count)
+    pair_groups = list(pairwise_df.groupby("pair_key", sort=True))
+    blue_shades = plt.cm.Blues(np.linspace(0.58, 0.9, max(1, len(pair_groups))))
+    fig, ax = plt.subplots(figsize=(12, 6))
+    tool_dsi_values = []
+
+    for idx, (pair_key, grp) in enumerate(pair_groups):
+        grp = grp.sort_values("pair_idx")
+        parts = pair_key.replace("R", "").split("_vs_")
+        if len(parts) == 2:
+            ri, rj = int(parts[0]) - 1, int(parts[1]) - 1
+            pair_label = (
+                f"{display_ranges[ri][0]}°-{display_ranges[ri][1]}° vs "
+                f"{display_ranges[rj][0]}°-{display_ranges[rj][1]}°"
+            )
+        else:
+            pair_label = pair_key.replace("_", " ")
+        tool_dsi = _overall_dsi_percent(grp)
+        tool_dsi_values.append(tool_dsi)
+        values = grp["dsi_percent_per_angle"].to_numpy()
+        label = f"{pair_label} (mean DSI={tool_dsi:.3f}%)"
+        ax.plot(x_progression, values, linewidth=1.8, color=blue_shades[idx], label=label)
+        ax.fill_between(x_progression, values, 0, color=blue_shades[idx], alpha=0.18, linewidth=0)
+
+    ax.set_xlabel(r"$\theta$ progression (frame index within range)")
+    ax.set_ylabel(r"Per-angle $\mathrm{DSI}_i$ (%)")
+    ax.legend(fontsize=cfg.legend_font_size)
+    ax.grid(True, alpha=0.3)
+    if cfg.include_top_caption:
+        caption = (
+            f"{tool_dsi_values[0]:.3f}%" if len(tool_dsi_values) == 1
+            else ", ".join(f"{value:.3f}%" for value in tool_dsi_values)
+        )
+        ax.set_title(
+            f"{tool_id} - Dimensionless Symmetry Index per Angle\n"
+            f"mean DSI over {pair_count} aligned angles: {caption}",
+            fontsize=cfg.title_font_size,
+            fontweight="bold",
+        )
+    plt.tight_layout()
+    return _save_plot_formats(fig, f"{out_prefix}_dsi", cfg, log_fn=log_fn)
+
+
+def _plot_overlay_dsi_stacked(
     counts_df: pd.DataFrame,
     pairwise_df: pd.DataFrame,
     tool_id: str,
@@ -897,7 +999,7 @@ def _plot_overlay_abs_diff_stacked(
     display_ranges: list[tuple[int, int]],
     log_fn: Optional[Callable[[str], None]] = None,
 ) -> list[str]:
-    """Combined figure: overlay on top, absolute difference below."""
+    """Combined figure: phase-aligned pixel-count overlay on top, DSI below."""
     plt.rcParams.update(
         {
             "font.size": cfg.axis_label_font_size,
@@ -909,53 +1011,68 @@ def _plot_overlay_abs_diff_stacked(
         }
     )
 
-    region_count = len(region_ranges)
     pair_count = int(len(counts_df))
     x_progression = np.arange(pair_count)
 
     fig, (ax_top, ax_bottom) = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
 
-    for r_i in range(region_count):
+    for r_i in range(len(region_ranges)):
         y_col = f"processed_count_r{r_i + 1}" if cfg.smoothing_enabled else f"count_r{r_i + 1}"
-        label = f"P({display_ranges[r_i][0]}\u00b0\u2013{display_ranges[r_i][1]}\u00b0)"
+        label = f"P({display_ranges[r_i][0]}°-{display_ranges[r_i][1]}°)"
         ax_top.plot(x_progression, counts_df[y_col], linewidth=1.5, label=label)
 
     ax_top.set_ylabel("White Pixel Count (Right Half)")
     ax_top.legend(fontsize=cfg.legend_font_size)
     ax_top.grid(True, alpha=0.3)
     ax_top.tick_params(axis="both", labelsize=cfg.tick_font_size)
-    ax_top.set_title("Overlay Pixel Counts", fontsize=cfg.axis_label_font_size, fontweight="bold")
+    ax_top.set_title("Phase-Aligned Pixel-Count Overlay", fontsize=cfg.axis_label_font_size, fontweight="bold")
 
     pair_groups = list(pairwise_df.groupby("pair_key", sort=True))
-    red_shades = plt.cm.Reds(np.linspace(0.58, 0.9, max(1, len(pair_groups))))
+    blue_shades = plt.cm.Blues(np.linspace(0.58, 0.9, max(1, len(pair_groups))))
+    overall_dsi_labels = []
 
     for idx, (pair_key, grp) in enumerate(pair_groups):
         grp = grp.sort_values("pair_idx")
-        mean_val = float(grp["abs_difference"].mean())
         parts = pair_key.replace("R", "").split("_vs_")
         if len(parts) == 2:
             ri, rj = int(parts[0]) - 1, int(parts[1]) - 1
-            lbl = f"R{ri+1} vs R{rj+1}  (mean\u2009=\u2009{mean_val:.2f})"
+            pair_label = (
+                f"{display_ranges[ri][0]}°-{display_ranges[ri][1]}° vs "
+                f"{display_ranges[rj][0]}°-{display_ranges[rj][1]}°"
+            )
         else:
-            lbl = f"{pair_key}  (mean={mean_val:.2f})"
+            pair_label = pair_key.replace("_", " ")
 
-        line_color = red_shades[idx]
-        y_values = grp["abs_difference"].values
-        ax_bottom.plot(x_progression, y_values, linewidth=1.8, color=line_color, label=lbl)
-        ax_bottom.fill_between(x_progression, y_values, 0, color=line_color, alpha=0.18, linewidth=0)
+        total_profile = float((grp["count_i"] + grp["count_j"]).sum())
+        overall_dsi = 200.0 * float(grp["abs_difference"].sum()) / max(1.0, total_profile)
+        overall_dsi_labels.append(f"{pair_label}: {overall_dsi:.3f}%")
+        dsi_values = grp["dsi_percent_per_angle"].values
+        dsi_label = f"{pair_label} (mean DSI={overall_dsi:.3f}%)"
+        ax_bottom.plot(x_progression, dsi_values, linewidth=1.8, color=blue_shades[idx], label=dsi_label)
+        ax_bottom.fill_between(
+            x_progression, dsi_values, 0, color=blue_shades[idx], alpha=0.18, linewidth=0
+        )
 
     ax_bottom.set_xlabel(r"$\theta$ progression (frame index within range)")
-    ax_bottom.set_ylabel("Absolute Difference")
+    ax_bottom.set_ylabel(r"Per-angle $\mathrm{DSI}_i$ (%)")
     ax_bottom.legend(fontsize=cfg.legend_font_size)
     ax_bottom.grid(True, alpha=0.3)
     ax_bottom.tick_params(axis="both", labelsize=cfg.tick_font_size)
-    ax_bottom.set_title("Absolute Difference per Angle", fontsize=cfg.axis_label_font_size, fontweight="bold")
+    ax_bottom.set_title(
+        # r"Normalized Deviation: $\mathrm{DSI}_i=200|P_1-P_2|/(P_1+P_2)$",
+        r"$\mathrm{DSI}_i$",
+        fontsize=cfg.axis_label_font_size,
+        fontweight="bold",
+    )
 
     if cfg.include_top_caption:
-        overall_mean = float(pairwise_df["abs_difference"].mean())
+        dsi_caption = (
+            overall_dsi_labels[0].split(": ", 1)[1]
+            if len(overall_dsi_labels) == 1 else ", ".join(overall_dsi_labels)
+        )
         fig.suptitle(
-            f"{tool_id} \u2014 Overlay and Absolute Difference\n"
-            f"Overall Mean Abs Diff: {overall_mean:.2f}",
+            f"{tool_id} \u2014 Pixel-Count Overlay and Dimensionless Symmetry Index\n"
+            f"mean DSI over {pair_count} aligned angles: {dsi_caption}",
             fontsize=cfg.title_font_size,
             fontweight="bold",
         )
@@ -963,7 +1080,7 @@ def _plot_overlay_abs_diff_stacked(
     else:
         plt.tight_layout()
 
-    return _save_plot_formats(fig, f"{out_prefix}_overlay_abs_diff_stacked", cfg, log_fn=log_fn)
+    return _save_plot_formats(fig, f"{out_prefix}_overlay_dsi_stacked", cfg, log_fn=log_fn)
 
 
 def _plot_fixed_ranges(
@@ -995,10 +1112,15 @@ def _plot_fixed_ranges(
             pairwise_df, tool_id, out_prefix, cfg, display_ranges, log_fn=log_fn,
         )
     )
+    saved.extend(
+        _plot_dsi(
+            pairwise_df, tool_id, out_prefix, cfg, display_ranges, log_fn=log_fn,
+        )
+    )
 
     if cfg.stack_overlay_abs_diff:
         saved.extend(
-            _plot_overlay_abs_diff_stacked(
+            _plot_overlay_dsi_stacked(
                 counts_df,
                 pairwise_df,
                 tool_id,
@@ -1022,6 +1144,7 @@ def _try_load_cached_search_result(
     metadata_path: str,
     sweep_csv_path: str,
     cfg: OffsetAnalysisConfig,
+    resolved_roi_height: int,
     log_fn: Optional[Callable[[str], None]] = None,
 ) -> tuple[Optional[int], Optional[pd.DataFrame], Optional[int]]:
     """Load previously computed search results when settings match.
@@ -1050,6 +1173,15 @@ def _try_load_cached_search_result(
 
     try:
         if int(meta.get("num_frames", -1)) != int(cfg.num_frames):
+            return None, None, None
+        if int(meta.get("roi_height_px", -1)) != int(resolved_roi_height):
+            return None, None, None
+        if bool(meta.get("dynamic_roi_enabled", False)) != bool(cfg.dynamic_roi_enabled):
+            return None, None, None
+        if not np.isclose(
+            float(meta.get("dynamic_roi_height_factor", 0.45)),
+            float(cfg.dynamic_roi_height_factor),
+        ):
             return None, None, None
         if bool(meta.get("smoothing_enabled", False)) != bool(cfg.smoothing_enabled):
             return None, None, None
@@ -1146,7 +1278,9 @@ def run_optimal_offset_analysis_for_tool(
     os.makedirs(out_dir, exist_ok=True)
 
     mask_files = get_tilted_mask_files(tool_dir)
-    roi_height = _resolve_roi_height(tool_dir, cfg, log_fn=log_fn)
+    roi_height, dynamic_roi_master_width = _resolve_roi_height(
+        tool_dir, cfg, mask_files, log_fn=log_fn
+    )
     # The master-mask centerline is intentionally not loaded here. Every frame
     # fits its own full-frame centerline inside _extract_right_half_stats().
     center_col = 0
@@ -1170,6 +1304,7 @@ def run_optimal_offset_analysis_for_tool(
             metadata_path,
             sweep_csv_path,
             cfg,
+            roi_height,
             log_fn=log_fn,
         )
 
@@ -1245,9 +1380,14 @@ def run_optimal_offset_analysis_for_tool(
                 pairwise_df, tool_id, out_prefix, cfg, display_ranges, log_fn=log_fn,
             )
         )
+        plot_paths.extend(
+            _plot_dsi(
+                pairwise_df, tool_id, out_prefix, cfg, display_ranges, log_fn=log_fn,
+            )
+        )
         if cfg.stack_overlay_abs_diff:
             plot_paths.extend(
-                _plot_overlay_abs_diff_stacked(
+                _plot_overlay_dsi_stacked(
                     counts_df,
                     pairwise_df,
                     tool_id,
@@ -1260,6 +1400,7 @@ def run_optimal_offset_analysis_for_tool(
             )
 
         mean_abs_diff = float(pairwise_df["abs_difference"].mean())
+        dsi_percent = _overall_dsi_percent(pairwise_df)
 
         metadata = {
             "analysis_mode": "search_offset",
@@ -1269,6 +1410,9 @@ def run_optimal_offset_analysis_for_tool(
             "optimal_offset": int(optimal_offset),
             "optimal_frame_range": f"{optimal_offset}-{optimal_offset + cfg.num_frames - 1}",
             "roi_height_px": int(roi_height),
+            "dynamic_roi_enabled": bool(cfg.dynamic_roi_enabled),
+            "dynamic_roi_height_factor": float(cfg.dynamic_roi_height_factor),
+            "dynamic_roi_master_width_px": dynamic_roi_master_width,
             "centerline_mode": CENTERLINE_MODE,
             "pixel_count_centerline": "fitted independently from each complete frame",
             "smoothing_enabled": bool(cfg.smoothing_enabled),
@@ -1278,6 +1422,7 @@ def run_optimal_offset_analysis_for_tool(
             "use_metadata_roi_height": bool(cfg.use_metadata_roi_height),
             "used_cached_search": bool(used_cached_search),
             "mean_abs_diff": mean_abs_diff,
+            "dsi_percent": dsi_percent,
             "output_formats": list(_normalize_output_formats(cfg.output_formats)),
             "stack_overlay_abs_diff": bool(cfg.stack_overlay_abs_diff),
             "analysis_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1303,11 +1448,15 @@ def run_optimal_offset_analysis_for_tool(
             "tool_folder_name": tool_folder_name,
             "output_dir": out_dir,
             "roi_height_px": int(roi_height),
+            "dynamic_roi_enabled": bool(cfg.dynamic_roi_enabled),
+            "dynamic_roi_height_factor": float(cfg.dynamic_roi_height_factor),
+            "dynamic_roi_master_width_px": dynamic_roi_master_width,
             "global_roi_bottom": int(global_roi_bottom),
             "optimal_offset": int(optimal_offset),
             "used_cached_search": bool(used_cached_search),
             "frame_range": f"{optimal_offset}-{optimal_offset + cfg.num_frames - 1}",
             "mean_abs_diff": mean_abs_diff,
+            "dsi_percent": dsi_percent,
             "metadata_path": metadata_path,
             "pixel_counts_csv_path": pixel_counts_csv_path,
             "abs_diff_csv_path": abs_diff_csv_path,
@@ -1366,11 +1515,15 @@ def run_optimal_offset_analysis_for_tool(
     )
 
     mean_abs_diff = float(pairwise_df["abs_difference"].mean())
+    dsi_percent = _overall_dsi_percent(pairwise_df)
 
     metadata = {
         "analysis_mode": "fixed_ranges",
         "tool_id": tool_id,
         "roi_height_px": int(roi_height),
+        "dynamic_roi_enabled": bool(cfg.dynamic_roi_enabled),
+        "dynamic_roi_height_factor": float(cfg.dynamic_roi_height_factor),
+        "dynamic_roi_master_width_px": dynamic_roi_master_width,
         "centerline_mode": CENTERLINE_MODE,
         "pixel_count_centerline": "fitted independently from each complete frame",
         "smoothing_enabled": bool(cfg.smoothing_enabled),
@@ -1383,6 +1536,7 @@ def run_optimal_offset_analysis_for_tool(
         "manual_legend_ranges": bool(cfg.manual_legend_ranges),
         "pair_count": int(len(counts_df)),
         "mean_abs_diff": mean_abs_diff,
+        "dsi_percent": dsi_percent,
         "output_formats": list(_normalize_output_formats(cfg.output_formats)),
         "stack_overlay_abs_diff": bool(cfg.stack_overlay_abs_diff),
         "analysis_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1409,12 +1563,16 @@ def run_optimal_offset_analysis_for_tool(
         "tool_folder_name": tool_folder_name,
         "output_dir": out_dir,
         "roi_height_px": int(roi_height),
+        "dynamic_roi_enabled": bool(cfg.dynamic_roi_enabled),
+        "dynamic_roi_height_factor": float(cfg.dynamic_roi_height_factor),
+        "dynamic_roi_master_width_px": dynamic_roi_master_width,
         "global_roi_bottom": int(global_roi_bottom),
         "region_count": int(len(region_ranges)),
         "internal_regions": [_range_to_str(r) for r in region_ranges],
         "display_regions": [f"{r[0]}-{r[1]}" for r in display_ranges],
         "pair_count": int(len(counts_df)),
         "mean_abs_diff": mean_abs_diff,
+        "dsi_percent": dsi_percent,
         "metadata_path": metadata_path,
         "pixel_counts_csv_path": pixel_counts_csv_path,
         "abs_diff_csv_path": abs_diff_csv_path,

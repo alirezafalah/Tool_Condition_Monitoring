@@ -1163,6 +1163,21 @@ class ImageToSignalGUI(QMainWindow):
         self.offset_roi.setRange(1, 10000)
         self.offset_roi.setValue(200)
         search_controls.addWidget(self.offset_roi)
+        self.offset_dynamic_roi = QCheckBox("Dynamic ROI: H = factor × master width")
+        self.offset_dynamic_roi.setChecked(True)
+        search_controls.addWidget(self.offset_dynamic_roi)
+        search_controls.addWidget(QLabel("Factor:"))
+        self.offset_roi_factor = QDoubleSpinBox()
+        self.offset_roi_factor.setRange(0.05, 2.00)
+        self.offset_roi_factor.setSingleStep(0.05)
+        self.offset_roi_factor.setDecimals(2)
+        self.offset_roi_factor.setValue(0.45)
+        search_controls.addWidget(self.offset_roi_factor)
+        self.offset_dynamic_roi.toggled.connect(
+            lambda checked: self.offset_roi.setEnabled(not checked)
+        )
+        self.offset_dynamic_roi.toggled.connect(self.offset_roi_factor.setEnabled)
+        self.offset_roi.setEnabled(False)
         search_controls.addWidget(QLabel("Offset min:"))
         self.offset_min = QSpinBox()
         self.offset_min.setRange(1, 10000)
@@ -1199,13 +1214,13 @@ class ImageToSignalGUI(QMainWindow):
 
         smoothing_row = QHBoxLayout()
         self.offset_smoothing = QCheckBox("Smooth pixel signals before comparison")
-        self.offset_smoothing.setChecked(False)
+        self.offset_smoothing.setChecked(True)
         smoothing_row.addWidget(self.offset_smoothing)
         smoothing_row.addWidget(QLabel("Window size:"))
         self.offset_smoothing_window = QSpinBox()
         self.offset_smoothing_window.setRange(1, 101)
         self.offset_smoothing_window.setSingleStep(2)
-        self.offset_smoothing_window.setValue(5)
+        self.offset_smoothing_window.setValue(20)
         smoothing_row.addWidget(self.offset_smoothing_window)
         smoothing_row.addWidget(QLabel("Strength:"))
         self.offset_smoothing_strength = QSpinBox()
@@ -1220,8 +1235,8 @@ class ImageToSignalGUI(QMainWindow):
         compare_layout.addLayout(smoothing_row)
         self.offset_smoothing.toggled.connect(self.offset_smoothing_window.setEnabled)
         self.offset_smoothing.toggled.connect(self.offset_smoothing_strength.setEnabled)
-        self.offset_smoothing_window.setEnabled(False)
-        self.offset_smoothing_strength.setEnabled(False)
+        self.offset_smoothing_window.setEnabled(True)
+        self.offset_smoothing_strength.setEnabled(True)
 
         format_row = QHBoxLayout()
         format_row.addWidget(QLabel("Figures:"))
@@ -1230,7 +1245,7 @@ class ImageToSignalGUI(QMainWindow):
         self.offset_pdf = QCheckBox("PDF")
         self.offset_pdf.setChecked(True)
         self.offset_svg = QCheckBox("SVG")
-        self.offset_stacked = QCheckBox("Combined overlay + difference")
+        self.offset_stacked = QCheckBox("Combined overlay + DSI")
         self.offset_stacked.setChecked(True)
         for control in (self.offset_png, self.offset_pdf, self.offset_svg, self.offset_stacked):
             format_row.addWidget(control)
@@ -1334,6 +1349,8 @@ class ImageToSignalGUI(QMainWindow):
             search_num_regions=2,
             roi_height=self.offset_roi.value(),
             use_metadata_roi_height=False,
+            dynamic_roi_enabled=self.offset_dynamic_roi.isChecked(),
+            dynamic_roi_height_factor=self.offset_roi_factor.value(),
             offset_min=self.offset_min.value(),
             offset_max=self.offset_max.value(),
             output_formats=("png",),
@@ -1352,10 +1369,13 @@ class ImageToSignalGUI(QMainWindow):
     def _offset_search_finished(self, result):
         offset = int(result["optimal_offset"])
         frame_count = self.offset_frames.value()
+        self.offset_roi.setValue(int(result["roi_height_px"]))
         self.offset_regions.setText(f"0-{frame_count - 1}, {offset}-{offset + frame_count - 1}")
         self.offset_result_label.setText(
             f"Optimal offset: {offset} frames | matched region B: {result['frame_range']} | "
-            f"mean absolute difference: {result['mean_abs_diff']:.3f}"
+            f"ROI height: {result['roi_height_px']} px | "
+            f"mean absolute difference: {result['mean_abs_diff']:.3f} | "
+            f"DSI: {result['dsi_percent']:.3f}%"
         )
         self.offset_result_label.setStyleSheet("color: #65ff7a; font-weight: bold;")
         self._offset_log_message(f"Offset search complete. Exact output: {result['output_dir']}")
@@ -1391,6 +1411,8 @@ class ImageToSignalGUI(QMainWindow):
             region_ranges=regions,
             roi_height=self.offset_roi.value(),
             use_metadata_roi_height=False,
+            dynamic_roi_enabled=self.offset_dynamic_roi.isChecked(),
+            dynamic_roi_height_factor=self.offset_roi_factor.value(),
             output_formats=formats,
             stack_overlay_abs_diff=self.offset_stacked.isChecked(),
             manual_legend_ranges=True,
@@ -1419,7 +1441,7 @@ class ImageToSignalGUI(QMainWindow):
         self._offset_log_message(
             f"Pixel comparison complete: {result['region_count']} regions, "
             f"{result['pair_count']} aligned positions, mean absolute difference "
-            f"{result['mean_abs_diff']:.3f}."
+            f"{result['mean_abs_diff']:.3f}, DSI {result['dsi_percent']:.3f}%."
         )
         self._offset_log_message(f"Exact output: {result['output_dir']}")
         self.offset_result_label.setText(f"Final results saved to: {result['output_dir']}")
