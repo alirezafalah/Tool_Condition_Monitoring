@@ -28,7 +28,9 @@ import matplotlib.pyplot as plt
 
 VALID_OUTPUT_FORMATS = ("png", "svg", "pdf")
 VALID_ANALYSIS_MODES = ("search_offset", "fixed_ranges")
-CENTERLINE_MODE = "per_frame_full_frame_fitted_line_v3"
+# Also acts as the search-cache version: v8 rejects anchor candidates that
+# cannot accommodate every selected edge phase within the recording.
+CENTERLINE_MODE = "shared_rotated_master_fitted_line_v8"
 
 
 @dataclass(frozen=True)
@@ -40,6 +42,18 @@ class OffsetAnalysisConfig:
     offset_min: int = 176
     offset_max: int = 186
     search_num_regions: int = 2
+    # Candidate start-frame range for the first matching symmetry phase
+    # (Region 2).  It calibrates the recording's constant angular speed; all
+    # later regions are calculated from this one anchor, not independently
+    # searched at potentially inconsistent frame rates.
+    search_target_start_ranges: tuple[tuple[int, int], ...] = ()
+    # When the folder is known to contain one complete 360-degree recording,
+    # its image count fixes the angular sampling rate. In this mode only the
+    # phase position consistent with that rate is accepted.
+    full_rotation_locked: bool = False
+    # Even when the precise angular overrun is unknown, a valid anchor must
+    # leave enough frames for all edge phases in one complete turn.
+    require_all_edge_phases_within_recording: bool = True
 
     # Fixed mode fallback (2 ranges, inclusive frame indices).
     range_a_start: int = 0
@@ -71,7 +85,7 @@ class OffsetAnalysisConfig:
     legend_a_end_deg: int = 90
     legend_b_start_deg: int = 180
     legend_b_end_deg: int = 270
-    legend_ranges: tuple[tuple[int, int], ...] = ()
+    legend_ranges: tuple[tuple[float, float], ...] = ()
 
     # Optional smoothing before offset scoring / absolute differences.
     smoothing_enabled: bool = True
@@ -89,6 +103,11 @@ def _smooth_values(values: Iterable[float], cfg: OffsetAnalysisConfig) -> np.nda
         return raw.copy()
     smoothed = pd.Series(raw).rolling(window=window, center=True, min_periods=1).mean().to_numpy()
     return raw * (1.0 - strength) + smoothed * strength
+
+
+def _round_half_up(value: float) -> int:
+    """Round positive frame counts so 30.5 frames becomes 31, not 30."""
+    return int(np.floor(float(value) + 0.5))
 
 
 def _normalize_output_formats(values: Iterable[str]) -> tuple[str, ...]:
@@ -152,64 +171,28 @@ def _extract_right_half_stats(
     mask: np.ndarray,
     global_roi_bottom: int,
     roi_height: int,
-    _unused_reference_center_col: int = 0,
-) -> Optional[tuple[int, int, int, float, float]]:
+    shared_centerline: tuple[float, float],
+) -> Optional[tuple[int, int, int]]:
+    """Count right-half ROI pixels using one rotated-master fitted line."""
     roi_top = max(0, global_roi_bottom - roi_height)
     roi_bottom = global_roi_bottom + 1
     roi_mask = mask[roi_top:roi_bottom, :]
-
-    white_pixels = np.where(roi_mask == 255)
-    if len(white_pixels[1]) == 0:
+    if not np.any(roi_mask == 255):
         return None
 
-    width = int(roi_mask.shape[1])
-    # Each corrected frame gets its own centerline. Fit the left and right tool
-    # boundaries over that frame's widest rows (the same principle used by the
-    # tilt debug figure), then evaluate the bisector at the middle of the ROI.
-    ys = []
-    left_edges = []
-    right_edges = []
-    for y in range(mask.shape[0]):
-        cols = np.flatnonzero(mask[y] == 255)
-        if cols.size:
-            ys.append(y)
-            left_edges.append(int(cols[0]))
-            right_edges.append(int(cols[-1]))
-
-    full_white = np.where(mask == 255)
-    full_left = int(np.min(full_white[1]))
-    full_right = int(np.max(full_white[1]))
-    center_slope = 0.0
-    center_intercept = (full_left + full_right) / 2.0
-    if len(ys) >= 2:
-        ys_arr = np.asarray(ys, dtype=np.float64)
-        left_arr = np.asarray(left_edges, dtype=np.float64)
-        right_arr = np.asarray(right_edges, dtype=np.float64)
-        widths = right_arr - left_arr
-        keep = widths >= np.percentile(widths, 50.0)
-        if np.count_nonzero(keep) < 2:
-            keep = np.ones_like(widths, dtype=bool)
-        if np.count_nonzero(keep) >= 2:
-            left_slope, left_intercept = np.polyfit(ys_arr[keep], left_arr[keep], 1)
-            right_slope, right_intercept = np.polyfit(ys_arr[keep], right_arr[keep], 1)
-            center_slope = float((left_slope + right_slope) / 2.0)
-            center_intercept = float((left_intercept + right_intercept) / 2.0)
-
-    # Apply that full-frame fitted line row by row inside the ROI. The ROI only
-    # limits which pixels are counted; it never participates in centerline fitting.
+    width = int(mask.shape[1])
+    center_slope, center_intercept = shared_centerline
     right_count = 0
     half_area = 0
     for local_y, global_y in enumerate(range(roi_top, roi_bottom)):
-        center_x = int(round(center_slope * global_y + center_intercept))
-        center_x = int(np.clip(center_x, 0, max(0, width - 1)))
-        start_col = center_x + 1
-        right_count += int(np.sum(roi_mask[local_y, start_col:] == 255))
-        half_area += max(0, width - start_col)
+        center_x = int(np.clip(round(center_slope * global_y + center_intercept), 0, width - 1))
+        first_right_col = center_x + 1
+        right_count += int(np.count_nonzero(roi_mask[local_y, first_right_col:] == 255))
+        half_area += max(0, width - first_right_col)
 
     roi_mid_y = (roi_top + roi_bottom - 1) / 2.0
-    center_at_roi_mid = int(round(center_slope * roi_mid_y + center_intercept))
-    center_at_roi_mid = int(np.clip(center_at_roi_mid, 0, max(0, width - 1)))
-    return right_count, max(1, half_area), center_at_roi_mid, center_slope, center_intercept
+    center_at_roi_mid = int(np.clip(round(center_slope * roi_mid_y + center_intercept), 0, width - 1))
+    return right_count, max(1, half_area), center_at_roi_mid
 
 
 def _find_global_roi_bottom_for_indices(mask_files: list[str], indices: Iterable[int]) -> int:
@@ -240,9 +223,9 @@ def _test_offset(
     global_roi_bottom: int,
     roi_height: int,
     num_frames: int,
-    center_col: int,
+    shared_centerline: tuple[float, float],
     cfg: OffsetAnalysisConfig,
-    stats_cache: Optional[dict[int, Optional[tuple[int, int, int, float, float]]]] = None,
+    stats_cache: Optional[dict[int, Optional[tuple[int, int, int]]]] = None,
 ) -> Optional[dict]:
     counts1 = []
     counts2 = []
@@ -258,7 +241,7 @@ def _test_offset(
                 return stats_cache[frame_idx]
             mask = _read_binary_mask(mask_files[frame_idx])
             stats = None if mask is None else _extract_right_half_stats(
-                mask, global_roi_bottom, roi_height, center_col
+                mask, global_roi_bottom, roi_height, shared_centerline
             )
             if stats_cache is not None:
                 stats_cache[frame_idx] = stats
@@ -269,8 +252,8 @@ def _test_offset(
         if stats1 is None or stats2 is None:
             continue
 
-        count1, _, _center1, _slope1, _intercept1 = stats1
-        count2, _, _center2, _slope2, _intercept2 = stats2
+        count1, *_unused1 = stats1
+        count2, *_unused2 = stats2
 
         counts1.append(count1)
         counts2.append(count2)
@@ -301,17 +284,19 @@ def _find_optimal_offset(
     global_roi_bottom: int,
     cfg: OffsetAnalysisConfig,
     roi_height: int,
-    center_col: int,
+    shared_centerline: tuple[float, float],
     log_fn: Optional[Callable[[str], None]] = None,
+    stats_cache: Optional[dict[int, Optional[tuple[int, int, int]]]] = None,
 ) -> tuple[pd.DataFrame, int]:
     rows = []
-    stats_cache = {}
+    if stats_cache is None:
+        stats_cache = {}
     for offset in range(cfg.offset_min, cfg.offset_max + 1):
         if log_fn:
             log_fn(f"  Testing offset {offset} deg... ")
         result = _test_offset(
             mask_files, offset, global_roi_bottom, roi_height, cfg.num_frames,
-            center_col, cfg, stats_cache=stats_cache,
+            shared_centerline, cfg, stats_cache=stats_cache,
         )
         if result is None:
             if log_fn:
@@ -328,6 +313,60 @@ def _find_optimal_offset(
     optimal_idx = int(df["mean_ratio"].idxmin())
     optimal_offset = int(df.loc[optimal_idx, "offset"])
     return df, optimal_offset
+
+
+def _find_anchor_and_calculate_region_starts(
+    mask_files: list[str],
+    global_roi_bottom: int,
+    cfg: OffsetAnalysisConfig,
+    roi_height: int,
+    shared_centerline: tuple[float, float],
+    anchor_start_range: tuple[int, int],
+    log_fn: Optional[Callable[[str], None]] = None,
+) -> tuple[pd.DataFrame, list[int]]:
+    """Search one anchor phase and derive all later phases at the same rate.
+
+    For an E-edge tool, Region 2 starts one symmetry phase after Region 1.
+    Once its frame start is found, each subsequent symmetry phase starts at an
+    integer multiple of it. This preserves the constant angular velocity of a
+    single recording instead of fitting a separate apparent velocity per edge.
+    """
+    start_min, start_max = map(int, anchor_start_range)
+    if start_max < start_min:
+        raise ValueError(f"Invalid Region 2 anchor search range: {start_min}-{start_max}.")
+    if int(cfg.search_num_regions) < 2:
+        raise ValueError("Search mode needs at least two symmetry regions.")
+    if log_fn:
+        log_fn(f"Searching Region 2 anchor start {start_min}..{start_max}...\n")
+
+    anchor_cfg = OffsetAnalysisConfig(
+        **{**cfg.__dict__, "offset_min": start_min, "offset_max": start_max}
+    )
+    sweep, anchor_start = _find_optimal_offset(
+        mask_files,
+        global_roi_bottom,
+        anchor_cfg,
+        roi_height,
+        shared_centerline,
+        log_fn=log_fn,
+    )
+    sweep = sweep.copy()
+    sweep.insert(0, "target_region", 2)
+    sweep.insert(1, "target_start_min", start_min)
+    sweep.insert(2, "target_start_max", start_max)
+
+    if cfg.full_rotation_locked:
+        return sweep, [int(anchor_start)]
+
+    region_starts = [int(round(anchor_start * multiplier)) for multiplier in range(1, int(cfg.search_num_regions))]
+    if log_fn and len(region_starts) > 1:
+        log_fn(
+            "Constant-rotation model: Region 2 anchor="
+            f"{anchor_start}; calculated later starts="
+            + ", ".join(str(start) for start in region_starts[1:])
+            + ".\n"
+        )
+    return sweep, region_starts
 
 
 def _resolve_fixed_regions(cfg: OffsetAnalysisConfig) -> list[tuple[int, int]]:
@@ -351,7 +390,7 @@ def _compare_regions(
     region_ranges: list[tuple[int, int]],
     global_roi_bottom: int,
     roi_height: int,
-    center_col: int,
+    shared_centerline: tuple[float, float],
     cfg: OffsetAnalysisConfig,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, list[list[int]]]:
     if len(region_ranges) < 2:
@@ -373,34 +412,32 @@ def _compare_regions(
         counts = []
         areas = []
         centerlines = []
-        centerline_slopes = []
-        centerline_intercepts = []
         valid = True
         for frame_idx in frame_indices:
             mask = _read_binary_mask(mask_files[frame_idx])
             if mask is None:
                 valid = False
                 break
-            stats = _extract_right_half_stats(mask, global_roi_bottom, roi_height, center_col)
+            stats = _extract_right_half_stats(mask, global_roi_bottom, roi_height, shared_centerline)
             if stats is None:
                 valid = False
                 break
-            count, area, frame_centerline, centerline_slope, centerline_intercept = stats
+            count, area, frame_centerline = stats
             counts.append(count)
             areas.append(area)
             centerlines.append(frame_centerline)
-            centerline_slopes.append(centerline_slope)
-            centerline_intercepts.append(centerline_intercept)
 
         if not valid:
             continue
 
-        count_row = {"pair_idx": int(pair_idx)}
+        count_row = {
+            "pair_idx": int(pair_idx),
+            "shared_centerline_slope": float(shared_centerline[0]),
+            "shared_centerline_intercept": float(shared_centerline[1]),
+        }
         for r_i, frame_idx in enumerate(frame_indices):
             count_row[f"frame_r{r_i+1}"] = int(frame_idx)
             count_row[f"centerline_x_r{r_i+1}"] = int(centerlines[r_i])
-            count_row[f"centerline_slope_r{r_i+1}"] = float(centerline_slopes[r_i])
-            count_row[f"centerline_intercept_r{r_i+1}"] = float(centerline_intercepts[r_i])
             count_row[f"count_r{r_i+1}"] = int(counts[r_i])
             count_row[f"_area_r{r_i+1}"] = int(areas[r_i])
         counts_rows.append(count_row)
@@ -526,155 +563,118 @@ def _resolve_roi_height(
     return max(1, int(cfg.roi_height)), None
 
 
-def _resolve_metadata_centerline(
+def _fit_master_centerline(master_mask: np.ndarray) -> tuple[float, float]:
+    """Fit the centre bisector from the widest rows of one master mask."""
+    ys = []
+    left_x = []
+    right_x = []
+    for y in range(master_mask.shape[0]):
+        cols = np.flatnonzero(master_mask[y] == 255)
+        if cols.size:
+            ys.append(float(y))
+            left_x.append(float(cols[0]))
+            right_x.append(float(cols[-1]))
+    if len(ys) < 2:
+        raise ValueError("Master mask has insufficient non-empty rows for centerline fitting.")
+
+    ys_arr = np.asarray(ys, dtype=np.float64)
+    left_arr = np.asarray(left_x, dtype=np.float64)
+    right_arr = np.asarray(right_x, dtype=np.float64)
+    widths = right_arr - left_arr
+    keep = widths >= np.percentile(widths, 50.0)
+    if np.count_nonzero(keep) < min(20, len(widths)):
+        keep = np.zeros_like(widths, dtype=bool)
+        keep[np.argsort(widths)[-min(20, len(widths)):]] = True
+
+    left_slope, left_intercept = np.polyfit(ys_arr[keep], left_arr[keep], 1)
+    right_slope, right_intercept = np.polyfit(ys_arr[keep], right_arr[keep], 1)
+    return (
+        float((left_slope + right_slope) / 2.0),
+        float((left_intercept + right_intercept) / 2.0),
+    )
+
+
+def _resolve_shared_master_centerline(
     tool_dir: str,
     mask_files: list[str],
     log_fn: Optional[Callable[[str], None]] = None,
-) -> int:
-    """Resolve a constant centerline.
+) -> tuple[float, float]:
+    """Load the rotated-master line, or reconstruct it once from tilted masks.
 
-    Priority:
-    1) Read centerline from existing tilt metadata.
-    2) Fallback: build a master mask from available frames, estimate centerline,
-       and persist it into tool metadata for future runs.
+    Normal operation consumes the slope/intercept saved by ``TiltWorker``. The
+    fallback only supports existing tilted-mask folders created before that
+    metadata existed; it ORs the already-tilted frames and fits the same master
+    mask method, never individual frames.
     """
     info_parent = os.path.dirname(tool_dir) if os.path.basename(os.path.normpath(tool_dir)).lower() == "tilted_masks" else tool_dir
     info_dir = os.path.join(info_parent, "information")
     os.makedirs(info_dir, exist_ok=True)
-
-    tool_folder_name = os.path.basename(os.path.normpath(tool_dir))
-    identity_name = tool_folder_name
-    if tool_folder_name.lower() == "tilted_masks":
-        analysis_parent = os.path.dirname(os.path.normpath(tool_dir))
-        masks_parent = os.path.dirname(analysis_parent)
-        identity_name = os.path.basename(masks_parent).removesuffix("_final_masks")
-    match = re.search(r"(tool\d+)", identity_name, re.IGNORECASE)
-    tool_id = match.group(1).lower() if match else identity_name
-
     meta_files = sorted(
         f for f in os.listdir(info_dir)
         if f.endswith("_tilt_metadata.json") and os.path.isfile(os.path.join(info_dir, f))
     )
-
-    # 1) Metadata path first.
     for name in meta_files:
         path = os.path.join(info_dir, name)
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            candidate = data.get("centerline_column_px", data.get("centerline_column"))
-            if candidate is None:
+            slope = data.get("shared_centerline_slope")
+            intercept = data.get("shared_centerline_intercept")
+            if slope is None or intercept is None:
                 continue
-            center_col = int(candidate)
-            if center_col >= 0:
+            line = (float(slope), float(intercept))
+            if np.isfinite(line[0]) and np.isfinite(line[1]):
                 if log_fn:
-                    log_fn(f"Centerline column loaded from metadata: x={center_col} ({path})\n")
-                return center_col
+                    log_fn(f"Shared rotated-master centerline loaded from metadata: {path}\n")
+                return line
         except Exception:
             continue
 
-    # 2) Fallback path: estimate from a master mask built from the current frames.
-    if log_fn:
-        log_fn("Centerline not found in metadata; building fallback master mask to estimate centerline.\n")
-
     if not mask_files:
-        raise ValueError("Cannot estimate fallback centerline: no mask files available.")
-
-    first_mask = None
+        raise ValueError("Cannot build fallback rotated master mask: no tilted mask files are available.")
     master_mask = None
     used_frames = 0
     for path in mask_files:
         mask = _read_binary_mask(path)
-        if mask is None:
+        if mask is None or np.all(mask == 255):
             continue
-        if first_mask is None:
-            first_mask = mask
+        if master_mask is None:
             master_mask = np.zeros_like(mask, dtype=np.uint8)
-        # Keep behavior close to previous tooling: skip all-white frames.
-        if np.all(mask == 255):
-            continue
-        master_mask = cv2.bitwise_or(master_mask, mask)
+        if mask.shape != master_mask.shape:
+            raise ValueError("All tilted masks must have matching dimensions for master centerline fitting.")
+        cv2.bitwise_or(master_mask, mask, dst=master_mask)
         used_frames += 1
+    if master_mask is None or used_frames == 0:
+        raise ValueError("Failed to build fallback rotated master mask for shared centerline.")
 
-    if first_mask is None or master_mask is None or used_frames == 0:
-        raise ValueError("Failed to build fallback master mask for centerline estimation.")
-
-    ys = []
-    left_x = []
-    right_x = []
-    h, w = master_mask.shape
-    for y in range(h):
-        white = np.where(master_mask[y, :] == 255)[0]
-        if white.size > 0:
-            ys.append(float(y))
-            left_x.append(float(white[0]))
-            right_x.append(float(white[-1]))
-
-    if len(ys) < 2:
-        white_cols = np.where(master_mask.any(axis=0))[0]
-        if len(white_cols) >= 2:
-            center_col = int(round((float(white_cols[0]) + float(white_cols[-1])) / 2.0))
-        else:
-            center_col = w // 2
-    else:
-        ys_arr = np.array(ys, dtype=np.float64)
-        left_arr = np.array(left_x, dtype=np.float64)
-        right_arr = np.array(right_x, dtype=np.float64)
-
-        widths = right_arr - left_arr
-        threshold = np.percentile(widths, 50.0)
-        keep = widths >= threshold
-        if int(np.sum(keep)) < min(20, len(widths)):
-            take_n = min(20, len(widths))
-            top_idx = np.argsort(widths)[-take_n:]
-            keep = np.zeros_like(widths, dtype=bool)
-            keep[top_idx] = True
-
-        ys_fit = ys_arr[keep]
-        left_fit = left_arr[keep]
-        right_fit = right_arr[keep]
-
-        m_left, b_left = np.polyfit(ys_fit, left_fit, 1)
-        m_right, b_right = np.polyfit(ys_fit, right_fit, 1)
-        m_center = (m_left + m_right) / 2.0
-        b_center = (b_left + b_right) / 2.0
-
-        y_mid = float((ys_arr.min() + ys_arr.max()) / 2.0)
-        center_col = int(round(m_center * y_mid + b_center))
-
-        white_cols = np.where(master_mask.any(axis=0))[0]
-        if len(white_cols) >= 2:
-            center_col = int(np.clip(center_col, int(white_cols[0]), int(white_cols[-1])))
-        else:
-            center_col = int(np.clip(center_col, 0, max(0, w - 1)))
-
-    master_mask_path = os.path.join(info_dir, f"{tool_id}_MASTER_MASK_fallback.png")
-    cv2.imwrite(master_mask_path, master_mask)
-
-    target_meta_name = meta_files[0] if meta_files else f"{tool_id}_tilt_metadata.json"
-    target_meta_path = os.path.join(info_dir, target_meta_name)
+    line = _fit_master_centerline(master_mask)
+    folder_name = os.path.basename(os.path.normpath(tool_dir))
+    identity = os.path.basename(os.path.dirname(os.path.dirname(tool_dir))) if folder_name.lower() == "tilted_masks" else folder_name
+    match = re.search(r"(tool\d+)", identity, re.IGNORECASE)
+    tool_id = match.group(1).lower() if match else identity
+    master_path = os.path.join(info_dir, f"{tool_id}_ROTATED_MASTER_MASK_fallback.png")
+    cv2.imwrite(master_path, master_mask)
+    meta_path = os.path.join(info_dir, meta_files[0] if meta_files else f"{tool_id}_tilt_metadata.json")
     try:
-        with open(target_meta_path, "r", encoding="utf-8") as f:
-            meta_data = json.load(f)
+        with open(meta_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
     except Exception:
-        meta_data = {}
-
-    meta_data["centerline_column_px"] = int(center_col)
-    meta_data["centerline_source"] = "fallback_master_mask_fit"
-    meta_data["centerline_fallback_master_mask_path"] = master_mask_path
-    meta_data["centerline_fallback_used_frames"] = int(used_frames)
-    meta_data["centerline_generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    with open(target_meta_path, "w", encoding="utf-8") as f:
-        json.dump(meta_data, f, indent=2)
-
+        data = {}
+    data.update(
+        {
+            "master_centerline_source": "fallback_fitted_boundaries_on_tilted_master_mask",
+            "shared_centerline_slope": line[0],
+            "shared_centerline_intercept": line[1],
+            "shared_centerline_fallback_master_mask_path": master_path,
+            "shared_centerline_fallback_used_frames": int(used_frames),
+            "shared_centerline_generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+    )
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
     if log_fn:
-        log_fn(
-            f"Fallback centerline estimated and saved: x={center_col} ({target_meta_path}); "
-            f"master mask: {master_mask_path}\n"
-        )
-
-    return int(center_col)
+        log_fn(f"Shared rotated-master centerline rebuilt and saved: {meta_path}\n")
+    return line
 
 
 def _save_plot_formats(
@@ -704,7 +704,7 @@ def _plot_search(
     tool_id: str,
     out_prefix: str,
     cfg: OffsetAnalysisConfig,
-    optimal_offset: int,
+    optimal_offsets: list[int],
     log_fn: Optional[Callable[[str], None]] = None,
 ) -> list[str]:
     plt.rcParams.update(
@@ -720,41 +720,48 @@ def _plot_search(
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
+    if "target_region" not in results_df:
+        results_df = results_df.copy()
+        results_df["target_region"] = 2
+
+    groups = list(results_df.groupby("target_region", sort=True))
+    colors = plt.cm.tab10(np.linspace(0, 1, max(1, len(groups))))
+    optimal_by_region = {
+        int(region): int(optimal_offsets[index])
+        for index, (region, _group) in enumerate(groups)
+        if index < len(optimal_offsets)
+    }
+
+    def draw_metric(ax, column, color_name, title, ylabel):
+        for color, (region, group) in zip(colors, groups):
+            group = group.sort_values("offset")
+            optimum = optimal_by_region.get(int(region))
+            ax.plot(
+                group["offset"], group[column], "o-", color=color, linewidth=2, markersize=5,
+                label=f"Region {int(region)} search",
+            )
+            if optimum is not None:
+                ax.axvline(
+                    optimum, color=color, linestyle="--", linewidth=1.6,
+                    label=f"Region {int(region)} optimum: {optimum}",
+                )
+        ax.set_title(title)
+        ax.set_xlabel("Candidate target start frame")
+        ax.set_ylabel(ylabel)
+        ax.legend(fontsize=max(7, cfg.legend_font_size - 1))
+        ax.grid(True, alpha=0.3)
+
     ax1 = axes[0, 0]
-    ax1.plot(results_df["offset"], results_df["mean_difference"], "o-", color="blue", linewidth=2, markersize=6)
-    ax1.axvline(optimal_offset, color="red", linestyle="--", linewidth=2, label=f"Optimal: {optimal_offset} deg")
-    ax1.set_title("Mean Difference vs Offset")
-    ax1.set_xlabel("Offset")
-    ax1.set_ylabel("Mean Pixel Count Difference")
-    ax1.legend(fontsize=cfg.legend_font_size)
-    ax1.grid(True, alpha=0.3)
+    draw_metric(ax1, "mean_difference", "blue", "Mean Difference vs Target Start", "Mean Pixel Count Difference")
 
     ax2 = axes[0, 1]
-    ax2.plot(results_df["offset"], results_df["mean_ratio"], "o-", color="green", linewidth=2, markersize=6)
-    ax2.axvline(optimal_offset, color="red", linestyle="--", linewidth=2, label=f"Optimal: {optimal_offset} deg")
-    ax2.set_title("Mean Asymmetry Ratio vs Offset")
-    ax2.set_xlabel("Offset")
-    ax2.set_ylabel("Mean Ratio")
-    ax2.legend(fontsize=cfg.legend_font_size)
-    ax2.grid(True, alpha=0.3)
+    draw_metric(ax2, "mean_ratio", "green", "Mean Asymmetry Ratio vs Target Start", "Mean Ratio")
 
     ax3 = axes[1, 0]
-    ax3.plot(results_df["offset"], results_df["max_difference"], "o-", color="purple", linewidth=2, markersize=6)
-    ax3.axvline(optimal_offset, color="red", linestyle="--", linewidth=2, label=f"Optimal: {optimal_offset} deg")
-    ax3.set_title("Max Difference vs Offset")
-    ax3.set_xlabel("Offset")
-    ax3.set_ylabel("Max Difference")
-    ax3.legend(fontsize=cfg.legend_font_size)
-    ax3.grid(True, alpha=0.3)
+    draw_metric(ax3, "max_difference", "purple", "Maximum Difference vs Target Start", "Maximum Difference")
 
     ax4 = axes[1, 1]
-    ax4.plot(results_df["offset"], results_df["std_difference"], "o-", color="orange", linewidth=2, markersize=6)
-    ax4.axvline(optimal_offset, color="red", linestyle="--", linewidth=2, label=f"Optimal: {optimal_offset} deg")
-    ax4.set_title("Std Dev of Difference vs Offset")
-    ax4.set_xlabel("Offset")
-    ax4.set_ylabel("Std Dev")
-    ax4.legend(fontsize=cfg.legend_font_size)
-    ax4.grid(True, alpha=0.3)
+    draw_metric(ax4, "std_difference", "orange", "Difference Standard Deviation vs Target Start", "Standard Deviation")
 
     for axis in (ax1, ax2, ax3, ax4):
         axis.tick_params(axis="both", labelsize=cfg.tick_font_size)
@@ -762,7 +769,10 @@ def _plot_search(
     if cfg.include_top_caption:
         fig.suptitle(
             f"{tool_id} Optimal Offset Search\n"
-            f"Optimal Offset: {optimal_offset} deg (frames {optimal_offset}-{optimal_offset + cfg.num_frames - 1})",
+            "Optimal target starts: " + ", ".join(
+                f"R{region}={start} (frames {start}-{start + cfg.num_frames - 1})"
+                for region, start in optimal_by_region.items()
+            ),
             fontsize=cfg.title_font_size,
             fontweight="bold",
         )
@@ -777,14 +787,14 @@ def _resolve_display_ranges(
     cfg: OffsetAnalysisConfig,
     pair_count: int,
     region_count: int,
-) -> list[tuple[int, int]]:
+) -> list[tuple[float, float]]:
     if cfg.manual_legend_ranges:
         if cfg.legend_ranges and len(cfg.legend_ranges) == region_count:
-            return [tuple(map(int, r)) for r in cfg.legend_ranges]
+            return [tuple(map(float, r)) for r in cfg.legend_ranges]
         if region_count == 2:
             return [
-                (int(cfg.legend_a_start_deg), int(cfg.legend_a_end_deg)),
-                (int(cfg.legend_b_start_deg), int(cfg.legend_b_end_deg)),
+                (float(cfg.legend_a_start_deg), float(cfg.legend_a_end_deg)),
+                (float(cfg.legend_b_start_deg), float(cfg.legend_b_end_deg)),
             ]
 
     # Default canonical display labels for N regions.
@@ -794,6 +804,11 @@ def _resolve_display_ranges(
         end = start + pair_count
         labels.append((start, end))
     return labels
+
+
+def _format_degree(value: float) -> str:
+    value = float(value)
+    return f"{value:.0f}" if np.isclose(value, round(value)) else f"{value:.1f}"
 
 
 def _plot_overlay_pixel_counts(
@@ -830,7 +845,7 @@ def _plot_overlay_pixel_counts(
     fig, ax = plt.subplots(figsize=(12, 6))
     for r_i in range(region_count):
         y_col = f"processed_count_r{r_i + 1}" if cfg.smoothing_enabled else f"count_r{r_i + 1}"
-        label = f"P({display_ranges[r_i][0]}\u00b0\u2013{display_ranges[r_i][1]}\u00b0)"
+        label = f"P({_format_degree(display_ranges[r_i][0])}\u00b0\u2013{_format_degree(display_ranges[r_i][1])}\u00b0)"
         ax.plot(x_progression, counts_df[y_col], linewidth=1.5, label=label)
 
     ax.set_xlabel(r"$\theta$ progression (frame index within range)")
@@ -842,7 +857,7 @@ def _plot_overlay_pixel_counts(
     if cfg.include_top_caption:
         ax.set_title(
             f"{tool_id} \u2014 Right-Half Pixel Count Overlay\n"
-            f"Regions: {', '.join(f'{d[0]}\u00b0\u2013{d[1]}\u00b0' for d in display_ranges)}",
+            f"Regions: {', '.join(f'{_format_degree(d[0])}\u00b0\u2013{_format_degree(d[1])}\u00b0' for d in display_ranges)}",
             fontsize=cfg.title_font_size,
             fontweight="bold",
         )
@@ -892,8 +907,8 @@ def _plot_abs_diff(
         if len(parts) == 2:
             ri, rj = int(parts[0]) - 1, int(parts[1]) - 1
             lbl = (
-                f"{display_ranges[ri][0]}°-{display_ranges[ri][1]}° vs "
-                f"{display_ranges[rj][0]}°-{display_ranges[rj][1]}°  "
+                f"{_format_degree(display_ranges[ri][0])}°-{_format_degree(display_ranges[ri][1])}° vs "
+                f"{_format_degree(display_ranges[rj][0])}°-{_format_degree(display_ranges[rj][1])}°  "
                 f"(mean\u2009=\u2009{mean_val:.2f})"
             )
         else:
@@ -958,8 +973,8 @@ def _plot_dsi(
         if len(parts) == 2:
             ri, rj = int(parts[0]) - 1, int(parts[1]) - 1
             pair_label = (
-                f"{display_ranges[ri][0]}°-{display_ranges[ri][1]}° vs "
-                f"{display_ranges[rj][0]}°-{display_ranges[rj][1]}°"
+                f"{_format_degree(display_ranges[ri][0])}°-{_format_degree(display_ranges[ri][1])}° vs "
+                f"{_format_degree(display_ranges[rj][0])}°-{_format_degree(display_ranges[rj][1])}°"
             )
         else:
             pair_label = pair_key.replace("_", " ")
@@ -1018,7 +1033,7 @@ def _plot_overlay_dsi_stacked(
 
     for r_i in range(len(region_ranges)):
         y_col = f"processed_count_r{r_i + 1}" if cfg.smoothing_enabled else f"count_r{r_i + 1}"
-        label = f"P({display_ranges[r_i][0]}°-{display_ranges[r_i][1]}°)"
+        label = f"P({_format_degree(display_ranges[r_i][0])}°-{_format_degree(display_ranges[r_i][1])}°)"
         ax_top.plot(x_progression, counts_df[y_col], linewidth=1.5, label=label)
 
     ax_top.set_ylabel("White Pixel Count (Right Half)")
@@ -1037,8 +1052,8 @@ def _plot_overlay_dsi_stacked(
         if len(parts) == 2:
             ri, rj = int(parts[0]) - 1, int(parts[1]) - 1
             pair_label = (
-                f"{display_ranges[ri][0]}°-{display_ranges[ri][1]}° vs "
-                f"{display_ranges[rj][0]}°-{display_ranges[rj][1]}°"
+                f"{_format_degree(display_ranges[ri][0])}°-{_format_degree(display_ranges[ri][1])}° vs "
+                f"{_format_degree(display_ranges[rj][0])}°-{_format_degree(display_ranges[rj][1])}°"
             )
         else:
             pair_label = pair_key.replace("_", " ")
@@ -1174,6 +1189,14 @@ def _try_load_cached_search_result(
     try:
         if int(meta.get("num_frames", -1)) != int(cfg.num_frames):
             return None, None, None
+        if int(meta.get("edge_count", 2)) != int(cfg.search_num_regions):
+            return None, None, None
+        if bool(meta.get("full_rotation_locked", False)) != bool(cfg.full_rotation_locked):
+            return None, None, None
+        if bool(meta.get("require_all_edge_phases_within_recording", False)) != bool(
+            cfg.require_all_edge_phases_within_recording
+        ):
+            return None, None, None
         if int(meta.get("roi_height_px", -1)) != int(resolved_roi_height):
             return None, None, None
         if bool(meta.get("dynamic_roi_enabled", False)) != bool(cfg.dynamic_roi_enabled):
@@ -1215,7 +1238,7 @@ def _try_load_cached_search_result(
         log_fn(
             f"Reusing cached search result from metadata: optimal_offset={optimal_offset}, "
             f"offset_range={expected_range}, num_frames={cfg.num_frames}; "
-            "centerlines are fitted independently from each full frame.\n"
+            "centerline uses the shared fitted line from the rotated master mask.\n"
         )
 
     return optimal_offset, sweep_df, global_roi_bottom
@@ -1281,52 +1304,123 @@ def run_optimal_offset_analysis_for_tool(
     roi_height, dynamic_roi_master_width = _resolve_roi_height(
         tool_dir, cfg, mask_files, log_fn=log_fn
     )
-    # The master-mask centerline is intentionally not loaded here. Every frame
-    # fits its own full-frame centerline inside _extract_right_half_stats().
-    center_col = 0
+    # One line is fitted to the rotated master mask and reused for every frame.
+    # The ROI only limits the vertical rows counted on the right side of it.
+    shared_centerline = _resolve_shared_master_centerline(tool_dir, mask_files, log_fn=log_fn)
 
     if log_fn:
         log_fn(f"Found {len(mask_files)} frames in {tool_folder_name}.\n")
+        log_fn(
+            "Shared centerline: fitted to the rotated master mask and reused for all frames "
+            f"(slope={shared_centerline[0]:.6f}, intercept={shared_centerline[1]:.3f}); "
+            "ROI limits pixel counting only.\n"
+        )
 
     if cfg.analysis_mode == "search_offset":
-        required_frames = cfg.offset_max + cfg.num_frames
+        region_count = int(cfg.search_num_regions)
+        if region_count < 2:
+            raise ValueError("Search mode needs at least two symmetry regions.")
+        full_rotation_locked = bool(cfg.full_rotation_locked)
+        require_all_edge_phases = bool(cfg.require_all_edge_phases_within_recording)
+        expected_phase_frames = len(mask_files) / float(region_count)
+        expected_comparison_frames = expected_phase_frames / 2.0
+        search_num_frames = max(1, _round_half_up(expected_comparison_frames)) if full_rotation_locked else int(cfg.num_frames)
+        target_start_ranges = [
+            (int(start), int(end)) for start, end in cfg.search_target_start_ranges
+        ] or [(int(cfg.offset_min), int(cfg.offset_max))]
+        anchor_start_range = target_start_ranges[0]
+        if full_rotation_locked:
+            # A known complete turn fixes the phase location. Do not let a
+            # visually tempting but geometrically impossible offset redefine
+            # the speed of rotation.
+            expected_anchor = max(1, int(round(expected_phase_frames)))
+            anchor_start_range = (expected_anchor, expected_anchor)
+        elif require_all_edge_phases:
+            # The recording can contain a few extra degrees, so we do not
+            # force N/E exactly.  But an anchor of A frames for E edges must
+            # fit E complete phase pitches inside N recorded frames.  Otherwise
+            # it represents a false local pixel match, not the rotation rate.
+            max_feasible_anchor = len(mask_files) // region_count
+            if anchor_start_range[1] > max_feasible_anchor and log_fn:
+                log_fn(
+                    f"Rejecting Region 2 candidates above {max_feasible_anchor}: "
+                    f"{region_count} edges × anchor must fit within {len(mask_files)} frames.\n"
+                )
+            anchor_start_range = (
+                anchor_start_range[0],
+                min(anchor_start_range[1], max_feasible_anchor),
+            )
+        if anchor_start_range[1] < anchor_start_range[0]:
+            raise ValueError(
+                "No candidate anchor can fit every selected edge phase within the available frames. "
+                "Reduce the edge count, select the correct mask folder, or widen the captured rotation."
+            )
+        required_frames = anchor_start_range[1] + search_num_frames
         if len(mask_files) < required_frames:
             raise ValueError(
-                f"Need at least {required_frames} frames for offsets up to {cfg.offset_max}, "
+                f"Need at least {required_frames} frames for the Region 2 anchor search, "
                 f"but found {len(mask_files)}."
             )
         out_prefix = os.path.join(out_dir, tool_id)
         sweep_csv_path = f"{out_prefix}_search_sweep.csv"
         metadata_path = f"{out_prefix}_symmetry_metadata.json"
 
+        # The legacy two-region call can retain its single-offset cache.
         used_cached_search = False
-        optimal_offset, sweep_df, cached_global_roi_bottom = _try_load_cached_search_result(
-            metadata_path,
-            sweep_csv_path,
-            cfg,
-            roi_height,
-            log_fn=log_fn,
-        )
-
-        if optimal_offset is None:
-            if log_fn:
-                log_fn("Finding global ROI bottom...\n")
-            global_roi_bottom = _find_global_roi_bottom_for_search(mask_files, cfg.num_frames, cfg.offset_min, cfg.offset_max)
-            if log_fn:
-                log_fn(f"Global ROI bottom: {global_roi_bottom}\n")
-                log_fn(f"Testing offsets {cfg.offset_min}..{cfg.offset_max}...\n")
-
-            sweep_df, optimal_offset = _find_optimal_offset(
-                mask_files,
-                global_roi_bottom,
+        optimal_starts: Optional[list[int]] = None
+        sweep_df = None
+        cached_global_roi_bottom = None
+        if len(target_start_ranges) == 1 and not cfg.search_target_start_ranges:
+            cached_offset, sweep_df, cached_global_roi_bottom = _try_load_cached_search_result(
+                metadata_path,
+                sweep_csv_path,
                 cfg,
                 roi_height,
-                center_col,
+                log_fn=log_fn,
+            )
+            if cached_offset is not None:
+                optimal_starts = [
+                    int(round(cached_offset * multiplier))
+                    for multiplier in range(1, int(cfg.search_num_regions))
+                ]
+                used_cached_search = True
+
+        if optimal_starts is None:
+            if log_fn:
+                log_fn("Finding global ROI bottom...\n")
+            search_indices = set(range(min(search_num_frames, len(mask_files))))
+            for candidate_start in range(anchor_start_range[0], anchor_start_range[1] + 1):
+                search_indices.update(range(candidate_start, candidate_start + search_num_frames))
+            global_roi_bottom = _find_global_roi_bottom_for_indices(mask_files, sorted(search_indices))
+            if log_fn:
+                log_fn(f"Global ROI bottom: {global_roi_bottom}\n")
+                if full_rotation_locked:
+                    log_fn(
+                        f"Full-rotation constraint: {len(mask_files)} frames / {region_count} edges → "
+                        f"Region 2 phase fixed at frame {anchor_start_range[0]}; "
+                        "checking its pixel similarity only.\n"
+                    )
+                else:
+                    log_fn(
+                        f"Testing Region 2 anchor range: {anchor_start_range[0]}-{anchor_start_range[1]}; "
+                        "all later regions will be calculated at the same rotation rate. "
+                        f"Candidates must satisfy {region_count} × anchor ≤ {len(mask_files)} frames.\n"
+                    )
+
+            search_cfg = OffsetAnalysisConfig(
+                **{**cfg.__dict__, "num_frames": search_num_frames}
+            )
+            sweep_df, optimal_starts = _find_anchor_and_calculate_region_starts(
+                mask_files,
+                global_roi_bottom,
+                search_cfg,
+                roi_height,
+                shared_centerline,
+                anchor_start_range,
                 log_fn=log_fn,
             )
             sweep_df.to_csv(sweep_csv_path, index=False)
         else:
-            used_cached_search = True
             if cached_global_roi_bottom is None:
                 if log_fn:
                     log_fn("Cached search found but global ROI bottom missing; recomputing ROI bottom for search indices.\n")
@@ -1336,24 +1430,51 @@ def run_optimal_offset_analysis_for_tool(
                 if log_fn:
                     log_fn(f"Using cached global ROI bottom: {global_roi_bottom}\n")
 
-        # Build N regions from the optimal offset (default 2, user may request more).
-        region_ranges = []
-        for r_i in range(max(2, int(cfg.search_num_regions))):
-            start = r_i * optimal_offset
-            end = start + cfg.num_frames - 1
-            if end >= len(mask_files):
-                if log_fn:
-                    log_fn(f"Region {r_i+1} (frames {start}-{end}) exceeds available frames; using {max(2, int(cfg.search_num_regions)) - 1} regions.\n")
-                break
-            region_ranges.append((start, end))
-        if len(region_ranges) < 2:
-            region_ranges = [(0, cfg.num_frames - 1), (optimal_offset, optimal_offset + cfg.num_frames - 1)]
+        anchor_start = int(optimal_starts[0])
+        if anchor_start <= 0:
+            raise ValueError("The selected Region 2 anchor must be greater than frame 0.")
+        phase_step_degrees = 360.0 / region_count
+        comparison_span_degrees = phase_step_degrees / 2.0
+        if full_rotation_locked:
+            degrees_per_frame = 360.0 / len(mask_files)
+            calibrated_num_frames = search_num_frames
+            # Use the same fractional full-rotation grid for every phase;
+            # individual integer starts differ by rounding only, not speed.
+            optimal_starts = [
+                int(round(expected_phase_frames * multiplier))
+                for multiplier in range(1, region_count)
+            ]
+            rotation_model = "full_360_degree_frame_grid"
+        else:
+            degrees_per_frame = phase_step_degrees / anchor_start
+            calibrated_num_frames = max(1, _round_half_up(comparison_span_degrees / degrees_per_frame))
+            rotation_model = "constant_rate_calibrated_from_region_2_anchor"
+        # Region 1 is the base range. Every later region comes from the same
+        # calibrated frame rate: start_k = k * anchor_start.
+        region_ranges = [(0, calibrated_num_frames - 1)] + [
+            (start, start + calibrated_num_frames - 1) for start in optimal_starts
+        ]
+        all_region_indices = [idx for rng in region_ranges for idx in _iter_inclusive(*rng)]
+        if any(idx < 0 or idx >= len(mask_files) for idx in all_region_indices):
+            raise ValueError(
+                "The constant-rotation calibration produces a region outside the available frames: "
+                f"anchor={anchor_start}, calibrated frames/region={calibrated_num_frames}, "
+                f"available=0-{len(mask_files) - 1}."
+            )
+        # Search scoring only needs the anchor candidates. The final comparison
+        # needs a common ROI bottom covering every calculated region.
+        global_roi_bottom = _find_global_roi_bottom_for_indices(mask_files, all_region_indices)
+        if log_fn:
+            log_fn(
+                f"Rotation model: {rotation_model}; {degrees_per_frame:.8f}°/frame; "
+                f"{calibrated_num_frames} frames per {comparison_span_degrees:g}° comparison span.\n"
+            )
         counts_df, pairwise_df, summary_df, _region_indices = _compare_regions(
             mask_files,
             region_ranges,
             global_roi_bottom,
             roi_height,
-            center_col,
+            shared_centerline,
             cfg,
         )
         abs_diff_csv_path = f"{out_prefix}_abs_diff_per_angle.csv"
@@ -1365,7 +1486,16 @@ def run_optimal_offset_analysis_for_tool(
 
         plot_paths = []
         if sweep_df is not None and not sweep_df.empty:
-            plot_paths.extend(_plot_search(sweep_df, tool_id, f"{out_prefix}_search_sweep", cfg, optimal_offset, log_fn=log_fn))
+            plot_paths.extend(
+                _plot_search(
+                    sweep_df,
+                    tool_id,
+                    f"{out_prefix}_search_sweep",
+                    cfg,
+                    optimal_starts,
+                    log_fn=log_fn,
+                )
+            )
 
         # Also generate the two key comparison figures for the best offset found.
         pair_count = int(len(counts_df))
@@ -1407,14 +1537,29 @@ def run_optimal_offset_analysis_for_tool(
             "tool_id": tool_id,
             "num_frames": int(cfg.num_frames),
             "offset_range_tested": f"{cfg.offset_min}-{cfg.offset_max}",
-            "optimal_offset": int(optimal_offset),
-            "optimal_frame_range": f"{optimal_offset}-{optimal_offset + cfg.num_frames - 1}",
+            "target_start_ranges": [list(anchor_start_range)],
+            "rotation_model": rotation_model,
+            "full_rotation_locked": full_rotation_locked,
+            "require_all_edge_phases_within_recording": require_all_edge_phases,
+            "maximum_feasible_anchor_frames": len(mask_files) // region_count,
+            "edge_count": region_count,
+            "symmetry_phase_step_degrees": phase_step_degrees,
+            "comparison_span_degrees": comparison_span_degrees,
+            "degrees_per_frame": degrees_per_frame,
+            "frames_per_degree": 1.0 / degrees_per_frame,
+            "calibrated_frames_per_region": calibrated_num_frames,
+            "optimal_offset": int(optimal_starts[0]),
+            "optimal_frame_range": f"{optimal_starts[0]}-{optimal_starts[0] + cfg.num_frames - 1}",
+            "optimal_region_starts": [int(start) for start in optimal_starts],
+            "optimal_region_ranges": [_range_to_str(rng) for rng in region_ranges],
             "roi_height_px": int(roi_height),
             "dynamic_roi_enabled": bool(cfg.dynamic_roi_enabled),
             "dynamic_roi_height_factor": float(cfg.dynamic_roi_height_factor),
             "dynamic_roi_master_width_px": dynamic_roi_master_width,
             "centerline_mode": CENTERLINE_MODE,
-            "pixel_count_centerline": "fitted independently from each complete frame",
+            "pixel_count_centerline": "one line fitted to the rotated master mask and reused for every frame; ROI only limits counted rows",
+            "shared_centerline_slope": float(shared_centerline[0]),
+            "shared_centerline_intercept": float(shared_centerline[1]),
             "smoothing_enabled": bool(cfg.smoothing_enabled),
             "smoothing_window": int(cfg.smoothing_window),
             "smoothing_strength": float(cfg.smoothing_strength),
@@ -1433,7 +1578,10 @@ def run_optimal_offset_analysis_for_tool(
         _update_tool_tilt_metadata(
             info_dir,
             {
-                "optimal_offset": int(optimal_offset),
+                "optimal_offset": int(optimal_starts[0]),
+                "optimal_region_starts": [int(start) for start in optimal_starts],
+                "constant_rotation_degrees_per_frame": float(degrees_per_frame),
+                "constant_rotation_frames_per_region": int(calibrated_num_frames),
                 "optimal_offset_mean_abs_diff": float(mean_abs_diff),
             },
             log_fn=log_fn,
@@ -1452,9 +1600,17 @@ def run_optimal_offset_analysis_for_tool(
             "dynamic_roi_height_factor": float(cfg.dynamic_roi_height_factor),
             "dynamic_roi_master_width_px": dynamic_roi_master_width,
             "global_roi_bottom": int(global_roi_bottom),
-            "optimal_offset": int(optimal_offset),
+            "optimal_offset": int(optimal_starts[0]),
+            "optimal_offsets": [int(start) for start in optimal_starts],
+            "rotation_model": rotation_model,
+            "full_rotation_locked": full_rotation_locked,
+            "require_all_edge_phases_within_recording": require_all_edge_phases,
+            "degrees_per_frame": float(degrees_per_frame),
+            "frames_per_degree": float(1.0 / degrees_per_frame),
+            "calibrated_frames_per_region": int(calibrated_num_frames),
             "used_cached_search": bool(used_cached_search),
-            "frame_range": f"{optimal_offset}-{optimal_offset + cfg.num_frames - 1}",
+            "frame_range": f"{optimal_starts[0]}-{optimal_starts[0] + cfg.num_frames - 1}",
+            "region_ranges": [_range_to_str(rng) for rng in region_ranges],
             "mean_abs_diff": mean_abs_diff,
             "dsi_percent": dsi_percent,
             "metadata_path": metadata_path,
@@ -1490,7 +1646,7 @@ def run_optimal_offset_analysis_for_tool(
         region_ranges,
         global_roi_bottom,
         roi_height,
-        center_col,
+        shared_centerline,
         cfg,
     )
 
@@ -1525,7 +1681,9 @@ def run_optimal_offset_analysis_for_tool(
         "dynamic_roi_height_factor": float(cfg.dynamic_roi_height_factor),
         "dynamic_roi_master_width_px": dynamic_roi_master_width,
         "centerline_mode": CENTERLINE_MODE,
-        "pixel_count_centerline": "fitted independently from each complete frame",
+        "pixel_count_centerline": "one line fitted to the rotated master mask and reused for every frame; ROI only limits counted rows",
+        "shared_centerline_slope": float(shared_centerline[0]),
+        "shared_centerline_intercept": float(shared_centerline[1]),
         "smoothing_enabled": bool(cfg.smoothing_enabled),
         "smoothing_window": int(cfg.smoothing_window),
         "smoothing_strength": float(cfg.smoothing_strength),

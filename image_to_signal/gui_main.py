@@ -5,6 +5,7 @@ import sys
 import os
 import random
 import warnings
+import json
 import numpy as np
 import cv2
 from PIL import Image
@@ -119,26 +120,28 @@ def render_tilt_angle_figure(binary_mask, ys, line_left, line_right, line_center
     fig.savefig(out_path, dpi=300, bbox_inches="tight", pad_inches=0.02, facecolor='#031103')
 
 
-def render_centerline_figure(rotated_mask, ys, line_left, line_right, out_path):
+def render_centerline_figure(rotated_mask, ys, line_left, line_right, line_center, out_path):
+    """Render the one shared line fitted to the rotated master mask."""
     y_plot = np.array([ys.min(), ys.max()])
     m_l, b_l = line_left
     m_r, b_r = line_right
+    m_c, b_c = line_center
     x_left = m_l * y_plot + b_l
     x_right = m_r * y_plot + b_r
-    center_x = (x_left + x_right) / 2.0
+    x_center = m_c * y_plot + b_c
 
     fig = Figure(figsize=(8, 10), dpi=300, facecolor='#031103')
     ax = fig.add_subplot(111)
     ax.set_facecolor('#020802')
     ax.imshow(rotated_mask, cmap="gray", origin="upper")
-    ax.plot(x_left, y_plot, color="red", linewidth=2.5, label="Outer Boundaries")
-    ax.plot(x_right, y_plot, color="red", linewidth=2.5)
-    ax.plot(center_x, y_plot, color="magenta", linewidth=3.2, linestyle="--", label="Geometric Centerline")
+    ax.plot(x_left, y_plot, color="red", linewidth=2.0, label="Rotated Master Boundaries")
+    ax.plot(x_right, y_plot, color="red", linewidth=2.0)
+    ax.plot(x_center, y_plot, color="magenta", linewidth=3.0, linestyle="--", label="Shared Master Centerline")
     legend = ax.legend(loc="lower right", frameon=True, fontsize=12)
     legend.get_frame().set_facecolor('#031103')
     legend.get_frame().set_edgecolor('#1c8c33')
     for text in legend.get_texts(): text.set_color('#2abf49')
-    ax.set_title("Individual Tilted Mask Centerline", fontsize=18, color="#65ff7a")
+    ax.set_title("Individual Tilted Mask: Shared Rotated-Master Centerline", fontsize=18, color="#65ff7a")
     ax.set_axis_off()
     fig.tight_layout(pad=0.15)
     fig.savefig(out_path, dpi=300, bbox_inches="tight", pad_inches=0.02, facecolor='#031103')
@@ -244,6 +247,69 @@ class TiltWorker(QThread):
             height, width = master_mask.shape
             center = (width // 2, height // 2)
             rot_matrix = cv2.getRotationMatrix2D(center, rotation_angle, 1.0)
+
+            # Fit one shared centerline after the same rotation is applied to
+            # the master mask.  This exact line is used for every tilted frame;
+            # no individual frame obtains its own centerline.
+            rotated_master_mask = cv2.warpAffine(
+                master_mask, rot_matrix, (width, height), flags=cv2.INTER_NEAREST
+            )
+            rotated_ys, rotated_left, rotated_right = get_boundaries(rotated_master_mask)
+            if rotated_ys is None:
+                self.error.emit("Rotated master mask is empty. Cannot establish shared centerline.")
+                return
+            rotated_ys_fit, rotated_left_fit, rotated_right_fit = select_widest_rows(
+                rotated_ys, rotated_left, rotated_right
+            )
+            if len(rotated_ys_fit) < 2:
+                self.error.emit("Rotated master mask has insufficient rows for shared centerline fitting.")
+                return
+            rotated_line_left, rotated_line_right, rotated_line_center = fit_lines(
+                rotated_ys_fit, rotated_left_fit, rotated_right_fit
+            )
+            shared_center_y = float((rotated_ys.min() + rotated_ys.max()) / 2.0)
+            shared_center_x = float(
+                rotated_line_center[0] * shared_center_y + rotated_line_center[1]
+            )
+
+            shared_centerline_figure = os.path.join(out_dir, "rotated_master_centerline.png")
+            render_centerline_figure(
+                rotated_master_mask,
+                rotated_ys,
+                rotated_line_left,
+                rotated_line_right,
+                rotated_line_center,
+                shared_centerline_figure,
+            )
+            info_dir = os.path.join(out_dir, "information")
+            os.makedirs(info_dir, exist_ok=True)
+            folder_name = os.path.basename(os.path.normpath(self.masks_dir))
+            tool_match = re.search(r"(tool\d+)", folder_name, re.IGNORECASE)
+            tool_id = tool_match.group(1).lower() if tool_match else folder_name
+            tilt_metadata_path = os.path.join(info_dir, f"{tool_id}_tilt_metadata.json")
+            with open(tilt_metadata_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "tilt_angle_degrees": float(tilt_deg),
+                        "rotation_angle_degrees": float(rotation_angle),
+                        "master_centerline_source": "fitted_boundaries_on_rotated_master_mask",
+                        "shared_centerline_slope": float(rotated_line_center[0]),
+                        "shared_centerline_intercept": float(rotated_line_center[1]),
+                        # This is only a convenient reference point for people
+                        # inspecting the JSON. Downstream code uses the full
+                        # slope/intercept line above, never this one x value.
+                        "shared_centerline_reference_x_px": int(round(shared_center_x)),
+                        "centerline_reference_y_px": shared_center_y,
+                        "rotated_master_centerline_figure": shared_centerline_figure,
+                        "tilted_masks_dir": tilted_dir,
+                    },
+                    f,
+                    indent=2,
+                )
+            self.progress.emit(
+                "Shared rotated-master centerline fitted and saved: "
+                f"slope={rotated_line_center[0]:.6f}, intercept={rotated_line_center[1]:.3f}"
+            )
             
             def process_frame(args):
                 i, fpath = args
@@ -264,22 +330,14 @@ class TiltWorker(QThread):
                 
                 if self.generate_debug and (i % self.debug_interval == 0):
                     try:
-                        ys_ind, left_ind, right_ind = get_boundaries(rotated_mask)
-                        if ys_ind is None or len(ys_ind) < 2:
-                            self.progress.emit(f"Skipping debug for {base_name}: insufficient tool rows.")
-                            return
-                        ys_fit_ind, left_fit_ind, right_fit_ind = select_widest_rows(
-                            ys_ind, left_ind, right_ind
-                        )
-                        if len(ys_fit_ind) < 2:
-                            self.progress.emit(f"Skipping debug for {base_name}: centerline fit unavailable.")
-                            return
-                        line_left_ind, line_right_ind, _ = fit_lines(
-                            ys_fit_ind, left_fit_ind, right_fit_ind
-                        )
                         debug_out_path = os.path.join(debug_dir, base_name)
                         render_centerline_figure(
-                            rotated_mask, ys_ind, line_left_ind, line_right_ind, debug_out_path
+                            rotated_mask,
+                            rotated_ys,
+                            rotated_line_left,
+                            rotated_line_right,
+                            rotated_line_center,
+                            debug_out_path,
                         )
                     except Exception as debug_exc:
                         # A single malformed frame must not abort hundreds of valid outputs.
@@ -1120,10 +1178,11 @@ class ImageToSignalGUI(QMainWindow):
         layout = QVBoxLayout(content)
 
         description = QLabel(
-            "Use the tilted masks from Half-Tool Analysis. First find the recording offset; "
+            "Use the tilted masks from Half-Tool Analysis. Select the cutting-edge count, then find one "
+            "symmetry-phase anchor. The remaining regions are calculated from its constant recording speed; "
             "then review/edit the resulting frame ranges and run the final right-side ROI "
-            "white-pixel comparison. The centerline is fitted independently from each corrected "
-            "frame; the master-mask centerline is used only to calculate tilt. Every output is "
+            "white-pixel comparison. One centerline is fitted to the rotated master mask and reused "
+            "for every corrected frame and every downstream calculation. Every output is "
             "stored beside the selected masks."
         )
         description.setWordWrap(True)
@@ -1148,12 +1207,34 @@ class ImageToSignalGUI(QMainWindow):
         self.offset_output_label.setStyleSheet("color: #9E9E9E;")
         source_layout.addWidget(self.offset_output_label)
         self.offset_tilted_input.textChanged.connect(self._offset_update_output_label)
+        self.offset_tilted_input.textChanged.connect(self._offset_apply_edge_preset)
         layout.addWidget(source_group)
 
-        search_group = QGroupBox("2. Find optimal offset (alignment only)")
+        search_group = QGroupBox("2. Edge-count preset and constant-rotation phase alignment")
         search_layout = QVBoxLayout(search_group)
         search_controls = QHBoxLayout()
-        search_controls.addWidget(QLabel("Frames in region A:"))
+        search_controls.addWidget(QLabel("Number of edges:"))
+        self.offset_edge_count = QSpinBox()
+        self.offset_edge_count.setRange(2, 12)
+        self.offset_edge_count.setValue(2)
+        self.offset_edge_count.setToolTip(
+            "Creates one base region and derives all remaining symmetry regions from one aligned anchor"
+        )
+        search_controls.addWidget(self.offset_edge_count)
+        self.offset_auto_frames = QCheckBox("Auto frames (180° / edges)")
+        self.offset_auto_frames.setChecked(True)
+        self.offset_auto_frames.setToolTip(
+            "Uses the image count to estimate the half-period comparison length; turn off to enter it manually"
+        )
+        search_controls.addWidget(self.offset_auto_frames)
+        self.offset_full_rotation_lock = QCheckBox("Complete 360° recording")
+        self.offset_full_rotation_lock.setChecked(False)
+        self.offset_full_rotation_lock.setToolTip(
+            "Locks phase spacing to the folder's full-rotation image count. Turn off only when the recording "
+            "does not contain one complete turn."
+        )
+        search_controls.addWidget(self.offset_full_rotation_lock)
+        search_controls.addWidget(QLabel("Frames per region:"))
         self.offset_frames = QSpinBox()
         self.offset_frames.setRange(2, 2000)
         self.offset_frames.setValue(90)
@@ -1178,18 +1259,21 @@ class ImageToSignalGUI(QMainWindow):
         )
         self.offset_dynamic_roi.toggled.connect(self.offset_roi_factor.setEnabled)
         self.offset_roi.setEnabled(False)
-        search_controls.addWidget(QLabel("Offset min:"))
-        self.offset_min = QSpinBox()
-        self.offset_min.setRange(1, 10000)
-        self.offset_min.setValue(176)
-        search_controls.addWidget(self.offset_min)
-        search_controls.addWidget(QLabel("Offset max:"))
-        self.offset_max = QSpinBox()
-        self.offset_max.setRange(1, 10000)
-        self.offset_max.setValue(186)
-        search_controls.addWidget(self.offset_max)
+        search_controls.addWidget(QLabel("Target tolerance:"))
+        self.offset_tolerance = QSpinBox()
+        self.offset_tolerance.setRange(0, 1000)
+        self.offset_tolerance.setValue(10)
+        self.offset_tolerance.setSuffix(" frames")
+        self.offset_tolerance.setToolTip(
+            "The first matching symmetry phase is searched within ± this many frames; later phases are calculated"
+        )
+        search_controls.addWidget(self.offset_tolerance)
         search_controls.addStretch()
         search_layout.addLayout(search_controls)
+        self.offset_preset_hint = QLabel()
+        self.offset_preset_hint.setWordWrap(True)
+        self.offset_preset_hint.setStyleSheet("color: #888; font-style: italic;")
+        search_layout.addWidget(self.offset_preset_hint)
         self.offset_search_btn = QPushButton("🔍 FIND OPTIMAL OFFSET")
         self.offset_search_btn.clicked.connect(self._offset_run_search)
         search_layout.addWidget(self.offset_search_btn)
@@ -1211,6 +1295,18 @@ class ImageToSignalGUI(QMainWindow):
         self.offset_degree_regions.setToolTip("One display range per frame region")
         range_row.addWidget(self.offset_degree_regions, stretch=1)
         compare_layout.addLayout(range_row)
+
+        self.offset_edge_count.valueChanged.connect(self._offset_apply_edge_preset)
+        self.offset_auto_frames.toggled.connect(self._offset_apply_edge_preset)
+        self.offset_full_rotation_lock.toggled.connect(self._offset_apply_edge_preset)
+        self.offset_full_rotation_lock.toggled.connect(
+            lambda locked: self.offset_tolerance.setEnabled(not locked)
+        )
+        self.offset_auto_frames.toggled.connect(lambda checked: self.offset_frames.setEnabled(not checked))
+        self.offset_tolerance.valueChanged.connect(self._offset_apply_edge_preset)
+        self.offset_frames.valueChanged.connect(self._offset_apply_edge_preset)
+        self.offset_frames.setEnabled(False)
+        self.offset_tolerance.setEnabled(True)
 
         smoothing_row = QHBoxLayout()
         self.offset_smoothing = QCheckBox("Smooth pixel signals before comparison")
@@ -1270,8 +1366,93 @@ class ImageToSignalGUI(QMainWindow):
         )
         layout.addWidget(self.offset_log)
         layout.addStretch()
+        self._offset_apply_edge_preset()
         scroll.setWidget(content)
         return scroll
+
+    @staticmethod
+    def _offset_format_degree(value):
+        value = float(value)
+        return f"{value:.0f}" if np.isclose(value, round(value)) else f"{value:.1f}"
+
+    def _offset_degree_preset_ranges(self):
+        """Return the half-period comparison intervals for the selected edge count."""
+        edge_count = self.offset_edge_count.value()
+        phase_step = 360.0 / edge_count
+        comparison_span = 180.0 / edge_count
+        return tuple(
+            (region_index * phase_step, region_index * phase_step + comparison_span)
+            for region_index in range(edge_count)
+        )
+
+    def _offset_apply_edge_preset(self, *_unused):
+        """Update degree labels and optional frame length without overwriting final search output."""
+        if not hasattr(self, "offset_degree_regions"):
+            return
+        edge_count = self.offset_edge_count.value()
+        degree_ranges = self._offset_degree_preset_ranges()
+        self.offset_degree_regions.setText(
+            ", ".join(
+                f"{self._offset_format_degree(start)}-{self._offset_format_degree(end)}"
+                for start, end in degree_ranges
+            )
+        )
+
+        image_count = 0
+        tilted_dir = self.offset_tilted_input.text().strip() if hasattr(self, "offset_tilted_input") else ""
+        if os.path.isdir(tilted_dir):
+            image_count = sum(
+                name.lower().endswith((".png", ".tif", ".tiff"))
+                for name in os.listdir(tilted_dir)
+            )
+        if image_count and self.offset_auto_frames.isChecked():
+            # The comparison span is half the angular separation between two
+            # adjacent edges: 180 / edge_count degrees.
+            self.offset_frames.setValue(max(2, int(round(image_count / (2.0 * edge_count)))))
+
+        if image_count:
+            anchor_start = int(round(image_count / edge_count))
+            later_text = ", ".join(
+                f"R{region + 1}={region}×anchor" for region in range(2, edge_count)
+            ) or "no later regions"
+            if self.offset_full_rotation_lock.isChecked():
+                self.offset_preset_hint.setText(
+                    f"Full-rotation lock: {image_count} frames / {edge_count} edges → Region 2 fixed at "
+                    f"frame {anchor_start}; later regions follow the same 360° frame grid ({later_text})."
+                )
+            else:
+                max_feasible_anchor = image_count // edge_count
+                self.offset_preset_hint.setText(
+                    f"Preset: {edge_count} edges → {self._offset_format_degree(180.0 / edge_count)}° comparison span; "
+                    f"search Region 2 anchor near {anchor_start} (±{self.offset_tolerance.value()} frames), then calculate "
+                    f"{later_text} at the same frame rate. Candidates above {max_feasible_anchor} are rejected "
+                    "because every edge phase must fit in the recording."
+                )
+        else:
+            self.offset_preset_hint.setText(
+                f"Preset: {edge_count} edges → compare {self._offset_format_degree(180.0 / edge_count)}° "
+                f"segments at every {self._offset_format_degree(360.0 / edge_count)}°. "
+                "Select tilted masks to calculate target frame starts."
+            )
+
+    def _offset_target_start_ranges(self, image_count):
+        """Candidate absolute start for the one searched Region 2 anchor."""
+        edge_count = self.offset_edge_count.value()
+        frames_per_region = self.offset_frames.value()
+        tolerance = self.offset_tolerance.value()
+        max_start = image_count - frames_per_region
+        if max_start < 0:
+            raise ValueError("Frames per region exceeds the number of available mask images.")
+
+        nominal_start = int(round(image_count / edge_count))
+        low = max(1, nominal_start - tolerance)
+        high = min(max_start, nominal_start + tolerance)
+        if high < low:
+            raise ValueError(
+                "The Region 2 anchor range is outside the available frames. "
+                "Reduce Frames per region or select more source images."
+            )
+        return ((low, high),)
 
     def _offset_browse_tilted(self):
         selected = QFileDialog.getExistingDirectory(self, "Select tilted masks folder")
@@ -1310,6 +1491,23 @@ class ImageToSignalGUI(QMainWindow):
             raise ValueError("Enter at least two regions to compare.")
         return tuple(ranges)
 
+    @staticmethod
+    def _offset_parse_degree_ranges(text):
+        ranges = []
+        for item in text.split(','):
+            match = re.fullmatch(r"\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*", item)
+            if not match:
+                raise ValueError(
+                    f"Invalid displayed-degree range '{item.strip()}'. Use start-end, separated by commas."
+                )
+            start, end = map(float, match.groups())
+            if end <= start:
+                raise ValueError(f"Displayed-degree range {start:g}-{end:g} must have a positive span.")
+            ranges.append((start, end))
+        if len(ranges) < 2:
+            raise ValueError("Enter at least two displayed-degree regions.")
+        return tuple(ranges)
+
     def _offset_validate_source(self):
         tilted_dir = os.path.abspath(self.offset_tilted_input.text().strip())
         if not os.path.isdir(tilted_dir):
@@ -1330,9 +1528,8 @@ class ImageToSignalGUI(QMainWindow):
     def _offset_run_search(self):
         try:
             tilted_dir, image_count = self._offset_validate_source()
-            if self.offset_min.value() > self.offset_max.value():
-                raise ValueError("Offset min must be less than or equal to offset max.")
-            required = self.offset_max.value() + self.offset_frames.value()
+            target_start_ranges = self._offset_target_start_ranges(image_count)
+            required = max(end for _start, end in target_start_ranges) + self.offset_frames.value()
             if required > image_count:
                 raise ValueError(
                     f"This search needs at least {required} images, but the folder contains {image_count}."
@@ -1346,19 +1543,36 @@ class ImageToSignalGUI(QMainWindow):
         config = OffsetAnalysisConfig(
             analysis_mode="search_offset",
             num_frames=self.offset_frames.value(),
-            search_num_regions=2,
+            search_num_regions=self.offset_edge_count.value(),
+            search_target_start_ranges=target_start_ranges,
+            full_rotation_locked=self.offset_full_rotation_lock.isChecked(),
             roi_height=self.offset_roi.value(),
             use_metadata_roi_height=False,
             dynamic_roi_enabled=self.offset_dynamic_roi.isChecked(),
             dynamic_roi_height_factor=self.offset_roi_factor.value(),
-            offset_min=self.offset_min.value(),
-            offset_max=self.offset_max.value(),
+            offset_min=target_start_ranges[0][0],
+            offset_max=target_start_ranges[0][1],
             output_formats=("png",),
+            manual_legend_ranges=True,
+            legend_ranges=self._offset_degree_preset_ranges(),
             smoothing_enabled=self.offset_smoothing.isChecked(),
             smoothing_window=self.offset_smoothing_window.value(),
             smoothing_strength=self.offset_smoothing_strength.value() / 100.0,
         )
-        self._offset_log_message(f"Searching offsets; results will be saved to {output_dir}")
+        if self.offset_full_rotation_lock.isChecked():
+            search_description = (
+                f"Verifying the full-rotation-constrained Region 2 phase for the "
+                f"{self.offset_edge_count.value()}-edge preset"
+            )
+        else:
+            search_description = (
+                f"Searching {self.offset_edge_count.value()}-edge preset Region 2 anchor "
+                f"({target_start_ranges[0][0]}-{target_start_ranges[0][1]})"
+            )
+        self._offset_log_message(
+            f"{search_description}, then calculating all later regions at the same rotation rate; "
+            f"results will be saved to {output_dir}"
+        )
         self._offset_set_busy(True)
         self.offset_worker = OffsetWorker(tilted_dir, config, output_dir)
         self.offset_worker.progress.connect(self._offset_log_message)
@@ -1367,12 +1581,18 @@ class ImageToSignalGUI(QMainWindow):
         self.offset_worker.start()
 
     def _offset_search_finished(self, result):
-        offset = int(result["optimal_offset"])
-        frame_count = self.offset_frames.value()
         self.offset_roi.setValue(int(result["roi_height_px"]))
-        self.offset_regions.setText(f"0-{frame_count - 1}, {offset}-{offset + frame_count - 1}")
+        calibrated_frames = result.get("calibrated_frames_per_region")
+        if calibrated_frames is not None:
+            self.offset_frames.setValue(int(calibrated_frames))
+        region_ranges = result.get("region_ranges", [])
+        if region_ranges:
+            self.offset_regions.setText(", ".join(region_ranges))
+        optimal_starts = result.get("optimal_offsets", [int(result["optimal_offset"])])
         self.offset_result_label.setText(
-            f"Optimal offset: {offset} frames | matched region B: {result['frame_range']} | "
+            f"Optimal target starts: {', '.join(str(start) for start in optimal_starts)} | "
+            f"aligned regions: {', '.join(region_ranges)} | "
+            f"constant rotation: {result.get('degrees_per_frame', 0.0):.6f}°/frame | "
             f"ROI height: {result['roi_height_px']} px | "
             f"mean absolute difference: {result['mean_abs_diff']:.3f} | "
             f"DSI: {result['dsi_percent']:.3f}%"
@@ -1385,7 +1605,7 @@ class ImageToSignalGUI(QMainWindow):
         try:
             tilted_dir, image_count = self._offset_validate_source()
             regions = self._offset_parse_ranges(self.offset_regions.text())
-            degree_regions = self._offset_parse_ranges(self.offset_degree_regions.text())
+            degree_regions = self._offset_parse_degree_ranges(self.offset_degree_regions.text())
             if len(degree_regions) != len(regions):
                 raise ValueError("Displayed degree ranges must have the same count as frame regions.")
             if any(end >= image_count for _start, end in regions):
