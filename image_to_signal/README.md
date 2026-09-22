@@ -54,14 +54,16 @@ image\_to\_signal/
 │
 ├── data/                         \# \<-- Directory for input and output data
 │
-└── utils/
-├── **init**.py
-├── filters.py                \# \<-- Core image processing functions
-├── optimized\_processing.py  \# \<-- GPU/Multi-core/Single-core optimization
-├── image\_utils.py
-└── mask\_refinement.py        \# \<-- Sandbox for finding new masks
-
-````
+├── utils/
+│   ├── __init__.py
+│   ├── filters.py                # <-- Core image processing functions
+│   ├── optimized_processing.py  # <-- GPU/Multi-core/Single-core optimization
+│   ├── image_utils.py
+│   ├── mask_refinement.py        # <-- Sandbox for finding new masks
+│   ├── mask_refiner.py           # <-- Interactive GUI mask editor (brush, overlay, undo/redo)
+│   ├── mask_cleaner.py           # <-- Batch mask post-processor (fill holes, remove error dots)
+│   └── README.md                 # <-- Detailed guide for utility tools
+```
 
 ---
 

@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
                              QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QMessageBox, QCheckBox,
                              QGraphicsEllipseItem)
 from PyQt6.QtCore import Qt, QPoint, QRectF, QEvent
-from PyQt6.QtGui import QPixmap, QImage, QPainter, QColor, QPen, QBrush, QPainterPath
+from PyQt6.QtGui import QPixmap, QImage, QPainter, QColor, QPen, QBrush, QPainterPath, QKeySequence, QShortcut
 
 def extract_frame_num(filepath):
     basename = os.path.basename(filepath)
@@ -48,9 +48,16 @@ class DrawableGraphicsView(QGraphicsView):
         
         self.drawing = False
         self.last_point = None
+        self.active_button = None
         self.brush_size = 10
         self.draw_color = Qt.GlobalColor.white # white for fill, black for erase
         self.opacity = 0.5
+        
+        self.undo_stack = []
+        self.redo_stack = []
+        self.max_undo_steps = 50
+        self.saved_token = None
+        self.current_token = None
         
         self.parent_ref = None # Will point to MainWindow to notify changes
         
@@ -60,36 +67,96 @@ class DrawableGraphicsView(QGraphicsView):
         self.cursor_item.hide()
         self.scene.addItem(self.cursor_item)
         
+    def set_overlay(self, overlay_path):
+        if self.overlay_pixmap_item:
+            self.scene.removeItem(self.overlay_pixmap_item)
+            self.overlay_pixmap_item = None
+            self.overlay_qimage = None
+            
+        if overlay_path and os.path.exists(overlay_path):
+            overlay_orig = load_as_rgb32_qimage(overlay_path)
+            if not overlay_orig.isNull():
+                self.overlay_qimage = QImage(overlay_orig.size(), QImage.Format.Format_ARGB32)
+                self.overlay_qimage.fill(Qt.GlobalColor.transparent)
+                
+                painter = QPainter(self.overlay_qimage)
+                for y in range(overlay_orig.height()):
+                    for x in range(overlay_orig.width()):
+                        if QColor(overlay_orig.pixel(x, y)).red() > 127:
+                            self.overlay_qimage.setPixelColor(x, y, QColor(255, 0, 0, int(255 * self.opacity)))
+                painter.end()
+                
+                self.overlay_pixmap_item = QGraphicsPixmapItem(QPixmap.fromImage(self.overlay_qimage))
+                self.scene.addItem(self.overlay_pixmap_item)
+                self.overlay_pixmap_item.setZValue(1)
+                self.overlay_pixmap_item.setOpacity(self.opacity)
+        
     def load_images(self, current_path, overlay_path=None):
         if self.current_pixmap_item:
             self.scene.removeItem(self.current_pixmap_item)
-        if self.overlay_pixmap_item:
-            self.scene.removeItem(self.overlay_pixmap_item)
+            self.current_pixmap_item = None
             
         self.current_qimage = load_as_rgb32_qimage(current_path)
+        if self.current_qimage.isNull():
+            return
+            
         self.current_pixmap_item = QGraphicsPixmapItem(QPixmap.fromImage(self.current_qimage))
         self.scene.addItem(self.current_pixmap_item)
         
-        if overlay_path and os.path.exists(overlay_path):
-            overlay_orig = load_as_rgb32_qimage(overlay_path)
-            self.overlay_qimage = QImage(overlay_orig.size(), QImage.Format.Format_ARGB32)
-            self.overlay_qimage.fill(Qt.GlobalColor.transparent)
-            
-            painter = QPainter(self.overlay_qimage)
-            for y in range(overlay_orig.height()):
-                for x in range(overlay_orig.width()):
-                    if QColor(overlay_orig.pixel(x, y)).red() > 127:
-                        self.overlay_qimage.setPixelColor(x, y, QColor(255, 0, 0, int(255 * self.opacity)))
-            painter.end()
-            
-            self.overlay_pixmap_item = QGraphicsPixmapItem(QPixmap.fromImage(self.overlay_qimage))
-            self.scene.addItem(self.overlay_pixmap_item)
-            self.overlay_pixmap_item.setZValue(1)
-        else:
-            self.overlay_qimage = None
-            self.overlay_pixmap_item = None
-            
+        self.undo_stack.clear()
+        self.redo_stack.clear()
+        self.saved_token = object()
+        self.current_token = self.saved_token
+        
+        self.set_overlay(overlay_path)
         self.setSceneRect(QRectF(self.current_qimage.rect()))
+        
+    def push_undo_state(self):
+        if not self.current_qimage or self.current_qimage.isNull():
+            return
+        self.undo_stack.append((self.current_qimage.copy(), self.current_token))
+        if len(self.undo_stack) > self.max_undo_steps:
+            self.undo_stack.pop(0)
+        self.current_token = object()
+        self.redo_stack.clear()
+        
+    def undo(self):
+        if not self.can_undo() or not self.current_qimage:
+            return False
+        self.drawing = False
+        self.last_point = None
+        self.active_button = None
+        self.redo_stack.append((self.current_qimage.copy(), self.current_token))
+        self.current_qimage, self.current_token = self.undo_stack.pop()
+        if self.current_pixmap_item:
+            self.current_pixmap_item.setPixmap(QPixmap.fromImage(self.current_qimage))
+        return True
+
+    def redo(self):
+        if not self.can_redo() or not self.current_qimage:
+            return False
+        self.drawing = False
+        self.last_point = None
+        self.active_button = None
+        self.undo_stack.append((self.current_qimage.copy(), self.current_token))
+        if len(self.undo_stack) > self.max_undo_steps:
+            self.undo_stack.pop(0)
+        self.current_qimage, self.current_token = self.redo_stack.pop()
+        if self.current_pixmap_item:
+            self.current_pixmap_item.setPixmap(QPixmap.fromImage(self.current_qimage))
+        return True
+
+    def can_undo(self):
+        return len(self.undo_stack) > 0
+
+    def can_redo(self):
+        return len(self.redo_stack) > 0
+
+    def is_modified(self):
+        return self.current_token != self.saved_token
+
+    def mark_as_saved(self):
+        self.saved_token = self.current_token
         
     def update_overlay_opacity(self, opacity):
         self.opacity = opacity
@@ -97,12 +164,17 @@ class DrawableGraphicsView(QGraphicsView):
             self.overlay_pixmap_item.setOpacity(opacity)
             
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton or event.button() == Qt.MouseButton.RightButton:
-            self.drawing = True
-            self.draw_color = Qt.GlobalColor.white if event.button() == Qt.MouseButton.LeftButton else Qt.GlobalColor.black
-            pos = self.mapToScene(event.pos())
-            self.last_point = pos
-            self.draw_on_image(pos)
+        if not self.drawing and (event.button() == Qt.MouseButton.LeftButton or event.button() == Qt.MouseButton.RightButton):
+            if self.current_qimage and not self.current_qimage.isNull():
+                self.push_undo_state()
+                self.drawing = True
+                self.active_button = event.button()
+                self.draw_color = Qt.GlobalColor.white if event.button() == Qt.MouseButton.LeftButton else Qt.GlobalColor.black
+                pos = self.mapToScene(event.pos())
+                self.last_point = pos
+                self.draw_on_image(pos)
+                if self.parent_ref:
+                    self.parent_ref.update_history_state()
         else:
             super().mousePressEvent(event)
             
@@ -122,11 +194,12 @@ class DrawableGraphicsView(QGraphicsView):
         super().leaveEvent(event)
         
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton or event.button() == Qt.MouseButton.RightButton:
+        if self.drawing and event.button() == self.active_button:
             self.drawing = False
             self.last_point = None
+            self.active_button = None
             if self.parent_ref:
-                self.parent_ref.mark_unsaved()
+                self.parent_ref.update_history_state()
         super().mouseReleaseEvent(event)
         
     def draw_on_image(self, current_pos, last_pos=None):
@@ -239,9 +312,46 @@ class MaskRefiner(QMainWindow):
         btn_reset_zoom.clicked.connect(self.reset_zoom)
         left_layout.addWidget(btn_reset_zoom)
         
-        left_layout.addWidget(QLabel("Left Click: Draw White (Fill)\nRight Click: Draw Black (Erase)\nScroll: Zoom In/Out"))
+        # Undo / Redo controls
+        undo_redo_layout = QHBoxLayout()
+        self.btn_undo = QPushButton("↩️ Undo")
+        self.btn_undo.setToolTip("Undo last action (Ctrl+Z)")
+        self.btn_undo.clicked.connect(self.undo)
+        self.btn_undo.setEnabled(False)
+        undo_redo_layout.addWidget(self.btn_undo)
+        
+        self.btn_redo = QPushButton("↪️ Redo")
+        self.btn_redo.setToolTip("Redo last undone action (Ctrl+Y / Ctrl+Shift+Z)")
+        self.btn_redo.clicked.connect(self.redo)
+        self.btn_redo.setEnabled(False)
+        undo_redo_layout.addWidget(self.btn_redo)
+        left_layout.addLayout(undo_redo_layout)
+        
+        # Keyboard shortcuts
+        self.shortcut_undo = QShortcut(QKeySequence.StandardKey.Undo, self)
+        self.shortcut_undo.activated.connect(self.undo)
+        
+        self.shortcut_redo = QShortcut(QKeySequence.StandardKey.Redo, self)
+        self.shortcut_redo.activated.connect(self.redo)
+        
+        self.shortcut_redo_alt = QShortcut(QKeySequence("Ctrl+Y"), self)
+        self.shortcut_redo_alt.activated.connect(self.redo)
+        
+        self.shortcut_save = QShortcut(QKeySequence.StandardKey.Save, self)
+        self.shortcut_save.activated.connect(self.save_mask)
+        
+        left_layout.addWidget(QLabel(
+            "Controls:\n"
+            "• Left Click: Draw White (Fill)\n"
+            "• Right Click: Draw Black (Erase)\n"
+            "• Scroll: Zoom In/Out\n"
+            "• Ctrl+Z: Undo\n"
+            "• Ctrl+Y / Ctrl+Shift+Z: Redo\n"
+            "• Ctrl+S: Save Mask"
+        ))
         
         self.btn_save = QPushButton("💾 Save Mask")
+        self.btn_save.setToolTip("Save mask to disk (Ctrl+S)")
         self.btn_save.setStyleSheet("background-color: #4CAF50; color: white; font-weight: bold; padding: 10px;")
         self.btn_save.clicked.connect(self.save_mask)
         left_layout.addWidget(self.btn_save)
@@ -287,27 +397,22 @@ class MaskRefiner(QMainWindow):
                 
         self.current_file = os.path.join(self.folder_path, current.text())
         self.lbl_current.setText(f"Current: {current.text()}")
-        self.unsaved_changes = False
-        self.btn_save.setText("💾 Save Mask")
         
         self.view.load_images(self.current_file, self.reference_file)
         self.view.update_overlay_opacity(self.slider_opacity.value() / 100.0)
         self.view.brush_size = self.slider_brush.value()
+        self.update_history_state()
         
     def set_reference(self):
         if self.current_file:
             self.reference_file = self.current_file
             self.lbl_ref.setText(f"Reference: {os.path.basename(self.reference_file)}")
-            # Reload to show overlay
-            self.view.load_images(self.current_file, self.reference_file)
-            self.view.update_overlay_opacity(self.slider_opacity.value() / 100.0)
+            self.view.set_overlay(self.reference_file)
 
     def clear_reference(self):
         self.reference_file = None
         self.lbl_ref.setText("Reference: None")
-        if self.current_file:
-            self.view.load_images(self.current_file, None)
-            self.view.update_overlay_opacity(self.slider_opacity.value() / 100.0)
+        self.view.set_overlay(None)
             
     def on_opacity_changed(self, val):
         self.view.update_overlay_opacity(val / 100.0)
@@ -321,16 +426,47 @@ class MaskRefiner(QMainWindow):
     def reset_zoom(self):
         self.view.reset_zoom()
         
+    def undo(self):
+        if self.view.undo():
+            self.update_history_state()
+            
+    def redo(self):
+        if self.view.redo():
+            self.update_history_state()
+            
+    def update_history_state(self):
+        self.unsaved_changes = self.view.is_modified()
+        if self.unsaved_changes:
+            self.btn_save.setText("💾 Save Mask *")
+        else:
+            self.btn_save.setText("💾 Save Mask")
+        self.btn_undo.setEnabled(self.view.can_undo())
+        self.btn_redo.setEnabled(self.view.can_redo())
+        
     def mark_unsaved(self):
-        self.unsaved_changes = True
-        self.btn_save.setText("💾 Save Mask *")
+        self.update_history_state()
         
     def save_mask(self):
         if self.current_file:
             self.view.save_current(self.current_file)
-            self.unsaved_changes = False
-            self.btn_save.setText("💾 Save Mask")
+            self.view.mark_as_saved()
+            self.update_history_state()
             QMessageBox.information(self, "Saved", "Mask saved successfully.")
+
+    def closeEvent(self, event):
+        if self.unsaved_changes:
+            reply = QMessageBox.question(self, 'Unsaved Changes', 
+                                         'You have unsaved changes. Save before closing?',
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
+            if reply == QMessageBox.StandardButton.Yes:
+                self.save_mask()
+                event.accept()
+            elif reply == QMessageBox.StandardButton.No:
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
