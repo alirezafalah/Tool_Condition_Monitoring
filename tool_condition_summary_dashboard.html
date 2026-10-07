@@ -1,0 +1,2449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tool Condition Monitoring — Full Tool Inventory & DSI Dashboard</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --border-color: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #38bdf8;
+            --primary-hover: #0284c7;
+            --zone-1: #22c55e;
+            --zone-2: #f59e0b;
+            --zone-3: #ef4444;
+            --excluded: #64748b;
+            --cond-new: #10b981;
+            --cond-used: #38bdf8;
+            --cond-worn: #fb923c;
+            --cond-deposit: #c084fc;
+            --cond-fractured: #f43f5e;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            padding: 24px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1700px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        header {
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-main);
+            letter-spacing: -0.02em;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-top: 4px;
+        }
+
+        /* KPI Cards Grid */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .kpi-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            transition: transform 0.15s ease;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .kpi-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .kpi-value {
+            font-size: 1.85rem;
+            font-weight: 800;
+            color: var(--text-main);
+        }
+
+        .kpi-subtext {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .kpi-z1 { border-left: 4px solid var(--zone-1); }
+        .kpi-z2 { border-left: 4px solid var(--zone-2); }
+        .kpi-z3 { border-left: 4px solid var(--zone-3); }
+        .kpi-excl { border-left: 4px solid var(--excluded); }
+
+        /* Filter Controls */
+        .controls-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 18px 24px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1 1 300px;
+            position: relative;
+        }
+
+        .search-box input {
+            width: 100%;
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .search-box input:focus {
+            border-color: var(--primary);
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        select {
+            background-color: #0f172a;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 9px 14px;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        select:focus {
+            border-color: var(--primary);
+        }
+
+        .btn-reset {
+            background-color: #334155;
+            color: var(--text-main);
+            border: none;
+            padding: 9px 18px;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .btn-reset:hover {
+            background-color: #475569;
+        }
+
+        .counter-badge {
+            margin-left: auto;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        /* Table Styling */
+        .table-wrapper {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            overflow: auto;
+            max-height: 75vh;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+            text-align: left;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            background-color: #1e293b;
+            z-index: 10;
+            box-shadow: 0 1px 0 var(--border-color);
+        }
+
+        th {
+            padding: 12px 14px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-size: 0.75rem;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            transition: color 0.15s;
+        }
+
+        th:hover {
+            color: var(--primary);
+        }
+
+        th .sort-icon {
+            margin-left: 4px;
+            font-size: 0.7rem;
+            opacity: 0.5;
+        }
+
+        th.sorted-asc .sort-icon,
+        th.sorted-desc .sort-icon {
+            opacity: 1;
+            color: var(--primary);
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #1e293b;
+            transition: background-color 0.15s;
+        }
+
+        tbody tr:hover {
+            background-color: rgba(56, 189, 248, 0.05);
+        }
+
+        tbody tr.row-excluded {
+            opacity: 0.65;
+            background-color: rgba(15, 23, 42, 0.4);
+        }
+
+        td {
+            padding: 12px 14px;
+            vertical-align: middle;
+        }
+
+        .tool-id-cell {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        /* Badges */
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            white-space: nowrap;
+        }
+
+        .badge-zone1 { background-color: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.4); }
+        .badge-zone2 { background-color: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+        .badge-zone3 { background-color: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+        .badge-excluded { background-color: rgba(100, 116, 139, 0.2); color: #94a3b8; border: 1px solid rgba(100, 116, 139, 0.4); }
+
+        .badge-new { background-color: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .badge-used { background-color: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+        .badge-worn { background-color: rgba(251, 146, 60, 0.2); color: #fb923c; }
+        .badge-deposit { background-color: rgba(192, 132, 252, 0.2); color: #c084fc; }
+        .badge-fractured { background-color: rgba(244, 63, 94, 0.2); color: #f43f5e; }
+
+        .badge-status-kept { background-color: rgba(2, 132, 199, 0.2); color: #38bdf8; }
+        .badge-status-excl { background-color: rgba(100, 116, 139, 0.2); color: #cbd5e1; }
+
+        .dsi-cell {
+            font-family: ui-monospace, monospace;
+            font-weight: 700;
+        }
+
+        .notes-cell {
+            max-width: 320px;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .btn-inspect {
+            display: inline-block;
+            background-color: #334155;
+            color: var(--primary);
+            text-decoration: none;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.15s;
+            border: 1px solid #475569;
+        }
+
+        .btn-inspect:hover {
+            background-color: var(--primary);
+            color: #0f172a;
+            border-color: var(--primary);
+        }
+
+        /* Export Bar */
+        .footer-bar {
+            margin-top: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        .btn-export {
+            background-color: var(--primary);
+            color: #0f172a;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .btn-export:hover {
+            background-color: var(--primary-hover);
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div>
+                <h1>Tool Condition Monitoring & Symmetry Analysis Dashboard</h1>
+                <div class="subtitle">Full Population Inventory: Peak DSI, Rotational Runout Calibration, and 3-Zone Quality Control Triage</div>
+            </div>
+            <button class="btn-export" onclick="exportTableToCSV('tool_condition_summary.csv')">Export Filtered CSV</button>
+        </header>
+
+        <!-- KPI Cards -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-title">Total Tool Population</div>
+                <div class="kpi-value">115</div>
+                <div class="kpi-subtext">115 Tools Scanned</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Active Dataset (Kept)</div>
+                <div class="kpi-value" style="color: #38bdf8;">92</div>
+                <div class="kpi-subtext">80.0% Clean Population</div>
+            </div>
+            <div class="kpi-card kpi-z1">
+                <div class="kpi-title">Zone 1: Automated Pass</div>
+                <div class="kpi-value" style="color: #4ade80;">21</div>
+                <div class="kpi-subtext">Peak DSI ≤ 1.50% (Zero Escapes)</div>
+            </div>
+            <div class="kpi-card kpi-z2">
+                <div class="kpi-title">Zone 2: Manual Review</div>
+                <div class="kpi-value" style="color: #fbbf24;">38</div>
+                <div class="kpi-subtext">1.50% &lt; Peak DSI ≤ 4.00%</div>
+            </div>
+            <div class="kpi-card kpi-z3">
+                <div class="kpi-title">Zone 3: Automated Reject</div>
+                <div class="kpi-value" style="color: #f87171;">33</div>
+                <div class="kpi-subtext">Peak DSI &gt; 4.00% (Zero False Scrap)</div>
+            </div>
+            <div class="kpi-card kpi-excl">
+                <div class="kpi-title">Discarded / Excluded</div>
+                <div class="kpi-value" style="color: #94a3b8;">23</div>
+                <div class="kpi-subtext">19 Taps + 2 Artifacts + 2 Asymmetric</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">Critical Outliers in Extremes</div>
+                <div class="kpi-value" style="color: #4ade80;">0</div>
+                <div class="kpi-subtext">100% Reliable Automated Bands</div>
+            </div>
+        </div>
+
+        <!-- Controls & Filters -->
+        <div class="controls-card">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search tool ID, type, condition, notes..." onkeyup="filterTable()">
+            </div>
+
+            <div class="filter-group">
+                <label for="statusFilter">Status:</label>
+                <select id="statusFilter" onchange="filterTable()">
+                    <option value="ALL">All Tools (115)</option>
+                    <option value="Kept (Active)">Kept (Active) (92)</option>
+                    <option value="Discarded (Excluded)">Discarded (Excluded) (23)</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="zoneFilter">Triage Zone:</label>
+                <select id="zoneFilter" onchange="filterTable()">
+                    <option value="ALL">All Zones</option>
+                    <option value="Zone 1: Pass">Zone 1: Pass (≤ 1.5%) (21)</option>
+                    <option value="Zone 2: Manual">Zone 2: Manual (1.5% - 4.0%) (38)</option>
+                    <option value="Zone 3: Reject">Zone 3: Reject (> 4.0%) (33)</option>
+                    <option value="Excluded">Excluded (23)</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="condFilter">Working Condition:</label>
+                <select id="condFilter" onchange="filterTable()">
+                    <option value="ALL">All Conditions</option>
+                    <option value="new">New</option>
+                    <option value="used">Used</option>
+                    <option value="worn">Worn</option>
+                    <option value="deposit">Deposit (BUE)</option>
+                    <option value="fractured">Fractured</option>
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="typeFilter">Type:</label>
+                <select id="typeFilter" onchange="filterTable()">
+                    <option value="ALL">All Types</option>
+                    <option value="endmill">Endmill</option>
+                    <option value="drill">Drill</option>
+                    <option value="chamfer">Chamfer</option>
+                    <option value="reamer">Reamer</option>
+                    <option value="topper">Topper (Tap)</option>
+                    <option value="t_slot">T-Slot</option>
+                </select>
+            </div>
+
+            <button class="btn-reset" onclick="resetFilters()">Reset Filters</button>
+            <div class="counter-badge" id="rowCount">Showing 115 of 115 tools</div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrapper">
+            <table id="toolsTable">
+                <thead>
+                    <tr>
+                        <th onclick="sortTable(0, 'str')">Tool ID <span class="sort-icon">▲▼</span></th>
+                        <th onclick="sortTable(1, 'str')">Status <span class="sort-icon">▲▼</span></th>
+                        <th onclick="sortTable(2, 'str')">Orig Cond <span class="sort-icon">▲▼</span></th>
+                        <th onclick="sortTable(3, 'str')">Working Cond <span class="sort-icon">▲▼</span></th>
+                        <th onclick="sortTable(4, 'str')">Type <span class="sort-icon">▲▼</span></th>
+                        <th onclick="sortTable(5, 'num')">Dia (mm) <span class="sort-icon">▲▼</span></th>
+                        <th onclick="sortTable(6, 'num')">Flutes <span class="sort-icon">▲▼</span></th>
+                        <th onclick="sortTable(7, 'num')">Peak DSI (%) <span class="sort-icon">▲▼</span></th>
+                        <th onclick="sortTable(8, 'num')">Mean DSI (%) <span class="sort-icon">▲▼</span></th>
+                        <th onclick="sortTable(9, 'num')">Max Diff (px) <span class="sort-icon">▲▼</span></th>
+                        <th onclick="sortTable(10, 'num')">ROI (px) <span class="sort-icon">▲▼</span></th>
+                        <th onclick="sortTable(11, 'str')">3-Zone Triage <span class="sort-icon">▲▼</span></th>
+                        <th onclick="sortTable(12, 'str')">Physical Features & Notes <span class="sort-icon">▲▼</span></th>
+                        <th>Overlay</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr class="">
+                        <td class="tool-id-cell">tool001</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>6</td>
+                        <td class="dsi-cell">0.46%</td>
+                        <td class="dsi-cell">0.32%</td>
+                        <td>1,526</td>
+                        <td>567px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">WELD-ON</td>
+                        <td><a href="../pixel_comparison_per_tool/tool001_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool002</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>drill</td>
+                        <td>10.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">0.59%</td>
+                        <td class="dsi-cell">0.24%</td>
+                        <td>1,338</td>
+                        <td>604px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">SOLID CARBIDE DRILL, without internal cooling channels. Carbide.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool002_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool003</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.48%</td>
+                        <td class="dsi-cell">3.32%</td>
+                        <td>10,441</td>
+                        <td>565px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Wavy roughing knuckles (sinusoidal profile) | Dedicated roughing, and the chip formation better because of wavy surface. Higher material remove rate.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool003_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool004</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">3.15%</td>
+                        <td class="dsi-cell">1.84%</td>
+                        <td>10,481</td>
+                        <td>563px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">INTERNAL COOLANT CHANNELS</td>
+                        <td><a href="../pixel_comparison_per_tool/tool004_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool005</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">0.47%</td>
+                        <td class="dsi-cell">0.13%</td>
+                        <td>1,334</td>
+                        <td>559px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">Big radius on the edge. special because it can work on 3d (FREE) surface finishing.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool005_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool006</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>endmill</td>
+                        <td>7.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">5.86%</td>
+                        <td class="dsi-cell">4.02%</td>
+                        <td>11,121</td>
+                        <td>449px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Severe Flute 1 corner radius breakdown (excluded as asymmetric)</td>
+                        <td><a href="../pixel_comparison_per_tool/tool006_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool007</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">1.14%</td>
+                        <td class="dsi-cell">0.43%</td>
+                        <td>2,472</td>
+                        <td>462px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool007_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool008</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>endmill</td>
+                        <td>4.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">4.77%</td>
+                        <td class="dsi-cell">3.04%</td>
+                        <td>2,471</td>
+                        <td>230px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">4mm stepped cutter with 6mm shank (excluded as asymmetric) | shank is 6 mm</td>
+                        <td><a href="../pixel_comparison_per_tool/tool008_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool009</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.07%</td>
+                        <td class="dsi-cell">2.16%</td>
+                        <td>9,338</td>
+                        <td>566px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Endmill cutter means wecan either use the face or the pheripheral sides. and the shank is weld on</td>
+                        <td><a href="../pixel_comparison_per_tool/tool009_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool010</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>drill</td>
+                        <td>5.5</td>
+                        <td>2</td>
+                        <td class="dsi-cell">1.31%</td>
+                        <td class="dsi-cell">0.55%</td>
+                        <td>760</td>
+                        <td>314px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">Internal coolant, weld-on. There is no significant usage but there are a little color differences.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool010_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool011</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>endmill</td>
+                        <td>4.8</td>
+                        <td>4</td>
+                        <td class="dsi-cell">1.24%</td>
+                        <td class="dsi-cell">0.69%</td>
+                        <td>851</td>
+                        <td>279px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">shaft is 6 mm</td>
+                        <td><a href="../pixel_comparison_per_tool/tool011_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool012</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>endmill</td>
+                        <td>7.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">0.29%</td>
+                        <td class="dsi-cell">0.11%</td>
+                        <td>359</td>
+                        <td>396px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">WELD ON.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool012_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool013</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">1.41%</td>
+                        <td class="dsi-cell">0.87%</td>
+                        <td>4,363</td>
+                        <td>575px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool013_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool014</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">27.95%</td>
+                        <td class="dsi-cell">15.76%</td>
+                        <td>61,132</td>
+                        <td>586px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool014_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool015</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>12.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.46%</td>
+                        <td class="dsi-cell">2.69%</td>
+                        <td>13,534</td>
+                        <td>671px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool015_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool016</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>2.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">16.11%</td>
+                        <td class="dsi-cell">8.69%</td>
+                        <td>1,153</td>
+                        <td>117px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Small diameter, it can be broken as well, depending on the definition.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool016_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool017</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>14.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">5.47%</td>
+                        <td class="dsi-cell">4.96%</td>
+                        <td>30,202</td>
+                        <td>792px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool017_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool018</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>11.6</td>
+                        <td>4</td>
+                        <td class="dsi-cell">26.36%</td>
+                        <td class="dsi-cell">16.68%</td>
+                        <td>105,075</td>
+                        <td>663px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">shank is 12</td>
+                        <td><a href="../pixel_comparison_per_tool/tool018_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool019</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.25%</td>
+                        <td class="dsi-cell">1.76%</td>
+                        <td>9,221</td>
+                        <td>555px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Roughing</td>
+                        <td><a href="../pixel_comparison_per_tool/tool019_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool020</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>6</td>
+                        <td class="dsi-cell">42.42%</td>
+                        <td class="dsi-cell">38.30%</td>
+                        <td>64,326</td>
+                        <td>448px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool020_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool021</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>6</td>
+                        <td class="dsi-cell">100.20%</td>
+                        <td class="dsi-cell">92.66%</td>
+                        <td>92,563</td>
+                        <td>450px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool021_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool022</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">13.27%</td>
+                        <td class="dsi-cell">8.74%</td>
+                        <td>26,321</td>
+                        <td>562px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">The coating color is not exactly the same as  the tool. End mill cutter. Pheripheral edges are visible only, the face edges are broken. similar to 101.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool022_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool023</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-deposit">deposit</span></td>
+                        <td><span class="badge badge-deposit">deposit</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">8.66%</td>
+                        <td class="dsi-cell">2.44%</td>
+                        <td>16,802</td>
+                        <td>451px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Workpiece has melted on the tooth</td>
+                        <td><a href="../pixel_comparison_per_tool/tool023_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool024</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-deposit">deposit</span></td>
+                        <td><span class="badge badge-deposit">deposit</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">5.80%</td>
+                        <td class="dsi-cell">4.36%</td>
+                        <td>17,967</td>
+                        <td>566px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Melting the material, special case and on the top there's material loss. </td>
+                        <td><a href="../pixel_comparison_per_tool/tool024_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool025</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>12.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">8.65%</td>
+                        <td class="dsi-cell">5.68%</td>
+                        <td>36,169</td>
+                        <td>669px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">the shank diameter is 12. Very fine fracture</td>
+                        <td><a href="../pixel_comparison_per_tool/tool025_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool026</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">6.26%</td>
+                        <td class="dsi-cell">4.09%</td>
+                        <td>17,842</td>
+                        <td>565px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool026_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool027</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>endmill</td>
+                        <td>16.0</td>
+                        <td>6</td>
+                        <td class="dsi-cell">0.42%</td>
+                        <td class="dsi-cell">0.25%</td>
+                        <td>3,514</td>
+                        <td>898px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool027_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool028</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>drill</td>
+                        <td>8.5</td>
+                        <td>2</td>
+                        <td class="dsi-cell">0.59%</td>
+                        <td class="dsi-cell">0.37%</td>
+                        <td>932</td>
+                        <td>476px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">Internal Coolant. Two different coatings. It could be due to different machining conditions. Carbide</td>
+                        <td><a href="../pixel_comparison_per_tool/tool028_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool029</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">22.11%</td>
+                        <td class="dsi-cell">12.81%</td>
+                        <td>52,828</td>
+                        <td>562px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool029_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool030</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">2.25%</td>
+                        <td class="dsi-cell">1.99%</td>
+                        <td>6,380</td>
+                        <td>554px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Roughing tool</td>
+                        <td><a href="../pixel_comparison_per_tool/tool030_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool031</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>endmill</td>
+                        <td>4.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">3.12%</td>
+                        <td class="dsi-cell">1.69%</td>
+                        <td>1,664</td>
+                        <td>225px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">shank is 6 mm</td>
+                        <td><a href="../pixel_comparison_per_tool/tool031_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool032</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>12.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.48%</td>
+                        <td class="dsi-cell">3.02%</td>
+                        <td>15,279</td>
+                        <td>672px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool032_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool033</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td>endmill</td>
+                        <td>7.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">2.10%</td>
+                        <td class="dsi-cell">1.62%</td>
+                        <td>3,206</td>
+                        <td>412px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Wood industry tool That's why it is worn because in wood industry we need very sharp edges.  HSS. Shaft is 8 mm</td>
+                        <td><a href="../pixel_comparison_per_tool/tool033_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool034</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">1.74%</td>
+                        <td class="dsi-cell">0.89%</td>
+                        <td>4,604</td>
+                        <td>564px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Uncoated, .</td>
+                        <td><a href="../pixel_comparison_per_tool/tool034_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool035</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td>endmill</td>
+                        <td>4.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">38.71%</td>
+                        <td class="dsi-cell">4.77%</td>
+                        <td>9,491</td>
+                        <td>229px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Camera Framing / Optical Backlight Artifact | Wood industry HSS</td>
+                        <td><a href="../pixel_comparison_per_tool/tool035_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool036</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">7.28%</td>
+                        <td class="dsi-cell">2.88%</td>
+                        <td>13,757</td>
+                        <td>452px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool036_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool037</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>4.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.68%</td>
+                        <td class="dsi-cell">2.26%</td>
+                        <td>1,741</td>
+                        <td>224px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">shank is 6 mm</td>
+                        <td><a href="../pixel_comparison_per_tool/tool037_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool038</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>topper</td>
+                        <td>13.2</td>
+                        <td>4</td>
+                        <td class="dsi-cell">12.24%</td>
+                        <td class="dsi-cell">9.35%</td>
+                        <td>63,294</td>
+                        <td>746px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | Spiral.  Grinded the top surface. One top edge is fractured. G 1/4 BSPP = tool diameter: 13.16; tool pitch: 1.34</td>
+                        <td><a href="../pixel_comparison_per_tool/tool038_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool039</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-deposit">deposit</span></td>
+                        <td><span class="badge badge-deposit">deposit</span></td>
+                        <td>topper</td>
+                        <td>6.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">17.90%</td>
+                        <td class="dsi-cell">14.85%</td>
+                        <td>11,079</td>
+                        <td>343px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | Spiral. It seems it has attached chips but the edges are smooth. We have extra cone on the tip for griding porposes.   M6 6H 40degree-22.4</td>
+                        <td><a href="../pixel_comparison_per_tool/tool039_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool040</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>topper</td>
+                        <td>5.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">9.21%</td>
+                        <td class="dsi-cell">7.46%</td>
+                        <td>5,831</td>
+                        <td>317px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | Top surface is partially grinded (the cone is partially visible). Spiral</td>
+                        <td><a href="../pixel_comparison_per_tool/tool040_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool041</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>topper</td>
+                        <td>4.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">12.00%</td>
+                        <td class="dsi-cell">9.70%</td>
+                        <td>5,278</td>
+                        <td>230px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | ONE OF THE GOOD EXAMPLES THAT WE CAN SHOW THE STRUCTUE OF THE TOOL BECAUSE ITS EASY TO SEE THE TOP SURFACE IS GRINDED BY THE FACTORY. the edges, the cone are visible, speciall tool, can be used as showcase. Straight </td>
+                        <td><a href="../pixel_comparison_per_tool/tool041_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool042</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>topper</td>
+                        <td>6.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">102.20%</td>
+                        <td class="dsi-cell">33.50%</td>
+                        <td>51,902</td>
+                        <td>339px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | Grinded by hand</td>
+                        <td><a href="../pixel_comparison_per_tool/tool042_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool043</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>topper</td>
+                        <td>5.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">14.50%</td>
+                        <td class="dsi-cell">12.42%</td>
+                        <td>9,731</td>
+                        <td>309px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | Worn or Used is where the color has changed. The top surface is grinded.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool043_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool044</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>topper</td>
+                        <td>6.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">20.45%</td>
+                        <td class="dsi-cell">16.61%</td>
+                        <td>22,318</td>
+                        <td>353px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | Grinded manually on the top surface. spiral</td>
+                        <td><a href="../pixel_comparison_per_tool/tool044_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool045</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>topper</td>
+                        <td>5.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">28.14%</td>
+                        <td class="dsi-cell">21.17%</td>
+                        <td>10,514</td>
+                        <td>298px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead</td>
+                        <td><a href="../pixel_comparison_per_tool/tool045_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool046</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>topper</td>
+                        <td>4.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">12.15%</td>
+                        <td class="dsi-cell">8.62%</td>
+                        <td>6,272</td>
+                        <td>305px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | the griding profile doesn't account to fracture. straight</td>
+                        <td><a href="../pixel_comparison_per_tool/tool046_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool047</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>topper</td>
+                        <td>4.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">112.03%</td>
+                        <td class="dsi-cell">77.73%</td>
+                        <td>28,959</td>
+                        <td>258px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | color change on tip</td>
+                        <td><a href="../pixel_comparison_per_tool/tool047_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool048</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>topper</td>
+                        <td>5.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">82.27%</td>
+                        <td class="dsi-cell">35.81%</td>
+                        <td>28,832</td>
+                        <td>284px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | spiral</td>
+                        <td><a href="../pixel_comparison_per_tool/tool048_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool049</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>topper</td>
+                        <td>6.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">105.28%</td>
+                        <td class="dsi-cell">97.93%</td>
+                        <td>36,278</td>
+                        <td>346px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | straight</td>
+                        <td><a href="../pixel_comparison_per_tool/tool049_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool050</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>topper</td>
+                        <td>15.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">22.67%</td>
+                        <td class="dsi-cell">20.32%</td>
+                        <td>171,558</td>
+                        <td>917px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | straight</td>
+                        <td><a href="../pixel_comparison_per_tool/tool050_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool051</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>topper</td>
+                        <td>10.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">70.13%</td>
+                        <td class="dsi-cell">62.23%</td>
+                        <td>105,306</td>
+                        <td>566px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | straight (not spiral)</td>
+                        <td><a href="../pixel_comparison_per_tool/tool051_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool052</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>topper</td>
+                        <td>12.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">73.86%</td>
+                        <td class="dsi-cell">40.37%</td>
+                        <td>72,448</td>
+                        <td>494px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | Competely fractured, topper! comptely broken, and it is spiral.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool052_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool053</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>topper</td>
+                        <td>8.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">99.71%</td>
+                        <td class="dsi-cell">61.76%</td>
+                        <td>94,668</td>
+                        <td>465px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead</td>
+                        <td><a href="../pixel_comparison_per_tool/tool053_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool054</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>topper</td>
+                        <td>12.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">20.49%</td>
+                        <td class="dsi-cell">19.24%</td>
+                        <td>91,592</td>
+                        <td>706px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | manually gridnded the top surface. maybe not coated.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool054_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool055</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>chamfer</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">4.15%</td>
+                        <td class="dsi-cell">2.46%</td>
+                        <td>5,952</td>
+                        <td>563px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool055_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool056</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>chamfer</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">1.56%</td>
+                        <td class="dsi-cell">0.70%</td>
+                        <td>2,370</td>
+                        <td>569px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">IF nails don't get stuck but the collor is different, then its worn, but if the nails get stuck it is fractured.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool056_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool057</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>chamfer</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">0.82%</td>
+                        <td class="dsi-cell">0.45%</td>
+                        <td>1,299</td>
+                        <td>566px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">Reclassified from minor uniform wear to used | Good tool, with a little bit of wear, the tip has lost its color that's why we say it is worn. only the first 5 milimeters. and the shank is weld on.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool057_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool058</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>chamfer</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">6.83%</td>
+                        <td class="dsi-cell">6.31%</td>
+                        <td>16,370</td>
+                        <td>564px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Weld-on</td>
+                        <td><a href="../pixel_comparison_per_tool/tool058_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool059</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>chamfer</td>
+                        <td>8.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">4.31%</td>
+                        <td class="dsi-cell">3.95%</td>
+                        <td>4,994</td>
+                        <td>455px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Weld-on</td>
+                        <td><a href="../pixel_comparison_per_tool/tool059_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool060</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>chamfer</td>
+                        <td>6.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.88%</td>
+                        <td class="dsi-cell">2.43%</td>
+                        <td>3,113</td>
+                        <td>373px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Weld-on</td>
+                        <td><a href="../pixel_comparison_per_tool/tool060_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool061</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>chamfer</td>
+                        <td>6.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.10%</td>
+                        <td class="dsi-cell">2.57%</td>
+                        <td>2,397</td>
+                        <td>346px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Weld-on</td>
+                        <td><a href="../pixel_comparison_per_tool/tool061_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool062</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>drill</td>
+                        <td>9.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">4.36%</td>
+                        <td class="dsi-cell">4.14%</td>
+                        <td>9,436</td>
+                        <td>508px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Internal Ccoolant, carbide.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool062_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool063</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>drill</td>
+                        <td>8.4</td>
+                        <td>2</td>
+                        <td class="dsi-cell">4.11%</td>
+                        <td class="dsi-cell">2.47%</td>
+                        <td>5,857</td>
+                        <td>502px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool063_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool064</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>central_drill</td>
+                        <td>8.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">20.94%</td>
+                        <td class="dsi-cell">8.66%</td>
+                        <td>23,838</td>
+                        <td>453px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">We use them to drill a small hole because they are more rigid</td>
+                        <td><a href="../pixel_comparison_per_tool/tool064_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool065</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>central_drill</td>
+                        <td>10.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">9.52%</td>
+                        <td class="dsi-cell">4.30%</td>
+                        <td>14,154</td>
+                        <td>564px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">We use them to drill a small hole because they are more rigid</td>
+                        <td><a href="../pixel_comparison_per_tool/tool065_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool066</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>drill</td>
+                        <td>5.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">3.30%</td>
+                        <td class="dsi-cell">1.71%</td>
+                        <td>1,492</td>
+                        <td>287px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">HSS</td>
+                        <td><a href="../pixel_comparison_per_tool/tool066_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool067</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>drill</td>
+                        <td>4.2</td>
+                        <td>2</td>
+                        <td class="dsi-cell">0.57%</td>
+                        <td class="dsi-cell">0.19%</td>
+                        <td>244</td>
+                        <td>253px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">Carbide, without internal coolant</td>
+                        <td><a href="../pixel_comparison_per_tool/tool067_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool068</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>drill</td>
+                        <td>3.5</td>
+                        <td>2</td>
+                        <td class="dsi-cell">2.68%</td>
+                        <td class="dsi-cell">0.87%</td>
+                        <td>547</td>
+                        <td>220px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">HSS (high speed steel)</td>
+                        <td><a href="../pixel_comparison_per_tool/tool068_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool069</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-deposit">deposit</span></td>
+                        <td><span class="badge badge-deposit">deposit</span></td>
+                        <td>drill</td>
+                        <td>5.1</td>
+                        <td>2</td>
+                        <td class="dsi-cell">1.71%</td>
+                        <td class="dsi-cell">0.45%</td>
+                        <td>1,094</td>
+                        <td>300px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">HSS, the top is melted!</td>
+                        <td><a href="../pixel_comparison_per_tool/tool069_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool070</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>drill</td>
+                        <td>3.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">53.50%</td>
+                        <td class="dsi-cell">47.91%</td>
+                        <td>11,158</td>
+                        <td>178px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool070_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool071</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>drill</td>
+                        <td>2.8</td>
+                        <td>2</td>
+                        <td class="dsi-cell">1.27%</td>
+                        <td class="dsi-cell">0.82%</td>
+                        <td>211</td>
+                        <td>164px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">HSS (high speed steel)</td>
+                        <td><a href="../pixel_comparison_per_tool/tool071_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool072</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>drill</td>
+                        <td>2.8</td>
+                        <td>2</td>
+                        <td class="dsi-cell">12.92%</td>
+                        <td class="dsi-cell">6.96%</td>
+                        <td>2,520</td>
+                        <td>166px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">HSS (high speed steel)</td>
+                        <td><a href="../pixel_comparison_per_tool/tool072_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool073</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>drill</td>
+                        <td>2.8</td>
+                        <td>2</td>
+                        <td class="dsi-cell">1.08%</td>
+                        <td class="dsi-cell">0.43%</td>
+                        <td>539</td>
+                        <td>400px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">Custom 400px ROI (captures full cutting lips, Peak DSI 1.08%) | HSS (high speed steel)</td>
+                        <td><a href="../pixel_comparison_per_tool/tool073_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool074</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>drill</td>
+                        <td>5.3</td>
+                        <td>2</td>
+                        <td class="dsi-cell">100.08%</td>
+                        <td class="dsi-cell">91.86%</td>
+                        <td>38,369</td>
+                        <td>305px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">With internal coolant, and carbide.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool074_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool075</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td>reamer</td>
+                        <td>8.0</td>
+                        <td>6</td>
+                        <td class="dsi-cell">1.76%</td>
+                        <td class="dsi-cell">1.37%</td>
+                        <td>3,558</td>
+                        <td>459px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">spiral</td>
+                        <td><a href="../pixel_comparison_per_tool/tool075_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool076</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>reamer</td>
+                        <td>8.0</td>
+                        <td>8</td>
+                        <td class="dsi-cell">1.37%</td>
+                        <td class="dsi-cell">0.95%</td>
+                        <td>2,938</td>
+                        <td>461px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">Reclassified from minor uniform wear to used | Reamer, is to create a very fine tolerance and if it is a little worn then already its not good. HSS. spiral</td>
+                        <td><a href="../pixel_comparison_per_tool/tool076_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool077</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>t_slot</td>
+                        <td>13.5</td>
+                        <td>6</td>
+                        <td class="dsi-cell">—</td>
+                        <td class="dsi-cell">—</td>
+                        <td>—</td>
+                        <td>200px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Camera Framing / Optical Backlight Artifact | Weld on, uncoated. one edge or teeth is competely gone. HSS. https://www.zps-fn.cz/en/search/detail/woodruff-keyseat-cutters,-weldon-shank,-din-850,-high-speed-steel-hss-co5/</td>
+                        <td>—</td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool078</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>topper</td>
+                        <td>20.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">7.66%</td>
+                        <td class="dsi-cell">6.13%</td>
+                        <td>99,021</td>
+                        <td>1129px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead | C-M20</td>
+                        <td><a href="../pixel_comparison_per_tool/tool078_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool079</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.68%</td>
+                        <td class="dsi-cell">2.96%</td>
+                        <td>6,930</td>
+                        <td>446px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool079_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool080</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.60%</td>
+                        <td class="dsi-cell">2.62%</td>
+                        <td>7,074</td>
+                        <td>464px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool080_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool081</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">6.46%</td>
+                        <td class="dsi-cell">3.66%</td>
+                        <td>12,042</td>
+                        <td>447px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool081_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool082</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">5.81%</td>
+                        <td class="dsi-cell">4.68%</td>
+                        <td>11,012</td>
+                        <td>448px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool082_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool083</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">3.28%</td>
+                        <td class="dsi-cell">1.67%</td>
+                        <td>6,841</td>
+                        <td>450px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool083_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool084</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">1.80%</td>
+                        <td class="dsi-cell">1.27%</td>
+                        <td>3,775</td>
+                        <td>453px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool084_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool085</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">2.70%</td>
+                        <td class="dsi-cell">1.19%</td>
+                        <td>5,482</td>
+                        <td>457px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool085_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool086</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">1.55%</td>
+                        <td class="dsi-cell">0.37%</td>
+                        <td>3,236</td>
+                        <td>454px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool086_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool087</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>endmill</td>
+                        <td>8.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">1.53%</td>
+                        <td class="dsi-cell">0.65%</td>
+                        <td>2,946</td>
+                        <td>447px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool087_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool088</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>11.6</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.17%</td>
+                        <td class="dsi-cell">2.44%</td>
+                        <td>13,219</td>
+                        <td>654px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Q: `The webpage says 12 but it measures exactly 11.6 mm the top`  https://toolsunited.com/EN/Article/Details/24696400130670156?print=True</td>
+                        <td><a href="../pixel_comparison_per_tool/tool088_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool089</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>endmill</td>
+                        <td>12.0</td>
+                        <td>5</td>
+                        <td class="dsi-cell">2.92%</td>
+                        <td class="dsi-cell">2.68%</td>
+                        <td>12,734</td>
+                        <td>670px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool089_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool090</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">2.78%</td>
+                        <td class="dsi-cell">1.57%</td>
+                        <td>11,457</td>
+                        <td>654px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Originally has a small chamfer on the edges. Very minor fracture on those edges. shaft diameter is 12 mm.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool090_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool091</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>12.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">2.62%</td>
+                        <td class="dsi-cell">2.22%</td>
+                        <td>10,950</td>
+                        <td>671px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Very fine fracture</td>
+                        <td><a href="../pixel_comparison_per_tool/tool091_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool092</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>12.0</td>
+                        <td>6</td>
+                        <td class="dsi-cell">1.54%</td>
+                        <td class="dsi-cell">0.76%</td>
+                        <td>1,808</td>
+                        <td>180px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Custom 180px ROI (isolates cutting tip micro-chipping, Peak DSI 1.54%)</td>
+                        <td><a href="../pixel_comparison_per_tool/tool092_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool093</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td>endmill</td>
+                        <td>12.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.23%</td>
+                        <td class="dsi-cell">1.63%</td>
+                        <td>13,965</td>
+                        <td>671px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">The color is visibly changed, however the are minimal signs of fracture on one edge.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool093_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool094</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>12.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.65%</td>
+                        <td class="dsi-cell">1.82%</td>
+                        <td>15,800</td>
+                        <td>672px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool094_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool095</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">5.77%</td>
+                        <td class="dsi-cell">2.62%</td>
+                        <td>18,132</td>
+                        <td>560px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool095_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool096</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">3.29%</td>
+                        <td class="dsi-cell">1.70%</td>
+                        <td>10,127</td>
+                        <td>561px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">color gradient, background is tricky, because it neither is no, neither is yes.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool096_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool097</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">2.95%</td>
+                        <td class="dsi-cell">1.52%</td>
+                        <td>9,077</td>
+                        <td>560px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool097_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool098</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">4.70%</td>
+                        <td class="dsi-cell">3.11%</td>
+                        <td>13,647</td>
+                        <td>558px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool098_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool099</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">1.99%</td>
+                        <td class="dsi-cell">1.68%</td>
+                        <td>6,104</td>
+                        <td>559px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Roughing</td>
+                        <td><a href="../pixel_comparison_per_tool/tool099_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool100</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">8.08%</td>
+                        <td class="dsi-cell">6.12%</td>
+                        <td>23,485</td>
+                        <td>562px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool100_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool101</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">6.52%</td>
+                        <td class="dsi-cell">5.30%</td>
+                        <td>18,454</td>
+                        <td>564px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">very fine fracture along the edges.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool101_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool102</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">9.43%</td>
+                        <td class="dsi-cell">6.80%</td>
+                        <td>30,428</td>
+                        <td>565px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Uncoated</td>
+                        <td><a href="../pixel_comparison_per_tool/tool102_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool103</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>9.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">6.43%</td>
+                        <td class="dsi-cell">5.07%</td>
+                        <td>20,021</td>
+                        <td>562px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool103_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool104</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">7.72%</td>
+                        <td class="dsi-cell">3.65%</td>
+                        <td>23,244</td>
+                        <td>562px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool104_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool105</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td><span class="badge badge-worn">worn</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">2.38%</td>
+                        <td class="dsi-cell">1.38%</td>
+                        <td>7,061</td>
+                        <td>557px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Used, meaning we can use more, but worn meaning no more usage.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool105_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool106</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>endmill</td>
+                        <td>10.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">0.41%</td>
+                        <td class="dsi-cell">0.24%</td>
+                        <td>1,280</td>
+                        <td>558px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool106_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool107</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>endmill</td>
+                        <td>6.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">2.24%</td>
+                        <td class="dsi-cell">1.64%</td>
+                        <td>2,638</td>
+                        <td>335px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool107_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="row-excluded">
+                        <td class="tool-id-cell">tool108</td>
+                        <td><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>topper</td>
+                        <td>4.0</td>
+                        <td>3</td>
+                        <td class="dsi-cell">84.11%</td>
+                        <td class="dsi-cell">65.10%</td>
+                        <td>20,979</td>
+                        <td>228px</td>
+                        <td><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="notes-cell">Excluded: Thread tap helical pitch lead</td>
+                        <td><a href="../pixel_comparison_per_tool/tool108_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool109</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>12.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">2.66%</td>
+                        <td class="dsi-cell">2.04%</td>
+                        <td>13,448</td>
+                        <td>728px</td>
+                        <td><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="notes-cell">Standard symmetric geometry</td>
+                        <td><a href="../pixel_comparison_per_tool/tool109_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool110</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td><span class="badge badge-fractured">fractured</span></td>
+                        <td>endmill</td>
+                        <td>12.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">5.21%</td>
+                        <td class="dsi-cell">3.32%</td>
+                        <td>29,254</td>
+                        <td>785px</td>
+                        <td><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="notes-cell">shank diameter 14. very fine fracture along some edges</td>
+                        <td><a href="../pixel_comparison_per_tool/tool110_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool111</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td><span class="badge badge-used">used</span></td>
+                        <td>endmill</td>
+                        <td>14.0</td>
+                        <td>4</td>
+                        <td class="dsi-cell">0.37%</td>
+                        <td class="dsi-cell">0.19%</td>
+                        <td>2,365</td>
+                        <td>806px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">Weld-on. shank is 16 mm</td>
+                        <td><a href="../pixel_comparison_per_tool/tool111_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool112</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>endmill</td>
+                        <td>7.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">0.29%</td>
+                        <td class="dsi-cell">0.14%</td>
+                        <td>396</td>
+                        <td>394px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">weld-on</td>
+                        <td><a href="../pixel_comparison_per_tool/tool112_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool113</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>endmill</td>
+                        <td>7.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">0.48%</td>
+                        <td class="dsi-cell">0.22%</td>
+                        <td>490</td>
+                        <td>393px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">weld-on</td>
+                        <td><a href="../pixel_comparison_per_tool/tool113_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool114</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>endmill</td>
+                        <td>7.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">0.75%</td>
+                        <td class="dsi-cell">0.34%</td>
+                        <td>877</td>
+                        <td>398px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">weld-on.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool114_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                    <tr class="">
+                        <td class="tool-id-cell">tool115</td>
+                        <td><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td><span class="badge badge-new">new</span></td>
+                        <td>endmill</td>
+                        <td>7.0</td>
+                        <td>2</td>
+                        <td class="dsi-cell">0.57%</td>
+                        <td class="dsi-cell">0.16%</td>
+                        <td>556</td>
+                        <td>395px</td>
+                        <td><span class="badge badge-zone1">Zone 1: Pass (≤ 1.5%)</span></td>
+                        <td class="notes-cell">and weld-on.</td>
+                        <td><a href="../pixel_comparison_per_tool/tool115_overlay_dsi_stacked.png" target="_blank" class="btn-inspect">View</a></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="footer-bar">
+            <div>Rotational Silhouette Condition Monitoring • Google Antigravity AAC Pipeline</div>
+            <div>Generated with individual above-ROI runout calibration & peak symmetry metric</div>
+        </div>
+    </div>
+
+    <!-- Embedded Vanilla JavaScript for Instant Sorting & Filtering -->
+    <script>
+        let currentSortCol = -1;
+        let currentSortAsc = true;
+
+        function filterTable() {
+            const searchVal = document.getElementById("searchInput").value.toLowerCase();
+            const statusVal = document.getElementById("statusFilter").value;
+            const zoneVal = document.getElementById("zoneFilter").value;
+            const condVal = document.getElementById("condFilter").value.toLowerCase();
+            const typeVal = document.getElementById("typeFilter").value.toLowerCase();
+
+            const rows = document.querySelectorAll("#tableBody tr");
+            let visibleCount = 0;
+
+            rows.forEach(row => {
+                const text = row.innerText.toLowerCase();
+                const status = row.children[1].innerText.trim();
+                const cond = row.children[3].innerText.trim().toLowerCase();
+                const type = row.children[4].innerText.trim().toLowerCase();
+                const zone = row.children[11].innerText.trim();
+
+                let matchesSearch = text.includes(searchVal);
+                let matchesStatus = (statusVal === "ALL") || (status === statusVal);
+                let matchesZone = (zoneVal === "ALL") || (zone.includes(zoneVal));
+                let matchesCond = (condVal === "ALL") || (cond === condVal);
+                let matchesType = (typeVal === "ALL") || (type === typeVal);
+
+                if (matchesSearch && matchesStatus && matchesZone && matchesCond && matchesType) {
+                    row.style.display = "";
+                    visibleCount++;
+                } else {
+                    row.style.display = "none";
+                }
+            });
+
+            document.getElementById("rowCount").innerText = `Showing ${visibleCount} of ${rows.length} tools`;
+        }
+
+        function resetFilters() {
+            document.getElementById("searchInput").value = "";
+            document.getElementById("statusFilter").value = "ALL";
+            document.getElementById("zoneFilter").value = "ALL";
+            document.getElementById("condFilter").value = "ALL";
+            document.getElementById("typeFilter").value = "ALL";
+            filterTable();
+        }
+
+        function sortTable(colIdx, type) {
+            const table = document.getElementById("toolsTable");
+            const tbody = document.getElementById("tableBody");
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+            const ths = table.querySelectorAll("th");
+
+            if (currentSortCol === colIdx) {
+                currentSortAsc = !currentSortAsc;
+            } else {
+                currentSortCol = colIdx;
+                currentSortAsc = true;
+            }
+
+            ths.forEach((th, idx) => {
+                th.classList.remove("sorted-asc", "sorted-desc");
+                if (idx === colIdx) {
+                    th.classList.add(currentSortAsc ? "sorted-asc" : "sorted-desc");
+                }
+            });
+
+            rows.sort((a, b) => {
+                let cellA = a.children[colIdx].innerText.trim();
+                let cellB = b.children[colIdx].innerText.trim();
+
+                if (type === "num") {
+                    let numA = parseFloat(cellA.replace(/[^0-9.-]/g, "")) || 0;
+                    let numB = parseFloat(cellB.replace(/[^0-9.-]/g, "")) || 0;
+                    return currentSortAsc ? numA - numB : numB - numA;
+                } else {
+                    return currentSortAsc ? cellA.localeCompare(cellB) : cellB.localeCompare(cellA);
+                }
+            });
+
+            rows.forEach(r => tbody.appendChild(r));
+        }
+
+        function exportTableToCSV(filename) {
+            const rows = document.querySelectorAll("#toolsTable tr");
+            let csv = [];
+            rows.forEach(row => {
+                if (row.style.display !== "none") {
+                    let cols = Array.from(row.querySelectorAll("th, td")).slice(0, 13);
+                    let rowData = cols.map(c => `"${c.innerText.replace(/"/g, '""')}"`);
+                    csv.push(rowData.join(","));
+                }
+            });
+
+            const csvFile = new Blob([csv.join("\n")], { type: "text/csv" });
+            const downloadLink = document.createElement("a");
+            downloadLink.download = filename;
+            downloadLink.href = window.URL.createObjectURL(csvFile);
+            downloadLink.style.display = "none";
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+    </script>
+</body>
+</html>
