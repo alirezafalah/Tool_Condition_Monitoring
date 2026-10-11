@@ -1,0 +1,116 @@
+tool_id,status,symmetry,mean_dsi,peak_dsi,zone_clean,tool_type,edges,original_condition,working_condition,notes,diameter_mm,max_pixel_diff,roi_height_px
+tool001,Kept (Active),Unassigned,0.3217,0.4575,Zone 1: Pass (≤ 1.5%),endmill,6,new,new,WELD-ON,10.0,1526.5,567
+tool002,Kept (Active),Unassigned,0.2354,0.5872,Zone 1: Pass (≤ 1.5%),drill,2,new,new,"SOLID CARBIDE DRILL, without internal cooling channels. Carbide.",10.0,1337.6,604
+tool003,Kept (Active),Unassigned,3.324,3.485,Zone 2: Manual (1.5% - 4.0%),endmill,4,new,new,"Wavy roughing knuckles (sinusoidal profile) | Dedicated roughing, and the chip formation better because of wavy surface. Higher material remove rate.",10.0,10440.95,565
+tool004,Kept (Active),Unassigned,1.8365,3.1465,Zone 2: Manual (1.5% - 4.0%),endmill,3,new,new,INTERNAL COOLANT CHANNELS,10.0,10480.9,563
+tool005,Kept (Active),Unassigned,0.1324,0.4664,Zone 1: Pass (≤ 1.5%),endmill,4,new,new,Big radius on the edge. special because it can work on 3d (FREE) surface finishing.,10.0,1334.09,559
+tool006,Discarded (Excluded),Unassigned,4.0167,5.8635,Excluded,endmill,4,fractured,fractured,Severe Flute 1 corner radius breakdown (excluded as asymmetric),7.0,11121.18,449
+tool007,Kept (Active),Unassigned,0.4275,1.1417,Zone 1: Pass (≤ 1.5%),endmill,4,new,new,Standard symmetric geometry,8.0,2471.7,462
+tool008,Discarded (Excluded),Unassigned,3.0387,4.7707,Excluded,endmill,3,new,new,4mm stepped cutter with 6mm shank (excluded as asymmetric) | shank is 6 mm,4.0,2471.05,230
+tool009,Kept (Active),Unassigned,2.1599,3.0656,Zone 2: Manual (1.5% - 4.0%),endmill,4,new,new,Endmill cutter means wecan either use the face or the pheripheral sides. and the shank is weld on,10.0,9338.25,566
+tool010,Kept (Active),Unassigned,0.5453,1.3114,Zone 1: Pass (≤ 1.5%),drill,2,used,used,"Internal coolant, weld-on. There is no significant usage but there are a little color differences.",5.5,759.54,314
+tool011,Kept (Active),Unassigned,0.6917,1.2444,Zone 1: Pass (≤ 1.5%),endmill,4,new,new,shaft is 6 mm,4.8,850.55,279
+tool012,Kept (Active),Unassigned,0.1132,0.2884,Zone 1: Pass (≤ 1.5%),endmill,2,new,new,WELD ON.,7.0,358.75,396
+tool013,Kept (Active),Unassigned,0.8696,1.4072,Zone 1: Pass (≤ 1.5%),endmill,4,used,used,Standard symmetric geometry,10.0,4362.55,575
+tool014,Kept (Active),Unassigned,15.7648,27.9502,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,10.0,61131.73,586
+tool015,Kept (Active),Unassigned,2.6919,3.4643,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,12.0,13534.4,671
+tool016,Kept (Active),Unassigned,8.6866,16.108,Zone 3: Reject (> 4.0%),endmill,2,fractured,fractured,"Small diameter, it can be broken as well, depending on the definition.",2.0,1152.55,117
+tool017,Kept (Active),Unassigned,4.9586,5.4683,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,14.0,30202.36,792
+tool018,Kept (Active),Unassigned,16.6768,26.3607,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,shank is 12,11.6,105074.9,663
+tool019,Kept (Active),Unassigned,1.7607,3.2507,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Roughing,10.0,9220.88,555
+tool020,Kept (Active),Unassigned,38.2976,42.4164,Zone 3: Reject (> 4.0%),endmill,6,fractured,fractured,Standard symmetric geometry,8.0,64325.77,448
+tool021,Kept (Active),Unassigned,92.6574,100.2049,Zone 3: Reject (> 4.0%),endmill,6,fractured,fractured,Standard symmetric geometry,8.0,92563.0,450
+tool022,Kept (Active),Unassigned,8.7378,13.267,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,"The coating color is not exactly the same as  the tool. End mill cutter. Pheripheral edges are visible only, the face edges are broken. similar to 101.",10.0,26321.3,562
+tool023,Kept (Active),Unassigned,2.4439,8.6645,Zone 3: Reject (> 4.0%),endmill,4,deposit,deposit,Workpiece has melted on the tooth,8.0,16802.45,451
+tool024,Kept (Active),Unassigned,4.3603,5.797,Zone 3: Reject (> 4.0%),endmill,4,deposit,deposit,"Melting the material, special case and on the top there's material loss. ",10.0,17966.6,566
+tool025,Kept (Active),Unassigned,5.6821,8.6478,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,the shank diameter is 12. Very fine fracture,12.0,36169.09,669
+tool026,Kept (Active),Unassigned,4.0901,6.2573,Zone 3: Reject (> 4.0%),endmill,3,fractured,fractured,Standard symmetric geometry,10.0,17842.45,565
+tool027,Kept (Active),Unassigned,0.2549,0.4189,Zone 1: Pass (≤ 1.5%),endmill,6,used,used,Standard symmetric geometry,16.0,3514.09,898
+tool028,Kept (Active),Unassigned,0.3681,0.5915,Zone 1: Pass (≤ 1.5%),drill,2,new,new,Internal Coolant. Two different coatings. It could be due to different machining conditions. Carbide,8.5,931.85,476
+tool029,Kept (Active),Unassigned,12.8059,22.1096,Zone 3: Reject (> 4.0%),endmill,3,fractured,fractured,Standard symmetric geometry,10.0,52828.05,562
+tool030,Kept (Active),Unassigned,1.9907,2.2472,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Roughing tool,10.0,6380.5,554
+tool031,Kept (Active),Unassigned,1.6936,3.1249,Zone 2: Manual (1.5% - 4.0%),endmill,3,used,used,shank is 6 mm,4.0,1663.91,225
+tool032,Kept (Active),Unassigned,3.0164,3.4785,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,12.0,15279.4,672
+tool033,Kept (Active),Unassigned,1.6228,2.1011,Zone 2: Manual (1.5% - 4.0%),endmill,2,used,used,Wood industry tool That's why it is worn because in wood industry we need very sharp edges.  HSS. Shaft is 8 mm,7.0,3206.5,412
+tool034,Kept (Active),Unassigned,0.8912,1.7438,Zone 2: Manual (1.5% - 4.0%),endmill,2,fractured,fractured,"Uncoated, .",10.0,4604.0,564
+tool035,Discarded (Excluded),Unassigned,4.7686,38.7124,Excluded,endmill,2,worn,worn,Excluded: Camera Framing / Optical Backlight Artifact | Wood industry HSS,4.0,9490.54,229
+tool036,Kept (Active),Unassigned,2.8796,7.2765,Zone 3: Reject (> 4.0%),endmill,3,fractured,fractured,Standard symmetric geometry,8.0,13757.1,452
+tool037,Kept (Active),Unassigned,2.2602,3.676,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,shank is 6 mm,4.0,1740.9,224
+tool038,Discarded (Excluded),Unassigned,9.3463,12.2389,Excluded,topper,4,fractured,fractured,Excluded: Thread tap helical pitch lead | Spiral.  Grinded the top surface. One top edge is fractured. G 1/4 BSPP = tool diameter: 13.16; tool pitch: 1.34,13.16,63294.4,746
+tool039,Discarded (Excluded),Unassigned,14.8493,17.9005,Excluded,topper,3,deposit,deposit,Excluded: Thread tap helical pitch lead | Spiral. It seems it has attached chips but the edges are smooth. We have extra cone on the tip for griding porposes.   M6 6H 40degree-22.4,6.0,11078.6,343
+tool040,Discarded (Excluded),Unassigned,7.4574,9.2116,Excluded,topper,3,fractured,fractured,Excluded: Thread tap helical pitch lead | Top surface is partially grinded (the cone is partially visible). Spiral,5.0,5831.4,317
+tool041,Discarded (Excluded),Unassigned,9.7044,12.0004,Excluded,topper,3,used,used,"Excluded: Thread tap helical pitch lead | ONE OF THE GOOD EXAMPLES THAT WE CAN SHOW THE STRUCTUE OF THE TOOL BECAUSE ITS EASY TO SEE THE TOP SURFACE IS GRINDED BY THE FACTORY. the edges, the cone are visible, speciall tool, can be used as showcase. Straight ",4.0,5278.5,230
+tool042,Discarded (Excluded),Unassigned,33.4954,102.198,Excluded,topper,3,used,used,Excluded: Thread tap helical pitch lead | Grinded by hand,6.0,51902.0,339
+tool043,Discarded (Excluded),Unassigned,12.4186,14.499,Excluded,topper,3,used,used,Excluded: Thread tap helical pitch lead | Worn or Used is where the color has changed. The top surface is grinded.,5.0,9730.95,309
+tool044,Discarded (Excluded),Unassigned,16.6077,20.4529,Excluded,topper,3,used,used,Excluded: Thread tap helical pitch lead | Grinded manually on the top surface. spiral,6.0,22317.9,353
+tool045,Discarded (Excluded),Unassigned,21.1703,28.1381,Excluded,topper,3,used,used,Excluded: Thread tap helical pitch lead,5.0,10513.95,298
+tool046,Discarded (Excluded),Unassigned,8.618,12.1479,Excluded,topper,3,used,used,Excluded: Thread tap helical pitch lead | the griding profile doesn't account to fracture. straight,4.0,6271.65,305
+tool047,Discarded (Excluded),Unassigned,77.7339,112.0336,Excluded,topper,3,fractured,fractured,Excluded: Thread tap helical pitch lead | color change on tip,4.0,28959.45,258
+tool048,Discarded (Excluded),Unassigned,35.8089,82.2708,Excluded,topper,3,fractured,fractured,Excluded: Thread tap helical pitch lead | spiral,5.0,28832.45,284
+tool049,Discarded (Excluded),Unassigned,97.9312,105.2819,Excluded,topper,3,fractured,fractured,Excluded: Thread tap helical pitch lead | straight,6.0,36277.65,346
+tool050,Discarded (Excluded),Unassigned,20.3169,22.6708,Excluded,topper,3,fractured,fractured,Excluded: Thread tap helical pitch lead | straight,15.0,171557.7,917
+tool051,Discarded (Excluded),Unassigned,62.2278,70.1297,Excluded,topper,3,fractured,fractured,Excluded: Thread tap helical pitch lead | straight (not spiral),10.0,105306.18,566
+tool052,Discarded (Excluded),Unassigned,40.3668,73.8634,Excluded,topper,3,fractured,fractured,"Excluded: Thread tap helical pitch lead | Competely fractured, topper! comptely broken, and it is spiral.",12.0,72448.38,494
+tool053,Discarded (Excluded),Unassigned,61.7621,99.7076,Excluded,topper,3,fractured,fractured,Excluded: Thread tap helical pitch lead,8.0,94668.2,465
+tool054,Discarded (Excluded),Unassigned,19.2354,20.4856,Excluded,topper,4,fractured,fractured,Excluded: Thread tap helical pitch lead | manually gridnded the top surface. maybe not coated.,12.0,91592.45,706
+tool055,Kept (Active),Unassigned,2.4552,4.1477,Zone 3: Reject (> 4.0%),chamfer,4,fractured,fractured,Standard symmetric geometry,10.0,5951.7,563
+tool056,Kept (Active),Unassigned,0.7027,1.5632,Zone 2: Manual (1.5% - 4.0%),chamfer,4,fractured,fractured,"IF nails don't get stuck but the collor is different, then its worn, but if the nails get stuck it is fractured.",10.0,2370.08,569
+tool057,Kept (Active),Unassigned,0.4517,0.8184,Zone 1: Pass (≤ 1.5%),chamfer,4,used,used,"Reclassified from minor uniform wear to used | Good tool, with a little bit of wear, the tip has lost its color that's why we say it is worn. only the first 5 milimeters. and the shank is weld on.",10.0,1299.25,566
+tool058,Kept (Active),Unassigned,6.3149,6.8334,Zone 3: Reject (> 4.0%),chamfer,4,fractured,fractured,Weld-on,10.0,16369.9,564
+tool059,Kept (Active),Unassigned,3.9496,4.3102,Zone 3: Reject (> 4.0%),chamfer,4,fractured,fractured,Weld-on,8.0,4994.35,455
+tool060,Kept (Active),Unassigned,2.4304,3.8776,Zone 2: Manual (1.5% - 4.0%),chamfer,4,fractured,fractured,Weld-on,6.0,3113.22,373
+tool061,Kept (Active),Unassigned,2.5715,3.0954,Zone 2: Manual (1.5% - 4.0%),chamfer,4,fractured,fractured,Weld-on,6.0,2397.2,346
+tool062,Kept (Active),Unassigned,4.1415,4.3631,Zone 3: Reject (> 4.0%),drill,2,fractured,fractured,"Internal Ccoolant, carbide.",9.0,9436.15,508
+tool063,Kept (Active),Unassigned,2.4664,4.1076,Zone 3: Reject (> 4.0%),drill,2,fractured,fractured,Standard symmetric geometry,8.4,5856.7,502
+tool064,Kept (Active),Unassigned,8.6617,20.9445,Zone 3: Reject (> 4.0%),central_drill,2,fractured,fractured,We use them to drill a small hole because they are more rigid,8.0,23837.55,453
+tool065,Kept (Active),Unassigned,4.298,9.5206,Zone 3: Reject (> 4.0%),central_drill,2,fractured,fractured,We use them to drill a small hole because they are more rigid,10.0,14153.55,564
+tool066,Kept (Active),Unassigned,1.708,3.2997,Zone 2: Manual (1.5% - 4.0%),drill,2,fractured,fractured,HSS,5.0,1492.2,287
+tool067,Kept (Active),Unassigned,0.1892,0.5694,Zone 1: Pass (≤ 1.5%),drill,2,used,used,"Carbide, without internal coolant",4.2,243.92,253
+tool068,Kept (Active),Unassigned,0.8666,2.6835,Zone 2: Manual (1.5% - 4.0%),drill,2,used,used,HSS (high speed steel),3.5,547.35,220
+tool069,Kept (Active),Unassigned,0.448,1.7053,Zone 2: Manual (1.5% - 4.0%),drill,2,deposit,deposit,"HSS, the top is melted!",5.1,1094.36,300
+tool070,Kept (Active),Unassigned,47.9094,53.5013,Zone 3: Reject (> 4.0%),drill,2,fractured,fractured,Standard symmetric geometry,3.0,11158.0,178
+tool071,Kept (Active),Unassigned,0.8242,1.2671,Zone 1: Pass (≤ 1.5%),drill,2,used,used,HSS (high speed steel),2.8,211.0,164
+tool072,Kept (Active),Unassigned,6.9611,12.9229,Zone 3: Reject (> 4.0%),drill,2,fractured,fractured,HSS (high speed steel),2.8,2519.69,166
+tool073,Kept (Active),Unassigned,0.4339,1.0812,Zone 1: Pass (≤ 1.5%),drill,2,used,used,"Custom 400px ROI (captures full cutting lips, Peak DSI 1.08%) | HSS (high speed steel)",2.8,538.75,400
+tool074,Kept (Active),Unassigned,91.8618,100.0813,Zone 3: Reject (> 4.0%),drill,2,fractured,fractured,"With internal coolant, and carbide.",5.3,38369.1,305
+tool075,Kept (Active),Unassigned,1.3708,1.7562,Zone 2: Manual (1.5% - 4.0%),reamer,6,fractured,fractured,spiral,8.0,3558.38,459
+tool076,Kept (Active),Unassigned,0.9538,1.371,Zone 1: Pass (≤ 1.5%),reamer,8,used,used,"Reclassified from minor uniform wear to used | Reamer, is to create a very fine tolerance and if it is a little worn then already its not good. HSS. spiral",8.0,2938.45,461
+tool077,Discarded (Excluded),Unassigned,,,Excluded,t_slot,6,fractured,fractured,"Excluded: Camera Framing / Optical Backlight Artifact | Weld on, uncoated. one edge or teeth is competely gone. HSS. https://www.zps-fn.cz/en/search/detail/woodruff-keyseat-cutters,-weldon-shank,-din-850,-high-speed-steel-hss-co5/",13.5,,200
+tool078,Discarded (Excluded),Unassigned,6.1292,7.6617,Excluded,topper,4,used,used,Excluded: Thread tap helical pitch lead | C-M20,20.0,99021.0,1129
+tool079,Kept (Active),Unassigned,2.9578,3.6822,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,8.0,6929.6,446
+tool080,Kept (Active),Unassigned,2.6194,3.6013,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,8.0,7074.3,464
+tool081,Kept (Active),Unassigned,3.6572,6.4565,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,8.0,12041.91,447
+tool082,Kept (Active),Unassigned,4.6824,5.8132,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,8.0,11011.8,448
+tool083,Kept (Active),Unassigned,1.6698,3.2755,Zone 2: Manual (1.5% - 4.0%),endmill,3,fractured,fractured,Standard symmetric geometry,8.0,6840.92,450
+tool084,Kept (Active),Unassigned,1.2661,1.7961,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,8.0,3775.4,453
+tool085,Kept (Active),Unassigned,1.192,2.6993,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,Standard symmetric geometry,8.0,5481.64,457
+tool086,Kept (Active),Unassigned,0.3687,1.5455,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,Standard symmetric geometry,8.0,3236.0,454
+tool087,Kept (Active),Unassigned,0.6533,1.5281,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,Standard symmetric geometry,8.0,2945.72,447
+tool088,Kept (Active),Unassigned,2.4435,3.1748,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Q: `The webpage says 12 but it measures exactly 11.6 mm the top`  https://toolsunited.com/EN/Article/Details/24696400130670156?print=True,11.6,13218.9,654
+tool089,Kept (Active),Unassigned,2.6774,2.9235,Zone 2: Manual (1.5% - 4.0%),endmill,5,used,used,Standard symmetric geometry,12.0,12734.3,670
+tool090,Kept (Active),Unassigned,1.5667,2.778,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,Originally has a small chamfer on the edges. Very minor fracture on those edges. shaft diameter is 12 mm.,10.0,11457.29,654
+tool091,Kept (Active),Unassigned,2.2169,2.6209,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Very fine fracture,12.0,10949.9,671
+tool092,Kept (Active),Unassigned,0.7642,1.6,Zone 2: Manual (1.5% - 4.0%),endmill,6,fractured,fractured,"Custom 180px ROI (isolates cutting tip micro-chipping, Peak DSI 1.60%)",12.0,1808.0,180
+tool093,Kept (Active),Unassigned,1.6335,3.2344,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,"The color is visibly changed, however the are minimal signs of fracture on one edge.",12.0,13965.21,671
+tool094,Kept (Active),Unassigned,1.8243,3.6476,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,12.0,15799.86,672
+tool095,Kept (Active),Unassigned,2.6188,5.7654,Zone 3: Reject (> 4.0%),endmill,3,fractured,fractured,Standard symmetric geometry,10.0,18131.8,560
+tool096,Kept (Active),Unassigned,1.6997,3.2871,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,"color gradient, background is tricky, because it neither is no, neither is yes.",10.0,10126.73,561
+tool097,Kept (Active),Unassigned,1.5216,2.9502,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,10.0,9077.1,560
+tool098,Kept (Active),Unassigned,3.1064,4.7,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,10.0,13647.45,558
+tool099,Kept (Active),Unassigned,1.6803,1.9888,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,Roughing,10.0,6104.3,559
+tool100,Kept (Active),Unassigned,6.117,8.0832,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,10.0,23485.06,562
+tool101,Kept (Active),Unassigned,5.2998,6.5207,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,very fine fracture along the edges.,10.0,18454.25,564
+tool102,Kept (Active),Unassigned,6.8032,9.4348,Zone 3: Reject (> 4.0%),endmill,3,fractured,fractured,Uncoated,10.0,30428.0,565
+tool103,Kept (Active),Unassigned,5.0731,6.4334,Zone 3: Reject (> 4.0%),endmill,3,fractured,fractured,Standard symmetric geometry,9.0,20021.1,562
+tool104,Kept (Active),Unassigned,3.6486,7.7241,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,10.0,23244.18,562
+tool105,Kept (Active),Unassigned,1.3753,2.3838,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,"Used, meaning we can use more, but worn meaning no more usage.",10.0,7061.0,557
+tool106,Kept (Active),Unassigned,0.2405,0.4061,Zone 1: Pass (≤ 1.5%),endmill,4,used,used,Standard symmetric geometry,10.0,1280.25,558
+tool107,Kept (Active),Unassigned,1.635,2.2403,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,Standard symmetric geometry,6.0,2637.6,335
+tool108,Discarded (Excluded),Unassigned,65.099,84.1109,Excluded,topper,3,fractured,fractured,Excluded: Thread tap helical pitch lead,4.0,20979.36,228
+tool109,Kept (Active),Unassigned,2.037,2.66,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,12.0,13447.75,728
+tool110,Kept (Active),Unassigned,3.3196,5.2072,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,shank diameter 14. very fine fracture along some edges,12.0,29253.5,785
+tool111,Kept (Active),Unassigned,0.1858,0.3685,Zone 1: Pass (≤ 1.5%),endmill,4,used,used,Weld-on. shank is 16 mm,14.0,2364.6,806
+tool112,Kept (Active),Unassigned,0.1362,0.2893,Zone 1: Pass (≤ 1.5%),endmill,2,new,new,weld-on,7.0,395.75,394
+tool113,Kept (Active),Unassigned,0.2246,0.4818,Zone 1: Pass (≤ 1.5%),endmill,2,new,new,weld-on,7.0,489.9,393
+tool114,Kept (Active),Unassigned,0.3367,0.7541,Zone 1: Pass (≤ 1.5%),endmill,2,new,new,weld-on.,7.0,877.09,398
+tool115,Kept (Active),Unassigned,0.1578,0.5671,Zone 1: Pass (≤ 1.5%),endmill,2,new,new,and weld-on.,7.0,556.27,395
