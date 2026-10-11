@@ -66,6 +66,8 @@ def generate_dashboard():
             reason_clean = "Asymmetric Geometry / Non-Symmetric Breakdown"
         elif excl_reason == "EXCLUDED_SEGMENTATION_ARTIFACT":
             reason_clean = "Camera Framing / Optical Backlight Artifact"
+        elif excl_reason == "EXCLUDED_CUSTOM_SCREENING":
+            reason_clean = "User-Excluded Tool (Screened Outlier / Asymmetry)"
         else:
             reason_clean = "Kept in Active Dataset"
 
@@ -114,9 +116,9 @@ def generate_dashboard():
         notes = str(r["notes"]) if pd.notna(r["notes"]) and str(r["notes"]).strip().lower() != "nan" else ""
         highlights = []
         if tid == "tool003":
-            highlights.append("Wavy roughing knuckles (sinusoidal profile)")
+            highlights.append("Wavy roughing knuckles (sinusoidal profile, excluded as asymmetric)")
         elif tid == "tool006":
-            highlights.append("Severe Flute 1 corner radius breakdown (excluded as asymmetric)")
+            highlights.append("Severe Flute 1 corner radius breakdown (fractured cutting edge)")
         elif tid == "tool008":
             highlights.append("4mm stepped cutter with 6mm shank (excluded as asymmetric)")
         elif tid == "tool073":
@@ -127,7 +129,7 @@ def generate_dashboard():
             highlights.append("Reclassified from minor uniform wear to used")
         elif excl_reason == "EXCLUDED_TOPPER":
             highlights.append("Excluded: Thread tap helical pitch lead")
-        elif tid in ["tool035", "tool077"]:
+        elif not is_kept:
             highlights.append(f"Excluded: {reason_clean}")
 
         if notes:

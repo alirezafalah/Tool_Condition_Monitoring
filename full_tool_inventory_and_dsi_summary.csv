@@ -1,13 +1,13 @@
 tool_id,status,symmetry,mean_dsi,peak_dsi,zone_clean,tool_type,edges,original_condition,working_condition,notes,diameter_mm,max_pixel_diff,roi_height_px
 tool001,Kept (Active),Unassigned,0.3217,0.4575,Zone 1: Pass (≤ 1.5%),endmill,6,new,new,WELD-ON,10.0,1526.5,567
 tool002,Kept (Active),Unassigned,0.2354,0.5872,Zone 1: Pass (≤ 1.5%),drill,2,new,new,"SOLID CARBIDE DRILL, without internal cooling channels. Carbide.",10.0,1337.6,604
-tool003,Kept (Active),Unassigned,3.324,3.485,Zone 2: Manual (1.5% - 4.0%),endmill,4,new,new,"Wavy roughing knuckles (sinusoidal profile) | Dedicated roughing, and the chip formation better because of wavy surface. Higher material remove rate.",10.0,10440.95,565
-tool004,Kept (Active),Unassigned,1.8365,3.1465,Zone 2: Manual (1.5% - 4.0%),endmill,3,new,new,INTERNAL COOLANT CHANNELS,10.0,10480.9,563
+tool003,Discarded (Excluded),Unassigned,3.324,3.485,Excluded,endmill,4,new,new,"Wavy roughing knuckles (sinusoidal profile, excluded as asymmetric) | Dedicated roughing, and the chip formation better because of wavy surface. Higher material remove rate.",10.0,10440.95,565
+tool004,Discarded (Excluded),Unassigned,1.8365,3.1465,Excluded,endmill,3,new,new,Excluded: User-Excluded Tool (Screened Outlier / Asymmetry) | INTERNAL COOLANT CHANNELS,10.0,10480.9,563
 tool005,Kept (Active),Unassigned,0.1324,0.4664,Zone 1: Pass (≤ 1.5%),endmill,4,new,new,Big radius on the edge. special because it can work on 3d (FREE) surface finishing.,10.0,1334.09,559
-tool006,Discarded (Excluded),Unassigned,4.0167,5.8635,Excluded,endmill,4,fractured,fractured,Severe Flute 1 corner radius breakdown (excluded as asymmetric),7.0,11121.18,449
+tool006,Kept (Active),Unassigned,4.0167,5.8635,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,Severe Flute 1 corner radius breakdown (fractured cutting edge),7.0,11121.18,449
 tool007,Kept (Active),Unassigned,0.4275,1.1417,Zone 1: Pass (≤ 1.5%),endmill,4,new,new,Standard symmetric geometry,8.0,2471.7,462
 tool008,Discarded (Excluded),Unassigned,3.0387,4.7707,Excluded,endmill,3,new,new,4mm stepped cutter with 6mm shank (excluded as asymmetric) | shank is 6 mm,4.0,2471.05,230
-tool009,Kept (Active),Unassigned,2.1599,3.0656,Zone 2: Manual (1.5% - 4.0%),endmill,4,new,new,Endmill cutter means wecan either use the face or the pheripheral sides. and the shank is weld on,10.0,9338.25,566
+tool009,Kept (Active),Unassigned,2.1599,3.0656,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Endmill cutter means wecan either use the face or the pheripheral sides. and the shank is weld on,10.0,9338.25,566
 tool010,Kept (Active),Unassigned,0.5453,1.3114,Zone 1: Pass (≤ 1.5%),drill,2,used,used,"Internal coolant, weld-on. There is no significant usage but there are a little color differences.",5.5,759.54,314
 tool011,Kept (Active),Unassigned,0.6917,1.2444,Zone 1: Pass (≤ 1.5%),endmill,4,new,new,shaft is 6 mm,4.8,850.55,279
 tool012,Kept (Active),Unassigned,0.1132,0.2884,Zone 1: Pass (≤ 1.5%),endmill,2,new,new,WELD ON.,7.0,358.75,396
@@ -24,17 +24,17 @@ tool022,Kept (Active),Unassigned,8.7378,13.267,Zone 3: Reject (> 4.0%),endmill,4
 tool023,Kept (Active),Unassigned,2.4439,8.6645,Zone 3: Reject (> 4.0%),endmill,4,deposit,deposit,Workpiece has melted on the tooth,8.0,16802.45,451
 tool024,Kept (Active),Unassigned,4.3603,5.797,Zone 3: Reject (> 4.0%),endmill,4,deposit,deposit,"Melting the material, special case and on the top there's material loss. ",10.0,17966.6,566
 tool025,Kept (Active),Unassigned,5.6821,8.6478,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,the shank diameter is 12. Very fine fracture,12.0,36169.09,669
-tool026,Kept (Active),Unassigned,4.0901,6.2573,Zone 3: Reject (> 4.0%),endmill,3,fractured,fractured,Standard symmetric geometry,10.0,17842.45,565
+tool026,Discarded (Excluded),Unassigned,4.0901,6.2573,Excluded,endmill,3,fractured,fractured,Excluded: User-Excluded Tool (Screened Outlier / Asymmetry),10.0,17842.45,565
 tool027,Kept (Active),Unassigned,0.2549,0.4189,Zone 1: Pass (≤ 1.5%),endmill,6,used,used,Standard symmetric geometry,16.0,3514.09,898
 tool028,Kept (Active),Unassigned,0.3681,0.5915,Zone 1: Pass (≤ 1.5%),drill,2,new,new,Internal Coolant. Two different coatings. It could be due to different machining conditions. Carbide,8.5,931.85,476
 tool029,Kept (Active),Unassigned,12.8059,22.1096,Zone 3: Reject (> 4.0%),endmill,3,fractured,fractured,Standard symmetric geometry,10.0,52828.05,562
 tool030,Kept (Active),Unassigned,1.9907,2.2472,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Roughing tool,10.0,6380.5,554
-tool031,Kept (Active),Unassigned,1.6936,3.1249,Zone 2: Manual (1.5% - 4.0%),endmill,3,used,used,shank is 6 mm,4.0,1663.91,225
+tool031,Discarded (Excluded),Unassigned,1.6936,3.1249,Excluded,endmill,3,used,used,Excluded: User-Excluded Tool (Screened Outlier / Asymmetry) | shank is 6 mm,4.0,1663.91,225
 tool032,Kept (Active),Unassigned,3.0164,3.4785,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,12.0,15279.4,672
 tool033,Kept (Active),Unassigned,1.6228,2.1011,Zone 2: Manual (1.5% - 4.0%),endmill,2,used,used,Wood industry tool That's why it is worn because in wood industry we need very sharp edges.  HSS. Shaft is 8 mm,7.0,3206.5,412
 tool034,Kept (Active),Unassigned,0.8912,1.7438,Zone 2: Manual (1.5% - 4.0%),endmill,2,fractured,fractured,"Uncoated, .",10.0,4604.0,564
 tool035,Discarded (Excluded),Unassigned,4.7686,38.7124,Excluded,endmill,2,worn,worn,Excluded: Camera Framing / Optical Backlight Artifact | Wood industry HSS,4.0,9490.54,229
-tool036,Kept (Active),Unassigned,2.8796,7.2765,Zone 3: Reject (> 4.0%),endmill,3,fractured,fractured,Standard symmetric geometry,8.0,13757.1,452
+tool036,Discarded (Excluded),Unassigned,2.8796,7.2765,Excluded,endmill,3,fractured,fractured,Excluded: User-Excluded Tool (Screened Outlier / Asymmetry),8.0,13757.1,452
 tool037,Kept (Active),Unassigned,2.2602,3.676,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,shank is 6 mm,4.0,1740.9,224
 tool038,Discarded (Excluded),Unassigned,9.3463,12.2389,Excluded,topper,4,fractured,fractured,Excluded: Thread tap helical pitch lead | Spiral.  Grinded the top surface. One top edge is fractured. G 1/4 BSPP = tool diameter: 13.16; tool pitch: 1.34,13.16,63294.4,746
 tool039,Discarded (Excluded),Unassigned,14.8493,17.9005,Excluded,topper,3,deposit,deposit,Excluded: Thread tap helical pitch lead | Spiral. It seems it has attached chips but the edges are smooth. We have extra cone on the tip for griding porposes.   M6 6H 40degree-22.4,6.0,11078.6,343
@@ -75,33 +75,33 @@ tool073,Kept (Active),Unassigned,0.4339,1.0812,Zone 1: Pass (≤ 1.5%),drill,2,u
 tool074,Kept (Active),Unassigned,91.8618,100.0813,Zone 3: Reject (> 4.0%),drill,2,fractured,fractured,"With internal coolant, and carbide.",5.3,38369.1,305
 tool075,Kept (Active),Unassigned,1.3708,1.7562,Zone 2: Manual (1.5% - 4.0%),reamer,6,fractured,fractured,spiral,8.0,3558.38,459
 tool076,Kept (Active),Unassigned,0.9538,1.371,Zone 1: Pass (≤ 1.5%),reamer,8,used,used,"Reclassified from minor uniform wear to used | Reamer, is to create a very fine tolerance and if it is a little worn then already its not good. HSS. spiral",8.0,2938.45,461
-tool077,Discarded (Excluded),Unassigned,,,Excluded,t_slot,6,fractured,fractured,"Excluded: Camera Framing / Optical Backlight Artifact | Weld on, uncoated. one edge or teeth is competely gone. HSS. https://www.zps-fn.cz/en/search/detail/woodruff-keyseat-cutters,-weldon-shank,-din-850,-high-speed-steel-hss-co5/",13.5,,200
+tool077,Kept (Active),Unassigned,,,Unknown,t_slot,6,fractured,fractured,"Weld on, uncoated. one edge or teeth is competely gone. HSS. https://www.zps-fn.cz/en/search/detail/woodruff-keyseat-cutters,-weldon-shank,-din-850,-high-speed-steel-hss-co5/",13.5,,200
 tool078,Discarded (Excluded),Unassigned,6.1292,7.6617,Excluded,topper,4,used,used,Excluded: Thread tap helical pitch lead | C-M20,20.0,99021.0,1129
 tool079,Kept (Active),Unassigned,2.9578,3.6822,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,8.0,6929.6,446
 tool080,Kept (Active),Unassigned,2.6194,3.6013,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,8.0,7074.3,464
 tool081,Kept (Active),Unassigned,3.6572,6.4565,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,8.0,12041.91,447
 tool082,Kept (Active),Unassigned,4.6824,5.8132,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,8.0,11011.8,448
-tool083,Kept (Active),Unassigned,1.6698,3.2755,Zone 2: Manual (1.5% - 4.0%),endmill,3,fractured,fractured,Standard symmetric geometry,8.0,6840.92,450
+tool083,Discarded (Excluded),Unassigned,1.6698,3.2755,Excluded,endmill,3,fractured,fractured,Excluded: User-Excluded Tool (Screened Outlier / Asymmetry),8.0,6840.92,450
 tool084,Kept (Active),Unassigned,1.2661,1.7961,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,8.0,3775.4,453
 tool085,Kept (Active),Unassigned,1.192,2.6993,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,Standard symmetric geometry,8.0,5481.64,457
 tool086,Kept (Active),Unassigned,0.3687,1.5455,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,Standard symmetric geometry,8.0,3236.0,454
 tool087,Kept (Active),Unassigned,0.6533,1.5281,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,Standard symmetric geometry,8.0,2945.72,447
 tool088,Kept (Active),Unassigned,2.4435,3.1748,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Q: `The webpage says 12 but it measures exactly 11.6 mm the top`  https://toolsunited.com/EN/Article/Details/24696400130670156?print=True,11.6,13218.9,654
-tool089,Kept (Active),Unassigned,2.6774,2.9235,Zone 2: Manual (1.5% - 4.0%),endmill,5,used,used,Standard symmetric geometry,12.0,12734.3,670
+tool089,Discarded (Excluded),Unassigned,2.6774,2.9235,Excluded,endmill,5,used,used,Excluded: User-Excluded Tool (Screened Outlier / Asymmetry),12.0,12734.3,670
 tool090,Kept (Active),Unassigned,1.5667,2.778,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,Originally has a small chamfer on the edges. Very minor fracture on those edges. shaft diameter is 12 mm.,10.0,11457.29,654
 tool091,Kept (Active),Unassigned,2.2169,2.6209,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Very fine fracture,12.0,10949.9,671
 tool092,Kept (Active),Unassigned,0.7642,1.6,Zone 2: Manual (1.5% - 4.0%),endmill,6,fractured,fractured,"Custom 180px ROI (isolates cutting tip micro-chipping, Peak DSI 1.60%)",12.0,1808.0,180
 tool093,Kept (Active),Unassigned,1.6335,3.2344,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,"The color is visibly changed, however the are minimal signs of fracture on one edge.",12.0,13965.21,671
 tool094,Kept (Active),Unassigned,1.8243,3.6476,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,12.0,15799.86,672
-tool095,Kept (Active),Unassigned,2.6188,5.7654,Zone 3: Reject (> 4.0%),endmill,3,fractured,fractured,Standard symmetric geometry,10.0,18131.8,560
+tool095,Discarded (Excluded),Unassigned,2.6188,5.7654,Excluded,endmill,3,fractured,fractured,Excluded: User-Excluded Tool (Screened Outlier / Asymmetry),10.0,18131.8,560
 tool096,Kept (Active),Unassigned,1.6997,3.2871,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,"color gradient, background is tricky, because it neither is no, neither is yes.",10.0,10126.73,561
 tool097,Kept (Active),Unassigned,1.5216,2.9502,Zone 2: Manual (1.5% - 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,10.0,9077.1,560
 tool098,Kept (Active),Unassigned,3.1064,4.7,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,10.0,13647.45,558
 tool099,Kept (Active),Unassigned,1.6803,1.9888,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,Roughing,10.0,6104.3,559
 tool100,Kept (Active),Unassigned,6.117,8.0832,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,10.0,23485.06,562
 tool101,Kept (Active),Unassigned,5.2998,6.5207,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,very fine fracture along the edges.,10.0,18454.25,564
-tool102,Kept (Active),Unassigned,6.8032,9.4348,Zone 3: Reject (> 4.0%),endmill,3,fractured,fractured,Uncoated,10.0,30428.0,565
-tool103,Kept (Active),Unassigned,5.0731,6.4334,Zone 3: Reject (> 4.0%),endmill,3,fractured,fractured,Standard symmetric geometry,9.0,20021.1,562
+tool102,Discarded (Excluded),Unassigned,6.8032,9.4348,Excluded,endmill,3,fractured,fractured,Excluded: User-Excluded Tool (Screened Outlier / Asymmetry) | Uncoated,10.0,30428.0,565
+tool103,Discarded (Excluded),Unassigned,5.0731,6.4334,Excluded,endmill,3,fractured,fractured,Excluded: User-Excluded Tool (Screened Outlier / Asymmetry),9.0,20021.1,562
 tool104,Kept (Active),Unassigned,3.6486,7.7241,Zone 3: Reject (> 4.0%),endmill,4,fractured,fractured,Standard symmetric geometry,10.0,23244.18,562
 tool105,Kept (Active),Unassigned,1.3753,2.3838,Zone 2: Manual (1.5% - 4.0%),endmill,4,used,used,"Used, meaning we can use more, but worn meaning no more usage.",10.0,7061.0,557
 tool106,Kept (Active),Unassigned,0.2405,0.4061,Zone 1: Pass (≤ 1.5%),endmill,4,used,used,Standard symmetric geometry,10.0,1280.25,558

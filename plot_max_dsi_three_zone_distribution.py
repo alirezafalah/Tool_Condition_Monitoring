@@ -43,18 +43,16 @@ CUSTOM_EXCLUDED_TOOLS = [
     # Add tools to exclude here:
     "tool003",
     "tool004",
-    "tool102",
     "tool008",
-    "tool035",
-    "tool103",
-    "tool083",
-    "tool095",
-    "tool102",
-    "tool036",
     "tool026",
     "tool031",
+    "tool035",
+    "tool036",
+    "tool083",
     "tool089",
-    "tool009",
+    "tool095",
+    "tool102",
+    "tool103",
 ]
 
 # 2. Standard Baseline Exclusions (toggle True/False as needed):

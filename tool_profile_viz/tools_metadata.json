@@ -108,7 +108,7 @@
     "type": "endmill",
     "diameter_mm": 10.0,
     "edges": 4,
-    "condition": "new",
+    "condition": "fractured",
     "material": "",
     "coating": "Yes",
     "background_type": "yes",

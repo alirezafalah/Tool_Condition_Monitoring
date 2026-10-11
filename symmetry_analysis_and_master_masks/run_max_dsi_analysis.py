@@ -44,13 +44,16 @@ def main():
     meta_df = pd.read_csv(meta_path)
     meta_dict = {r["tool_id"]: r.to_dict() for _, r in meta_df.iterrows()}
 
+    repo_dir = "/home/alifalah/Projects/Tool_Condition_Monitoring"
+    if repo_dir not in sys.path:
+        sys.path.insert(0, repo_dir)
+    import plot_max_dsi_three_zone_distribution as pmd
+    _, active_excluded = pmd.load_tool_data()
+    excluded_ids = set(active_excluded)
     topper_ids = set(meta_df[meta_df["type"].str.lower() == "topper"]["tool_id"].tolist())
-    artifact_ids = {"tool035", "tool077"}
-    asymmetric_ids = {"tool006", "tool008"}
-    excluded_ids = topper_ids.union(artifact_ids).union(asymmetric_ids)
 
     print(f"Total tools in metadata: {len(meta_df)}")
-    print(f"Total excluded tools: {len(excluded_ids)} (19 toppers + 2 artifacts + 2 asymmetric)")
+    print(f"Total excluded tools: {len(excluded_ids)} (synchronized with plot_max_dsi_three_zone_distribution)")
     print(f"Total active tools: {len(meta_df) - len(excluded_ids)}")
 
     records = []
@@ -96,10 +99,12 @@ def main():
         if is_excluded:
             if tool_id in topper_ids:
                 exclusion_reason = "EXCLUDED_TOPPER"
-            elif tool_id in asymmetric_ids:
+            elif tool_id in ["tool003", "tool008"]:
                 exclusion_reason = "EXCLUDED_ASYMMETRIC_TOOL"
-            else:
+            elif tool_id in ["tool035", "tool077"]:
                 exclusion_reason = "EXCLUDED_SEGMENTATION_ARTIFACT"
+            else:
+                exclusion_reason = "EXCLUDED_CUSTOM_SCREENING"
             role = "excluded"
         else:
             exclusion_reason = "NONE"

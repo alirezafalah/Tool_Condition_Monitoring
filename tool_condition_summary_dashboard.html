@@ -639,12 +639,12 @@
             </div>
             <div class="kpi-card kpi-z2">
                 <div class="kpi-title">Zone 2: Manual Review</div>
-                <div class="kpi-value" style="color: #fbbf24;">38</div>
+                <div class="kpi-value" style="color: #fbbf24;">33</div>
                 <div class="kpi-subtext">1.50% &lt; Peak DSI ≤ 4.00%</div>
             </div>
             <div class="kpi-card kpi-z3">
                 <div class="kpi-title">Zone 3: Automated Reject</div>
-                <div class="kpi-value" style="color: #f87171;">33</div>
+                <div class="kpi-value" style="color: #f87171;">29</div>
                 <div class="kpi-subtext">Peak DSI &gt; 4.00%</div>
             </div>
         </div>
@@ -659,8 +659,8 @@
                 <label for="statusFilter">Status:</label>
                 <select id="statusFilter" onchange="filterTable()">
                     <option value="ALL">All Tools (115)</option>
-                    <option value="Kept (Active)">Kept (Active) (92)</option>
-                    <option value="Discarded (Excluded)">Discarded (Excluded) (23)</option>
+                    <option value="Kept (Active)">Kept (Active) (84)</option>
+                    <option value="Discarded (Excluded)">Discarded (Excluded) (31)</option>
                 </select>
             </div>
 
@@ -679,9 +679,9 @@
                 <select id="zoneFilter" onchange="filterTable()">
                     <option value="ALL">All Zones</option>
                     <option value="Zone 1: Pass">Zone 1: Pass (≤ 1.5%) (21)</option>
-                    <option value="Zone 2: Manual">Zone 2: Manual (1.5% - 4.0%) (38)</option>
-                    <option value="Zone 3: Reject">Zone 3: Reject (> 4.0%) (33)</option>
-                    <option value="Excluded">Excluded (23)</option>
+                    <option value="Zone 2: Manual">Zone 2: Manual (1.5% - 4.0%) (33)</option>
+                    <option value="Zone 3: Reject">Zone 3: Reject (> 4.0%) (29)</option>
+                    <option value="Excluded">Excluded (31)</option>
                 </select>
             </div>
 
@@ -787,9 +787,9 @@
                         <td class="diff-cell">1,338</td>
                         <td class="roi-cell">604px</td>
                     </tr>
-                    <tr class="" data-tool-id="tool003">
+                    <tr class="row-excluded" data-tool-id="tool003">
                         <td class="tool-id-cell">tool003</td>
-                        <td class="status-cell"><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td class="status-cell"><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
                         <td class="sym-cell">
                             <select class="symmetry-select sym-unassigned" data-tool-id="tool003" onchange="onSymmetryChange(this)">
                                 <option value="" class="opt-unassigned" selected>⚪ — Select —</option>
@@ -799,22 +799,22 @@
                         </td>
                         <td class="mean-dsi-cell dsi-cell">3.32%</td>
                         <td class="max-dsi-cell dsi-cell">3.48%</td>
-                        <td class="zone-cell"><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="zone-cell"><span class="badge badge-excluded">Excluded</span></td>
                         <td class="view-cell"><button class="btn-inspect" onclick="openPreviewModal('../DATA/pixel_comparison_per_tool/tool003_overlay_dsi_stacked.png', 'tool003')">View</button></td>
                         <td class="type-cell">endmill</td>
                         <td class="flutes-cell">4</td>
                         <td class="org-cond-cell"><span class="badge badge-new">new</span></td>
                         <td class="work-cond-cell"><span class="badge badge-new">new</span></td>
                         <td class="notes-cell">
-                            <div class="editable-note" contenteditable="true" data-tool-id="tool003" oninput="onNoteInput(this)" title="Click to edit physical notes">Wavy roughing knuckles (sinusoidal profile) | Dedicated roughing, and the chip formation better because of wavy surface. Higher material remove rate.</div>
+                            <div class="editable-note" contenteditable="true" data-tool-id="tool003" oninput="onNoteInput(this)" title="Click to edit physical notes">Wavy roughing knuckles (sinusoidal profile, excluded as asymmetric) | Dedicated roughing, and the chip formation better because of wavy surface. Higher material remove rate.</div>
                         </td>
                         <td class="dia-cell">10.0</td>
                         <td class="diff-cell">10,441</td>
                         <td class="roi-cell">565px</td>
                     </tr>
-                    <tr class="" data-tool-id="tool004">
+                    <tr class="row-excluded" data-tool-id="tool004">
                         <td class="tool-id-cell">tool004</td>
-                        <td class="status-cell"><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td class="status-cell"><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
                         <td class="sym-cell">
                             <select class="symmetry-select sym-unassigned" data-tool-id="tool004" onchange="onSymmetryChange(this)">
                                 <option value="" class="opt-unassigned" selected>⚪ — Select —</option>
@@ -824,14 +824,14 @@
                         </td>
                         <td class="mean-dsi-cell dsi-cell">1.84%</td>
                         <td class="max-dsi-cell dsi-cell">3.15%</td>
-                        <td class="zone-cell"><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="zone-cell"><span class="badge badge-excluded">Excluded</span></td>
                         <td class="view-cell"><button class="btn-inspect" onclick="openPreviewModal('../DATA/pixel_comparison_per_tool/tool004_overlay_dsi_stacked.png', 'tool004')">View</button></td>
                         <td class="type-cell">endmill</td>
                         <td class="flutes-cell">3</td>
                         <td class="org-cond-cell"><span class="badge badge-new">new</span></td>
                         <td class="work-cond-cell"><span class="badge badge-new">new</span></td>
                         <td class="notes-cell">
-                            <div class="editable-note" contenteditable="true" data-tool-id="tool004" oninput="onNoteInput(this)" title="Click to edit physical notes">INTERNAL COOLANT CHANNELS</div>
+                            <div class="editable-note" contenteditable="true" data-tool-id="tool004" oninput="onNoteInput(this)" title="Click to edit physical notes">Excluded: User-Excluded Tool (Screened Outlier / Asymmetry) | INTERNAL COOLANT CHANNELS</div>
                         </td>
                         <td class="dia-cell">10.0</td>
                         <td class="diff-cell">10,481</td>
@@ -862,9 +862,9 @@
                         <td class="diff-cell">1,334</td>
                         <td class="roi-cell">559px</td>
                     </tr>
-                    <tr class="row-excluded" data-tool-id="tool006">
+                    <tr class="" data-tool-id="tool006">
                         <td class="tool-id-cell">tool006</td>
-                        <td class="status-cell"><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td class="status-cell"><span class="badge badge-status-kept">Kept (Active)</span></td>
                         <td class="sym-cell">
                             <select class="symmetry-select sym-unassigned" data-tool-id="tool006" onchange="onSymmetryChange(this)">
                                 <option value="" class="opt-unassigned" selected>⚪ — Select —</option>
@@ -874,14 +874,14 @@
                         </td>
                         <td class="mean-dsi-cell dsi-cell">4.02%</td>
                         <td class="max-dsi-cell dsi-cell">5.86%</td>
-                        <td class="zone-cell"><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="zone-cell"><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
                         <td class="view-cell"><button class="btn-inspect" onclick="openPreviewModal('../DATA/pixel_comparison_per_tool/tool006_overlay_dsi_stacked.png', 'tool006')">View</button></td>
                         <td class="type-cell">endmill</td>
                         <td class="flutes-cell">4</td>
                         <td class="org-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="work-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="notes-cell">
-                            <div class="editable-note" contenteditable="true" data-tool-id="tool006" oninput="onNoteInput(this)" title="Click to edit physical notes">Severe Flute 1 corner radius breakdown (excluded as asymmetric)</div>
+                            <div class="editable-note" contenteditable="true" data-tool-id="tool006" oninput="onNoteInput(this)" title="Click to edit physical notes">Severe Flute 1 corner radius breakdown (fractured cutting edge)</div>
                         </td>
                         <td class="dia-cell">7.0</td>
                         <td class="diff-cell">11,121</td>
@@ -953,8 +953,8 @@
                         <td class="view-cell"><button class="btn-inspect" onclick="openPreviewModal('../DATA/pixel_comparison_per_tool/tool009_overlay_dsi_stacked.png', 'tool009')">View</button></td>
                         <td class="type-cell">endmill</td>
                         <td class="flutes-cell">4</td>
-                        <td class="org-cond-cell"><span class="badge badge-new">new</span></td>
-                        <td class="work-cond-cell"><span class="badge badge-new">new</span></td>
+                        <td class="org-cond-cell"><span class="badge badge-fractured">fractured</span></td>
+                        <td class="work-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="notes-cell">
                             <div class="editable-note" contenteditable="true" data-tool-id="tool009" oninput="onNoteInput(this)" title="Click to edit physical notes">Endmill cutter means wecan either use the face or the pheripheral sides. and the shank is weld on</div>
                         </td>
@@ -1362,9 +1362,9 @@
                         <td class="diff-cell">36,169</td>
                         <td class="roi-cell">669px</td>
                     </tr>
-                    <tr class="" data-tool-id="tool026">
+                    <tr class="row-excluded" data-tool-id="tool026">
                         <td class="tool-id-cell">tool026</td>
-                        <td class="status-cell"><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td class="status-cell"><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
                         <td class="sym-cell">
                             <select class="symmetry-select sym-unassigned" data-tool-id="tool026" onchange="onSymmetryChange(this)">
                                 <option value="" class="opt-unassigned" selected>⚪ — Select —</option>
@@ -1374,14 +1374,14 @@
                         </td>
                         <td class="mean-dsi-cell dsi-cell">4.09%</td>
                         <td class="max-dsi-cell dsi-cell">6.26%</td>
-                        <td class="zone-cell"><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="zone-cell"><span class="badge badge-excluded">Excluded</span></td>
                         <td class="view-cell"><button class="btn-inspect" onclick="openPreviewModal('../DATA/pixel_comparison_per_tool/tool026_overlay_dsi_stacked.png', 'tool026')">View</button></td>
                         <td class="type-cell">endmill</td>
                         <td class="flutes-cell">3</td>
                         <td class="org-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="work-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="notes-cell">
-                            <div class="editable-note" contenteditable="true" data-tool-id="tool026" oninput="onNoteInput(this)" title="Click to edit physical notes">Standard symmetric geometry</div>
+                            <div class="editable-note" contenteditable="true" data-tool-id="tool026" oninput="onNoteInput(this)" title="Click to edit physical notes">Excluded: User-Excluded Tool (Screened Outlier / Asymmetry)</div>
                         </td>
                         <td class="dia-cell">10.0</td>
                         <td class="diff-cell">17,842</td>
@@ -1487,9 +1487,9 @@
                         <td class="diff-cell">6,380</td>
                         <td class="roi-cell">554px</td>
                     </tr>
-                    <tr class="" data-tool-id="tool031">
+                    <tr class="row-excluded" data-tool-id="tool031">
                         <td class="tool-id-cell">tool031</td>
-                        <td class="status-cell"><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td class="status-cell"><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
                         <td class="sym-cell">
                             <select class="symmetry-select sym-unassigned" data-tool-id="tool031" onchange="onSymmetryChange(this)">
                                 <option value="" class="opt-unassigned" selected>⚪ — Select —</option>
@@ -1499,14 +1499,14 @@
                         </td>
                         <td class="mean-dsi-cell dsi-cell">1.69%</td>
                         <td class="max-dsi-cell dsi-cell">3.12%</td>
-                        <td class="zone-cell"><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="zone-cell"><span class="badge badge-excluded">Excluded</span></td>
                         <td class="view-cell"><button class="btn-inspect" onclick="openPreviewModal('../DATA/pixel_comparison_per_tool/tool031_overlay_dsi_stacked.png', 'tool031')">View</button></td>
                         <td class="type-cell">endmill</td>
                         <td class="flutes-cell">3</td>
                         <td class="org-cond-cell"><span class="badge badge-used">used</span></td>
                         <td class="work-cond-cell"><span class="badge badge-used">used</span></td>
                         <td class="notes-cell">
-                            <div class="editable-note" contenteditable="true" data-tool-id="tool031" oninput="onNoteInput(this)" title="Click to edit physical notes">shank is 6 mm</div>
+                            <div class="editable-note" contenteditable="true" data-tool-id="tool031" oninput="onNoteInput(this)" title="Click to edit physical notes">Excluded: User-Excluded Tool (Screened Outlier / Asymmetry) | shank is 6 mm</div>
                         </td>
                         <td class="dia-cell">4.0</td>
                         <td class="diff-cell">1,664</td>
@@ -1612,9 +1612,9 @@
                         <td class="diff-cell">9,491</td>
                         <td class="roi-cell">229px</td>
                     </tr>
-                    <tr class="" data-tool-id="tool036">
+                    <tr class="row-excluded" data-tool-id="tool036">
                         <td class="tool-id-cell">tool036</td>
-                        <td class="status-cell"><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td class="status-cell"><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
                         <td class="sym-cell">
                             <select class="symmetry-select sym-unassigned" data-tool-id="tool036" onchange="onSymmetryChange(this)">
                                 <option value="" class="opt-unassigned" selected>⚪ — Select —</option>
@@ -1624,14 +1624,14 @@
                         </td>
                         <td class="mean-dsi-cell dsi-cell">2.88%</td>
                         <td class="max-dsi-cell dsi-cell">7.28%</td>
-                        <td class="zone-cell"><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="zone-cell"><span class="badge badge-excluded">Excluded</span></td>
                         <td class="view-cell"><button class="btn-inspect" onclick="openPreviewModal('../DATA/pixel_comparison_per_tool/tool036_overlay_dsi_stacked.png', 'tool036')">View</button></td>
                         <td class="type-cell">endmill</td>
                         <td class="flutes-cell">3</td>
                         <td class="org-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="work-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="notes-cell">
-                            <div class="editable-note" contenteditable="true" data-tool-id="tool036" oninput="onNoteInput(this)" title="Click to edit physical notes">Standard symmetric geometry</div>
+                            <div class="editable-note" contenteditable="true" data-tool-id="tool036" oninput="onNoteInput(this)" title="Click to edit physical notes">Excluded: User-Excluded Tool (Screened Outlier / Asymmetry)</div>
                         </td>
                         <td class="dia-cell">8.0</td>
                         <td class="diff-cell">13,757</td>
@@ -2637,9 +2637,9 @@
                         <td class="diff-cell">2,938</td>
                         <td class="roi-cell">461px</td>
                     </tr>
-                    <tr class="row-excluded" data-tool-id="tool077">
+                    <tr class="" data-tool-id="tool077">
                         <td class="tool-id-cell">tool077</td>
-                        <td class="status-cell"><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
+                        <td class="status-cell"><span class="badge badge-status-kept">Kept (Active)</span></td>
                         <td class="sym-cell">
                             <select class="symmetry-select sym-unassigned" data-tool-id="tool077" onchange="onSymmetryChange(this)">
                                 <option value="" class="opt-unassigned" selected>⚪ — Select —</option>
@@ -2649,14 +2649,14 @@
                         </td>
                         <td class="mean-dsi-cell dsi-cell">—</td>
                         <td class="max-dsi-cell dsi-cell">—</td>
-                        <td class="zone-cell"><span class="badge badge-excluded">Excluded</span></td>
+                        <td class="zone-cell"><span class="badge badge-neutral">Unknown</span></td>
                         <td class="view-cell">—</td>
                         <td class="type-cell">t_slot</td>
                         <td class="flutes-cell">6</td>
                         <td class="org-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="work-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="notes-cell">
-                            <div class="editable-note" contenteditable="true" data-tool-id="tool077" oninput="onNoteInput(this)" title="Click to edit physical notes">Excluded: Camera Framing / Optical Backlight Artifact | Weld on, uncoated. one edge or teeth is competely gone. HSS. https://www.zps-fn.cz/en/search/detail/woodruff-keyseat-cutters,-weldon-shank,-din-850,-high-speed-steel-hss-co5/</div>
+                            <div class="editable-note" contenteditable="true" data-tool-id="tool077" oninput="onNoteInput(this)" title="Click to edit physical notes">Weld on, uncoated. one edge or teeth is competely gone. HSS. https://www.zps-fn.cz/en/search/detail/woodruff-keyseat-cutters,-weldon-shank,-din-850,-high-speed-steel-hss-co5/</div>
                         </td>
                         <td class="dia-cell">13.5</td>
                         <td class="diff-cell">—</td>
@@ -2787,9 +2787,9 @@
                         <td class="diff-cell">11,012</td>
                         <td class="roi-cell">448px</td>
                     </tr>
-                    <tr class="" data-tool-id="tool083">
+                    <tr class="row-excluded" data-tool-id="tool083">
                         <td class="tool-id-cell">tool083</td>
-                        <td class="status-cell"><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td class="status-cell"><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
                         <td class="sym-cell">
                             <select class="symmetry-select sym-unassigned" data-tool-id="tool083" onchange="onSymmetryChange(this)">
                                 <option value="" class="opt-unassigned" selected>⚪ — Select —</option>
@@ -2799,14 +2799,14 @@
                         </td>
                         <td class="mean-dsi-cell dsi-cell">1.67%</td>
                         <td class="max-dsi-cell dsi-cell">3.28%</td>
-                        <td class="zone-cell"><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="zone-cell"><span class="badge badge-excluded">Excluded</span></td>
                         <td class="view-cell"><button class="btn-inspect" onclick="openPreviewModal('../DATA/pixel_comparison_per_tool/tool083_overlay_dsi_stacked.png', 'tool083')">View</button></td>
                         <td class="type-cell">endmill</td>
                         <td class="flutes-cell">3</td>
                         <td class="org-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="work-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="notes-cell">
-                            <div class="editable-note" contenteditable="true" data-tool-id="tool083" oninput="onNoteInput(this)" title="Click to edit physical notes">Standard symmetric geometry</div>
+                            <div class="editable-note" contenteditable="true" data-tool-id="tool083" oninput="onNoteInput(this)" title="Click to edit physical notes">Excluded: User-Excluded Tool (Screened Outlier / Asymmetry)</div>
                         </td>
                         <td class="dia-cell">8.0</td>
                         <td class="diff-cell">6,841</td>
@@ -2937,9 +2937,9 @@
                         <td class="diff-cell">13,219</td>
                         <td class="roi-cell">654px</td>
                     </tr>
-                    <tr class="" data-tool-id="tool089">
+                    <tr class="row-excluded" data-tool-id="tool089">
                         <td class="tool-id-cell">tool089</td>
-                        <td class="status-cell"><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td class="status-cell"><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
                         <td class="sym-cell">
                             <select class="symmetry-select sym-unassigned" data-tool-id="tool089" onchange="onSymmetryChange(this)">
                                 <option value="" class="opt-unassigned" selected>⚪ — Select —</option>
@@ -2949,14 +2949,14 @@
                         </td>
                         <td class="mean-dsi-cell dsi-cell">2.68%</td>
                         <td class="max-dsi-cell dsi-cell">2.92%</td>
-                        <td class="zone-cell"><span class="badge badge-zone2">Zone 2: Manual (1.5% - 4.0%)</span></td>
+                        <td class="zone-cell"><span class="badge badge-excluded">Excluded</span></td>
                         <td class="view-cell"><button class="btn-inspect" onclick="openPreviewModal('../DATA/pixel_comparison_per_tool/tool089_overlay_dsi_stacked.png', 'tool089')">View</button></td>
                         <td class="type-cell">endmill</td>
                         <td class="flutes-cell">5</td>
                         <td class="org-cond-cell"><span class="badge badge-used">used</span></td>
                         <td class="work-cond-cell"><span class="badge badge-used">used</span></td>
                         <td class="notes-cell">
-                            <div class="editable-note" contenteditable="true" data-tool-id="tool089" oninput="onNoteInput(this)" title="Click to edit physical notes">Standard symmetric geometry</div>
+                            <div class="editable-note" contenteditable="true" data-tool-id="tool089" oninput="onNoteInput(this)" title="Click to edit physical notes">Excluded: User-Excluded Tool (Screened Outlier / Asymmetry)</div>
                         </td>
                         <td class="dia-cell">12.0</td>
                         <td class="diff-cell">12,734</td>
@@ -3087,9 +3087,9 @@
                         <td class="diff-cell">15,800</td>
                         <td class="roi-cell">672px</td>
                     </tr>
-                    <tr class="" data-tool-id="tool095">
+                    <tr class="row-excluded" data-tool-id="tool095">
                         <td class="tool-id-cell">tool095</td>
-                        <td class="status-cell"><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td class="status-cell"><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
                         <td class="sym-cell">
                             <select class="symmetry-select sym-unassigned" data-tool-id="tool095" onchange="onSymmetryChange(this)">
                                 <option value="" class="opt-unassigned" selected>⚪ — Select —</option>
@@ -3099,14 +3099,14 @@
                         </td>
                         <td class="mean-dsi-cell dsi-cell">2.62%</td>
                         <td class="max-dsi-cell dsi-cell">5.77%</td>
-                        <td class="zone-cell"><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="zone-cell"><span class="badge badge-excluded">Excluded</span></td>
                         <td class="view-cell"><button class="btn-inspect" onclick="openPreviewModal('../DATA/pixel_comparison_per_tool/tool095_overlay_dsi_stacked.png', 'tool095')">View</button></td>
                         <td class="type-cell">endmill</td>
                         <td class="flutes-cell">3</td>
                         <td class="org-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="work-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="notes-cell">
-                            <div class="editable-note" contenteditable="true" data-tool-id="tool095" oninput="onNoteInput(this)" title="Click to edit physical notes">Standard symmetric geometry</div>
+                            <div class="editable-note" contenteditable="true" data-tool-id="tool095" oninput="onNoteInput(this)" title="Click to edit physical notes">Excluded: User-Excluded Tool (Screened Outlier / Asymmetry)</div>
                         </td>
                         <td class="dia-cell">10.0</td>
                         <td class="diff-cell">18,132</td>
@@ -3262,9 +3262,9 @@
                         <td class="diff-cell">18,454</td>
                         <td class="roi-cell">564px</td>
                     </tr>
-                    <tr class="" data-tool-id="tool102">
+                    <tr class="row-excluded" data-tool-id="tool102">
                         <td class="tool-id-cell">tool102</td>
-                        <td class="status-cell"><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td class="status-cell"><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
                         <td class="sym-cell">
                             <select class="symmetry-select sym-unassigned" data-tool-id="tool102" onchange="onSymmetryChange(this)">
                                 <option value="" class="opt-unassigned" selected>⚪ — Select —</option>
@@ -3274,22 +3274,22 @@
                         </td>
                         <td class="mean-dsi-cell dsi-cell">6.80%</td>
                         <td class="max-dsi-cell dsi-cell">9.43%</td>
-                        <td class="zone-cell"><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="zone-cell"><span class="badge badge-excluded">Excluded</span></td>
                         <td class="view-cell"><button class="btn-inspect" onclick="openPreviewModal('../DATA/pixel_comparison_per_tool/tool102_overlay_dsi_stacked.png', 'tool102')">View</button></td>
                         <td class="type-cell">endmill</td>
                         <td class="flutes-cell">3</td>
                         <td class="org-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="work-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="notes-cell">
-                            <div class="editable-note" contenteditable="true" data-tool-id="tool102" oninput="onNoteInput(this)" title="Click to edit physical notes">Uncoated</div>
+                            <div class="editable-note" contenteditable="true" data-tool-id="tool102" oninput="onNoteInput(this)" title="Click to edit physical notes">Excluded: User-Excluded Tool (Screened Outlier / Asymmetry) | Uncoated</div>
                         </td>
                         <td class="dia-cell">10.0</td>
                         <td class="diff-cell">30,428</td>
                         <td class="roi-cell">565px</td>
                     </tr>
-                    <tr class="" data-tool-id="tool103">
+                    <tr class="row-excluded" data-tool-id="tool103">
                         <td class="tool-id-cell">tool103</td>
-                        <td class="status-cell"><span class="badge badge-status-kept">Kept (Active)</span></td>
+                        <td class="status-cell"><span class="badge badge-status-excl">Discarded (Excluded)</span></td>
                         <td class="sym-cell">
                             <select class="symmetry-select sym-unassigned" data-tool-id="tool103" onchange="onSymmetryChange(this)">
                                 <option value="" class="opt-unassigned" selected>⚪ — Select —</option>
@@ -3299,14 +3299,14 @@
                         </td>
                         <td class="mean-dsi-cell dsi-cell">5.07%</td>
                         <td class="max-dsi-cell dsi-cell">6.43%</td>
-                        <td class="zone-cell"><span class="badge badge-zone3">Zone 3: Reject (> 4.0%)</span></td>
+                        <td class="zone-cell"><span class="badge badge-excluded">Excluded</span></td>
                         <td class="view-cell"><button class="btn-inspect" onclick="openPreviewModal('../DATA/pixel_comparison_per_tool/tool103_overlay_dsi_stacked.png', 'tool103')">View</button></td>
                         <td class="type-cell">endmill</td>
                         <td class="flutes-cell">3</td>
                         <td class="org-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="work-cond-cell"><span class="badge badge-fractured">fractured</span></td>
                         <td class="notes-cell">
-                            <div class="editable-note" contenteditable="true" data-tool-id="tool103" oninput="onNoteInput(this)" title="Click to edit physical notes">Standard symmetric geometry</div>
+                            <div class="editable-note" contenteditable="true" data-tool-id="tool103" oninput="onNoteInput(this)" title="Click to edit physical notes">Excluded: User-Excluded Tool (Screened Outlier / Asymmetry)</div>
                         </td>
                         <td class="dia-cell">9.0</td>
                         <td class="diff-cell">20,021</td>
